@@ -24,3 +24,8 @@ $$;
 
 grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant select on tables to anon, authenticated;
+
+-- Supabase grants the client roles access to auth.jwt(); mirror that so RLS
+-- policies that call is_admin() evaluate for anon instead of erroring.
+grant usage on schema auth to anon, authenticated, service_role;
+grant execute on function auth.jwt() to anon, authenticated, service_role;
