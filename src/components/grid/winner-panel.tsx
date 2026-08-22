@@ -1,10 +1,46 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { Check, ImageDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
 import { payoutCents, winningBlock, isPermutation } from "@/lib/pool";
 import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
+
+/** One tap copies the 1200x630 share card for the group chat (spec 4.8). */
+function ShareCardButton({ cardUrl }: { cardUrl: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const blob = await fetch(cardUrl).then((r) => r.blob());
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard images aren't supported everywhere — open the card instead.
+      window.open(cardUrl, "_blank", "noopener");
+    }
+  };
+  return (
+    <button
+      onClick={copy}
+      aria-label="Copy the share card image"
+      title="Copy share card"
+      className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground transition-colors duration-150 hover:text-foreground"
+    >
+      {copied ? (
+        <Check className="size-3.5 text-emerald-400" />
+      ) : (
+        <ImageDown className="size-3.5" />
+      )}
+    </button>
+  );
+}
 
 function Row({
   icon,
@@ -14,6 +50,7 @@ function Row({
   name,
   amount,
   pulse,
+  cardUrl,
 }: {
   icon: string;
   label: string;
@@ -22,6 +59,7 @@ function Row({
   name: string | null;
   amount: string | null;
   pulse?: boolean;
+  cardUrl?: string;
 }) {
   return (
     <Link
@@ -53,6 +91,7 @@ function Row({
           {amount}
         </span>
       )}
+      {cardUrl && <ShareCardButton cardUrl={cardUrl} />}
     </Link>
   );
 }
@@ -94,6 +133,7 @@ export function WinnerPanel({
           block={game.final_block}
           name={byNumber.get(game.final_block)?.display_name ?? null}
           amount={fmtUsd(payoutCents(game.game_type, "final", config))}
+          cardUrl={`/api/card/${game.id}/final.png`}
         />
       )}
       {game.halftime_block !== null && (
@@ -104,6 +144,7 @@ export function WinnerPanel({
           block={game.halftime_block}
           name={byNumber.get(game.halftime_block)?.display_name ?? null}
           amount={fmtUsd(payoutCents(game.game_type, "halftime", config))}
+          cardUrl={`/api/card/${game.id}/halftime.png`}
         />
       )}
       {liveBlock !== null && (
