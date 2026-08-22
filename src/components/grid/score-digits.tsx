@@ -15,7 +15,7 @@ export function ScoreDigits({
   if (score === null || score === undefined) {
     return (
       <span
-        className={cn("font-semibold text-muted-foreground/50 tabular-nums", className)}
+        className={cn("font-semibold text-muted-foreground tabular-nums", className)}
         data-numeric
       >
         –

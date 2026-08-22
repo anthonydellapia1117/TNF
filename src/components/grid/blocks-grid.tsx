@@ -245,13 +245,13 @@ function GridCell({
         comfortable ? "h-14" : "aspect-square",
         // Base state treatments (spec 4.1 table).
         status === "available" &&
-          "border-dashed border-[color:var(--available)] bg-transparent text-muted-foreground/70 hover:border-pool-accent/70",
+          "border-dashed border-[color:var(--available)] bg-transparent text-muted-foreground hover:border-pool-accent/70",
         status === "reserved" &&
           "border-border bg-[color-mix(in_srgb,var(--reserved)_22%,transparent)] text-muted-foreground hover:border-pool-accent/50",
         status === "assigned" &&
           "border-border bg-surface-2 text-foreground hover:border-pool-accent/50",
         status === "held" &&
-          "border-border bg-transparent text-muted-foreground/40",
+          "border-border bg-transparent text-muted-foreground",
         // Winner treatments override the base.
         cell.isFinal &&
           !both &&
@@ -300,7 +300,7 @@ function GridCell({
           <span
             className={cn(
               "absolute top-0.5 left-1 text-2xs tabular-nums",
-              cell.isFinal || both ? "text-black/60" : "text-muted-foreground/70",
+              cell.isFinal || both ? "text-black/70" : "text-muted-foreground",
             )}
             data-numeric
           >
