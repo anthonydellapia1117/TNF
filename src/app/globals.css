@@ -1,0 +1,212 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", monospace;
+  --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Semantic block/game colors — spec section 5 */
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-available: var(--available);
+  --color-reserved: var(--reserved);
+  --color-assigned: var(--assigned);
+  --color-halftime: var(--halftime);
+  --color-final: var(--final);
+  --color-live: var(--live);
+  --color-holiday: var(--holiday);
+  --color-pool-accent: var(--pool-accent);
+
+  /* Type scale: 11 / 12 / 13 / 14 / 16 / 20 / 28 / 40 / 56 (56 = live scores) */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 0.875rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-lg: 1rem;
+  --text-lg--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.125rem;
+  --text-3xl: 2.5rem;
+  --text-3xl--line-height: 2.75rem;
+  --text-4xl: 3.5rem;
+  --text-4xl--line-height: 3.75rem;
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+/* Premium Executive — dark first (spec section 5). Borders, not shadows. */
+:root {
+  --background: #0b0d0f;
+  --foreground: #e8eaed;
+  --surface: #14171a;
+  --surface-2: #1c2024;
+  --card: #14171a;
+  --card-foreground: #e8eaed;
+  --popover: #1c2024;
+  --popover-foreground: #e8eaed;
+  --primary: #4f7cff;
+  --primary-foreground: #ffffff;
+  --secondary: #1c2024;
+  --secondary-foreground: #e8eaed;
+  --muted: #1c2024;
+  --muted-foreground: #8a9099;
+  --accent: #1c2024;
+  --accent-foreground: #e8eaed;
+  --destructive: #ef4444;
+  --border: #262b31;
+  --input: #262b31;
+  --ring: #4f7cff;
+
+  --available: #3f4650;
+  --reserved: #4a5560;
+  --assigned: #1c2024;
+  --halftime: #f59e0b;
+  --final: #fbbf24;
+  --live: #3b82f6;
+  --holiday: #c2410c;
+  --pool-accent: #4f7cff;
+
+  --chart-1: #4f7cff;
+  --chart-2: #fbbf24;
+  --chart-3: #f59e0b;
+  --chart-4: #64748b;
+  --chart-5: #3b82f6;
+
+  --radius: 0.375rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground text-base;
+    font-weight: 400;
+  }
+  html {
+    @apply font-sans;
+    color-scheme: dark;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-weight: 600;
+  }
+  /* tabular-nums on every number without exception (spec section 5) */
+  table,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Live leader: pulsing blue outline */
+  @keyframes live-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1.5px var(--live);
+    }
+    50% {
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 45%, transparent);
+    }
+  }
+  .live-pulse {
+    animation: live-pulse 1.6s ease-in-out infinite;
+  }
+
+  /* Winner reveal: row + column light up, converging on the cell (600ms) */
+  @keyframes reveal-wash {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .reveal-wash {
+    animation: reveal-wash 600ms ease-out both;
+  }
+  @keyframes reveal-cell {
+    0% {
+      transform: scale(0.92);
+      opacity: 0.4;
+    }
+    60% {
+      transform: scale(1.04);
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  .reveal-cell {
+    animation: reveal-cell 600ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  /* Digit publish: positions animate in, 40ms apart */
+  @keyframes digit-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .digit-in {
+    animation: digit-in 200ms ease-out both;
+    animation-delay: calc(var(--digit-i, 0) * 40ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .live-pulse,
+    .reveal-wash,
+    .reveal-cell,
+    .digit-in {
+      animation: none;
+    }
+  }
+}
