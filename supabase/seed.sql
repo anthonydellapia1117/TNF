@@ -1,7 +1,4 @@
 -- Seed data (spec section 6). Names are stored verbatim, case preserved.
--- The 05_SCHEDULE_2026_TNF.csv file is not in the repo, so per spec 6.2 the
--- 22 games after G01 carry placeholder matchups/dates with
--- date_confirmed = false for Anthony to fill in at /admin/games.
 --
 -- Spec 6.3's header says "26 blocks committed" but its table lists 27 rows
 -- (13 with numbers, 14 without). The table is the source of truth; the app
@@ -9,32 +6,45 @@
 
 -- ---------------------------------------------------------------------------
 -- Games: 23 total — 15 regular, 8 holiday. Payouts sum to exactly $44,250.
+--
+-- The real 2026 schedule, pulled from nflverse (nfldata games.csv) and
+-- cross-verified game-for-game against ESPN, including kickoff times and
+-- networks. The slate is every Thursday game plus the holiday package
+-- (3 Thanksgiving, 1 Christmas Eve, 3 Christmas Day, 1 New Year's Eve) and
+-- the Wednesday season opener the spec pins as G01. The one judgment call:
+-- the schedule also has a Wednesday Thanksgiving-eve special (GB @ LA,
+-- Nov 25, Netflix) which is NOT included — including it would give 24
+-- games and put four games in the Thanksgiving week, and the spec says
+-- Thanksgiving has three. Swap it in at /admin/games if the pool wants it.
+--
+-- G19 and G23 ship with date_confirmed = false (spec 6.2) even though the
+-- league dates exist — late-December games can flex; confirming is one tap.
 -- ---------------------------------------------------------------------------
 
 insert into games (game_no, week, kickoff_at, date_confirmed, game_type, holiday_label, away_team, home_team, network) values
-  ( 1,  1, '2026-09-10 00:20:00+00', true,  'regular', null,            'New England Patriots',  'Seattle Seahawks',      'NBC'),
-  ( 2,  2, '2026-09-18 00:15:00+00', false, 'regular', null,            'Buffalo Bills',         'Miami Dolphins',        'Prime Video'),
-  ( 3,  3, '2026-09-25 00:15:00+00', false, 'regular', null,            'Philadelphia Eagles',   'New York Giants',       'Prime Video'),
-  ( 4,  4, '2026-10-02 00:15:00+00', false, 'regular', null,            'Los Angeles Rams',      'San Francisco 49ers',   'Prime Video'),
-  ( 5,  5, '2026-10-09 00:15:00+00', false, 'regular', null,            'Denver Broncos',        'Las Vegas Raiders',     'Prime Video'),
-  ( 6,  6, '2026-10-16 00:15:00+00', false, 'regular', null,            'Pittsburgh Steelers',   'Cleveland Browns',      'Prime Video'),
-  ( 7,  7, '2026-10-23 00:15:00+00', false, 'regular', null,            'Houston Texans',        'Jacksonville Jaguars',  'Prime Video'),
-  ( 8,  8, '2026-10-30 00:15:00+00', false, 'regular', null,            'Minnesota Vikings',     'Green Bay Packers',     'Prime Video'),
-  ( 9,  9, '2026-11-06 01:15:00+00', false, 'regular', null,            'New York Jets',         'Tennessee Titans',      'Prime Video'),
-  (10, 10, '2026-11-13 01:15:00+00', false, 'regular', null,            'Atlanta Falcons',       'New Orleans Saints',    'Prime Video'),
-  (11, 11, '2026-11-20 01:15:00+00', false, 'regular', null,            'Chicago Bears',         'Carolina Panthers',     'Prime Video'),
-  (12, 12, '2026-11-26 17:30:00+00', false, 'holiday', 'Thanksgiving',  'Kansas City Chiefs',    'Detroit Lions',         'FOX'),
-  (13, 12, '2026-11-26 21:30:00+00', false, 'holiday', 'Thanksgiving',  'Dallas Cowboys',        'Washington Commanders', 'CBS'),
-  (14, 12, '2026-11-27 01:20:00+00', false, 'holiday', 'Thanksgiving',  'Cincinnati Bengals',    'Baltimore Ravens',      'NBC'),
-  (15, 13, '2026-12-04 01:15:00+00', false, 'regular', null,            'Los Angeles Chargers',  'Arizona Cardinals',     'Prime Video'),
-  (16, 14, '2026-12-11 01:15:00+00', false, 'regular', null,            'Indianapolis Colts',    'Tampa Bay Buccaneers',  'Prime Video'),
-  (17, 15, '2026-12-18 01:15:00+00', false, 'regular', null,            'Green Bay Packers',     'Chicago Bears',         'Prime Video'),
-  (18, 16, '2026-12-25 01:15:00+00', false, 'holiday', 'Christmas Eve', 'Kansas City Chiefs',    'Denver Broncos',        'Netflix'),
-  (19, 16, '2026-12-25 18:00:00+00', false, 'holiday', 'Christmas Day', 'Dallas Cowboys',        'Philadelphia Eagles',   'Netflix'),
-  (20, 16, '2026-12-25 21:30:00+00', false, 'holiday', 'Christmas Day', 'Baltimore Ravens',      'Pittsburgh Steelers',   'Netflix'),
-  (21, 16, '2026-12-26 01:15:00+00', false, 'holiday', 'Christmas Day', 'San Francisco 49ers',   'Los Angeles Rams',      'Netflix'),
-  (22, 16, '2026-12-27 01:00:00+00', false, 'regular', null,            'Buffalo Bills',         'New England Patriots',  'NFL Network'),
-  (23, 17, '2027-01-01 01:15:00+00', false, 'holiday', 'New Year''s Eve', 'Miami Dolphins',      'New York Jets',         'Prime Video');
+  ( 1,  1, '2026-09-10 00:20:00+00', true,  'regular', null,            'New England Patriots',   'Seattle Seahawks',      'NBC'),
+  ( 2,  1, '2026-09-11 00:35:00+00', true,  'regular', null,            'San Francisco 49ers',    'Los Angeles Rams',      'Netflix'),
+  ( 3,  2, '2026-09-18 00:15:00+00', true,  'regular', null,            'Detroit Lions',          'Buffalo Bills',         'Prime Video'),
+  ( 4,  3, '2026-09-25 00:15:00+00', true,  'regular', null,            'Atlanta Falcons',        'Green Bay Packers',     'Prime Video'),
+  ( 5,  4, '2026-10-02 00:15:00+00', true,  'regular', null,            'Pittsburgh Steelers',    'Cleveland Browns',      'Prime Video'),
+  ( 6,  5, '2026-10-09 00:15:00+00', true,  'regular', null,            'Tampa Bay Buccaneers',   'Dallas Cowboys',        'Prime Video'),
+  ( 7,  6, '2026-10-16 00:15:00+00', true,  'regular', null,            'Seattle Seahawks',       'Denver Broncos',        'Prime Video'),
+  ( 8,  7, '2026-10-23 00:15:00+00', true,  'regular', null,            'New England Patriots',   'Chicago Bears',         'Prime Video'),
+  ( 9,  8, '2026-10-30 00:15:00+00', true,  'regular', null,            'Carolina Panthers',      'Green Bay Packers',     'Prime Video'),
+  (10,  9, '2026-11-06 01:15:00+00', true,  'regular', null,            'Jacksonville Jaguars',   'Baltimore Ravens',      'Prime Video'),
+  (11, 10, '2026-11-13 01:15:00+00', true,  'regular', null,            'Washington Commanders',  'New York Giants',       'Prime Video'),
+  (12, 11, '2026-11-20 01:15:00+00', true,  'regular', null,            'Indianapolis Colts',     'Houston Texans',        'Prime Video'),
+  (13, 12, '2026-11-26 18:00:00+00', true,  'holiday', 'Thanksgiving',  'Chicago Bears',          'Detroit Lions',         'CBS'),
+  (14, 12, '2026-11-26 21:30:00+00', true,  'holiday', 'Thanksgiving',  'Philadelphia Eagles',    'Dallas Cowboys',        'FOX'),
+  (15, 12, '2026-11-27 01:20:00+00', true,  'holiday', 'Thanksgiving',  'Kansas City Chiefs',     'Buffalo Bills',         'NBC'),
+  (16, 13, '2026-12-04 01:15:00+00', true,  'regular', null,            'Kansas City Chiefs',     'Los Angeles Rams',      'Prime Video'),
+  (17, 14, '2026-12-11 01:15:00+00', true,  'regular', null,            'Minnesota Vikings',      'New England Patriots',  'Prime Video'),
+  (18, 15, '2026-12-18 01:15:00+00', true,  'regular', null,            'San Francisco 49ers',    'Los Angeles Chargers',  'Prime Video'),
+  (19, 16, '2026-12-25 01:15:00+00', false, 'holiday', 'Christmas Eve', 'Houston Texans',         'Philadelphia Eagles',   'Prime Video'),
+  (20, 16, '2026-12-25 18:00:00+00', true,  'holiday', 'Christmas Day', 'Green Bay Packers',      'Chicago Bears',         'Netflix'),
+  (21, 16, '2026-12-25 21:30:00+00', true,  'holiday', 'Christmas Day', 'Buffalo Bills',          'Denver Broncos',        'Netflix'),
+  (22, 16, '2026-12-26 01:15:00+00', true,  'holiday', 'Christmas Day', 'Los Angeles Rams',       'Seattle Seahawks',      'FOX'),
+  (23, 17, '2027-01-01 01:15:00+00', false, 'holiday', 'New Year''s Eve', 'Baltimore Ravens',     'Cincinnati Bengals',    'Prime Video');
 
 -- ---------------------------------------------------------------------------
 -- Participants: 25 people, 27 committed blocks (Jr/Diz and Anthony Astorga

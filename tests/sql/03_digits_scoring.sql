@@ -13,12 +13,17 @@ declare
   v_home int;
   v_away int;
 begin
+  -- Force the fixture state explicitly (rolled back at file end) so the
+  -- test is independent of what the seed says about G02. The failure
+  -- markers deliberately avoid the words the expected errors contain —
+  -- otherwise an unexpected success gets swallowed by its own handler.
   select id into g2 from games where game_no = 2;
+  update games set date_confirmed = false, kickoff_at = now() + interval '7 days' where id = g2;
 
   -- Gate: never assign when date_confirmed = false.
   begin
     perform admin_assign_digits(g2, 'test');
-    raise exception 'digits assigned to an unconfirmed date';
+    raise exception 'TEST FAILURE: assign accepted a TBD date';
   exception
     when raise_exception then
       if sqlerrm not like '%unconfirmed%' then raise; end if;
@@ -28,7 +33,7 @@ begin
   update games set date_confirmed = true, kickoff_at = now() - interval '1 hour' where id = g2;
   begin
     perform admin_assign_digits(g2, 'test');
-    raise exception 'digits assigned after kickoff';
+    raise exception 'TEST FAILURE: assign accepted a started game';
   exception
     when raise_exception then
       if sqlerrm not like '%kickoff%' then raise; end if;
@@ -37,7 +42,7 @@ begin
   -- Gate: never score before digits are published (no digits at all yet).
   begin
     perform admin_score_game(g2, 'final', 14, 27, 'test');
-    raise exception 'scored before digits published';
+    raise exception 'TEST FAILURE: scoring accepted with no digits';
   exception
     when raise_exception then
       if sqlerrm not like '%published%' then raise; end if;
