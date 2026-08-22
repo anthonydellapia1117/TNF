@@ -82,9 +82,15 @@ export default async function AdminOverview() {
         </div>
       )}
 
+      {/* COMMITTED (agreed to buy, drives money) vs PLACED (has a number on
+          the grid) — two concepts, never labeled as each other. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Blocks sold" value={`${pot.reserved + pot.assigned}/${config.blocks_total}`} sub={`${pot.assigned} paid · ${pot.reserved} reserved`} />
-        <Stat label="Collected" value={fmtUsd(pot.collected_cents)} sub={`${fmtUsd(pot.due_cents)} committed`} />
+        <Stat
+          label="Blocks"
+          value={`${config.price_per_block_cents > 0 ? Math.round(pot.due_cents / config.price_per_block_cents) : 0} committed`}
+          sub={`${pot.reserved + pot.assigned} placed · ${fmtUsd(pot.due_cents)} due`}
+        />
+        <Stat label="Collected" value={fmtUsd(pot.collected_cents)} sub={`of ${fmtUsd(pot.due_cents)} due`} />
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />
         <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents)} owed to winners`} />
       </div>

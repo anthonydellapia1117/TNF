@@ -114,14 +114,14 @@ export function BoardGrid({
               className="size-2.5 rounded-[2px] border border-dashed border-pool-accent/60 bg-pool-accent/10"
               aria-hidden
             />
-            Open <span data-numeric>{open}</span>
+            Open numbers <span data-numeric>{open}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span
               className="size-2.5 rounded-[2px] border border-border bg-surface-2"
               aria-hidden
             />
-            Taken <span data-numeric>{taken}</span>
+            Placed <span data-numeric>{taken}</span>
           </span>
           {held > 0 && (
             <span className="flex items-center gap-1.5">

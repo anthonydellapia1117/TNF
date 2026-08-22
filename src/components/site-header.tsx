@@ -1,21 +1,35 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Menu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
-// "Home" hides on phones — the wordmark already goes home, and the four
-// real destinations must fit a 380px viewport without truncating.
 const NAV = [
-  { href: "/", label: "Home", desktopOnly: true },
+  { href: "/", label: "Home" },
   { href: "/grid", label: "Grid" },
   { href: "/blocks", label: "Board" },
   { href: "/schedule", label: "Schedule" },
   { href: "/winners", label: "Winners" },
+  { href: "/admin", label: "Admin" },
 ] as const;
+
+function isActive(pathname: string, href: string): boolean {
+  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+}
 
 export function SiteHeader() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur">
       <div className="mx-auto flex h-12 w-full max-w-7xl items-center gap-1 px-4 sm:px-6">
@@ -25,39 +39,76 @@ export function SiteHeader() {
         >
           <span className="text-pool-accent">1622</span>
           <span>TNF</span>
-          <span className="hidden text-2xs font-normal text-muted-foreground sm:inline">
+          <span className="hidden text-2xs font-normal text-muted-foreground md:inline">
             Block Pool ’26
           </span>
         </Link>
-        <nav className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          {NAV.map((item) => {
-            const active =
-              item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "rounded-md px-2 py-1.5 text-sm whitespace-nowrap transition-colors duration-150 sm:px-2.5",
-                  "desktopOnly" in item && item.desktopOnly && "hidden sm:block",
-                  active
-                    ? "bg-surface-2 text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+
+        {/* Desktop: inline nav */}
+        <nav className="hidden min-w-0 flex-1 items-center gap-0.5 sm:flex">
+          {NAV.slice(0, 5).map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap transition-colors duration-150",
+                isActive(pathname, item.href)
+                  ? "bg-surface-2 text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {item.label}
+            </Link>
+          ))}
+          <div className="flex-1" />
+          <Link
+            href="/admin"
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-sm transition-colors duration-150",
+              isActive(pathname, "/admin")
+                ? "bg-surface-2 text-foreground"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            Admin
+          </Link>
         </nav>
-        <Link
-          href="/admin"
-          className="shrink-0 rounded-md px-2.5 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
-        >
-          Admin
-        </Link>
+
+        {/* Phone: hamburger menu — every destination reachable at any width */}
+        <div className="flex flex-1 items-center justify-end sm:hidden">
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger
+              aria-label="Open menu"
+              className="rounded-md p-2 text-muted-foreground transition-colors duration-150 hover:text-foreground"
+            >
+              <Menu className="size-5" aria-hidden />
+            </SheetTrigger>
+            <SheetContent side="right" className="w-64">
+              <SheetHeader>
+                <SheetTitle>
+                  <span className="text-pool-accent">1622</span> TNF
+                </SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-2" aria-label="Site">
+                {NAV.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "rounded-md px-3 py-2.5 text-base transition-colors duration-150",
+                      isActive(pathname, item.href)
+                        ? "bg-surface-2 font-medium text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );

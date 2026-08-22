@@ -180,15 +180,18 @@ export default async function DashboardPage() {
   const next = currentGame(games);
   const gamesById = new Map(games.map((g) => [g.id, g]));
 
-  // Committed blocks include requests with no number chosen yet — due_cents
-  // already counts greatest(requested, held) per participant at read time.
-  const taken =
+  // Two distinct block concepts, never conflated (vocabulary rule):
+  //   COMMITTED — blocks people agreed to buy (drives money); due_cents
+  //   already counts greatest(requested, held) per participant.
+  //   PLACED — blocks with an actual number on the grid.
+  const committed =
     config.price_per_block_cents > 0
       ? Math.round(pot.due_cents / config.price_per_block_cents)
       : 0;
-  const open = Math.max(0, config.blocks_total - taken);
-  const takenPct =
-    config.blocks_total > 0 ? (taken / config.blocks_total) * 100 : 0;
+  const placed = pot.reserved + pot.assigned;
+  const open = Math.max(0, config.blocks_total - committed);
+  const committedPct =
+    config.blocks_total > 0 ? (committed / config.blocks_total) * 100 : 0;
 
   const seasonTotal = seasonPayoutTotalCents(games, config);
   const paid = pot.paid_out_cents;
@@ -206,21 +209,24 @@ export default async function DashboardPage() {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <StatCard
-          label="Blocks"
+          label="Blocks committed"
           icon={<LayoutGrid className="size-3" aria-hidden />}
         >
           <p className="mt-2 text-2xl font-semibold" data-numeric>
-            {taken}
+            {committed}
             <span className="text-sm font-normal text-muted-foreground">
               /{config.blocks_total}
             </span>
           </p>
-          <div className="mt-3 h-1 overflow-hidden rounded-full bg-surface-2">
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-2">
             <div
               className="h-full rounded-full bg-pool-accent"
-              style={{ width: `${takenPct}%` }}
+              style={{ width: `${committedPct}%` }}
             />
           </div>
+          <p className="mt-1.5 text-2xs text-muted-foreground" data-numeric>
+            {placed} placed on the grid
+          </p>
         </StatCard>
 
         <StatCard
