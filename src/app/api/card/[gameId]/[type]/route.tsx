@@ -92,7 +92,7 @@ export async function GET(
           display: "flex",
           backgroundColor: C.bg,
           color: C.text,
-          padding: 48,
+          padding: 40,
           fontFamily: "sans-serif",
         }}
       >
@@ -175,20 +175,19 @@ export async function GET(
             </div>
             <span
               style={{
-                fontSize: 40,
+                fontSize: 36,
                 fontWeight: 800,
                 color: C.text,
-                marginTop: 6,
+                marginTop: 4,
               }}
             >
               {winner}
             </span>
             <span
               style={{
-                fontSize: 54,
+                fontSize: 48,
                 fontWeight: 800,
                 color: winColor,
-                marginTop: 4,
               }}
             >
               {amountLabel}
