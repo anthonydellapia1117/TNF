@@ -51,6 +51,7 @@ function Row({
   amount,
   pulse,
   cardUrl,
+  review,
 }: {
   icon: string;
   label: string;
@@ -60,6 +61,8 @@ function Row({
   amount: string | null;
   pulse?: boolean;
   cardUrl?: string;
+  /** Winning block is not Assigned: no payout exists (spec D6/E2). */
+  review?: boolean;
 }) {
   return (
     <Link
@@ -67,15 +70,16 @@ function Row({
       className={cn(
         "flex items-center gap-3 rounded-md border border-border bg-surface px-3 py-2.5 transition-colors duration-150 hover:bg-surface-2",
         pulse && "border-live/50",
+        review && "border-destructive/60",
       )}
     >
       <span className="text-lg" aria-hidden>
-        {icon}
+        {review ? "⚠️" : icon}
       </span>
       <span
         className={cn(
           "w-16 shrink-0 text-2xs font-bold tracking-widest",
-          labelClass,
+          review ? "text-destructive" : labelClass,
         )}
       >
         {label}
@@ -86,12 +90,18 @@ function Row({
       <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
         {name ?? "Unclaimed"}
       </span>
-      {amount && (
-        <span className="text-sm font-semibold tabular-nums" data-numeric>
-          {amount}
+      {review ? (
+        <span className="text-2xs font-bold tracking-wide text-destructive">
+          NO PAYOUT · REVIEW
         </span>
+      ) : (
+        amount && (
+          <span className="text-sm font-semibold tabular-nums" data-numeric>
+            {amount}
+          </span>
+        )
       )}
-      {cardUrl && <ShareCardButton cardUrl={cardUrl} />}
+      {cardUrl && !review && <ShareCardButton cardUrl={cardUrl} />}
     </Link>
   );
 }
@@ -134,6 +144,7 @@ export function WinnerPanel({
           name={byNumber.get(game.final_block)?.display_name ?? null}
           amount={fmtUsd(payoutCents(game.game_type, "final", config))}
           cardUrl={`/api/card/${game.id}/final.png`}
+          review={byNumber.get(game.final_block)?.status !== "assigned"}
         />
       )}
       {game.halftime_block !== null && (
@@ -145,6 +156,7 @@ export function WinnerPanel({
           name={byNumber.get(game.halftime_block)?.display_name ?? null}
           amount={fmtUsd(payoutCents(game.game_type, "halftime", config))}
           cardUrl={`/api/card/${game.id}/halftime.png`}
+          review={byNumber.get(game.halftime_block)?.status !== "assigned"}
         />
       )}
       {liveBlock !== null && (

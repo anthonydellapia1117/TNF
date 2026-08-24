@@ -72,6 +72,7 @@ export function GameHeader({
           <ScoreDigits
             score={scores.away}
             className="text-3xl sm:text-4xl"
+            style={scores.away !== null ? { color: away.color } : undefined}
           />
           <p className="text-2xs tracking-widest text-muted-foreground uppercase">
             away
@@ -89,6 +90,7 @@ export function GameHeader({
           <ScoreDigits
             score={scores.home}
             className="text-3xl sm:text-4xl"
+            style={scores.home !== null ? { color: home.color } : undefined}
           />
           <p className="text-2xs tracking-widest text-muted-foreground uppercase">
             home

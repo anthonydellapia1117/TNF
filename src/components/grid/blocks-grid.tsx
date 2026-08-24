@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { BadgeCheck, TriangleAlert, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
-import { teamInfo } from "@/lib/nfl";
+import { teamPalette } from "@/lib/nfl";
 import {
   adjacentBlocks,
   blockPosition,
@@ -57,8 +57,8 @@ export function BlocksGrid({
   const nearMiss = new Set(finalBlock ? adjacentBlocks(finalBlock) : []);
 
   const blockMap = new Map(blocks.map((b) => [b.block_number, b]));
-  const away = teamInfo(game.away_team);
-  const home = teamInfo(game.home_team);
+  const away = teamPalette(game.away_team);
+  const home = teamPalette(game.home_team);
   const halfAmount = payoutCents(game.game_type, "halftime", config);
   const finalAmount = payoutCents(game.game_type, "final", config);
 
@@ -85,28 +85,24 @@ export function BlocksGrid({
         comfortable ? "mx-auto w-fit max-w-full" : "mx-auto w-full max-w-2xl",
       )}
     >
-      {/* Home axis: vertical, pinned outside the scroll area */}
-      <div className="flex shrink-0 items-center">
-        <p
-          className="text-2xs font-semibold tracking-widest uppercase [writing-mode:vertical-rl] rotate-180"
-          style={{ color: home.color }}
+      {/* Home axis: a solid vertical rail in the team's color, name rotated,
+          pinned outside the scroll area (spec A3). */}
+      <div className="flex shrink-0 items-stretch">
+        <div
+          className="flex w-5 items-center justify-center overflow-hidden rounded-md sm:w-6"
+          style={{ backgroundColor: home.bar.bg }}
         >
-          <span className="text-muted-foreground">home · </span>
-          {comfortable ? game.home_team : home.abbr}
-        </p>
+          <p
+            className="rotate-180 text-2xs font-bold tracking-widest whitespace-nowrap uppercase [writing-mode:vertical-rl]"
+            style={{ color: home.bar.fg }}
+          >
+            home · {game.home_team}
+          </p>
+        </div>
       </div>
 
       <div className={cn("min-w-0 flex-1", comfortable && "overflow-x-auto pb-2")}>
         <div className={comfortable ? "w-max min-w-full" : undefined}>
-          {/* Away axis */}
-          <p
-            className="mb-1 text-center text-2xs font-semibold tracking-widest uppercase"
-            style={{ color: away.color }}
-          >
-            <span className="text-muted-foreground">away · </span>
-            {game.away_team}
-          </p>
-
           <div
             className="grid gap-[3px]"
             style={{
@@ -115,7 +111,25 @@ export function BlocksGrid({
                 : "1.125rem repeat(10, minmax(0, 1fr))",
             }}
           >
-            {/* Corner + away digit headers */}
+            {/* Away axis: a full-width solid bar in the team's color with the
+                digit cells sitting inside it (spec A3). */}
+            <div
+              className={cn(
+                "sticky left-0 z-10 bg-background",
+                !comfortable && "static",
+              )}
+            />
+            <div
+              className="flex h-6 items-center justify-center rounded-t-md text-2xs font-bold tracking-widest uppercase"
+              style={{
+                gridColumn: "2 / -1",
+                backgroundColor: away.bar.bg,
+                color: away.bar.fg,
+              }}
+            >
+              away · {game.away_team}
+            </div>
+
             <div
               className={cn(
                 "sticky left-0 z-10 bg-background",
@@ -125,9 +139,13 @@ export function BlocksGrid({
             {Array.from({ length: 10 }, (_, c) => (
               <div
                 key={`ch-${c}`}
-                className="digit-in pb-0.5 text-center text-sm font-semibold tabular-nums"
+                className={cn(
+                  "digit-in rounded-b-[4px] py-0.5 text-center text-sm font-semibold tabular-nums",
+                  !published && "opacity-70",
+                )}
                 style={{
-                  color: published ? away.color : "var(--text-muted, #8A9099)",
+                  backgroundColor: away.bar.bg,
+                  color: away.bar.fg,
                   ["--digit-i" as string]: c,
                 }}
                 data-numeric
@@ -141,7 +159,7 @@ export function BlocksGrid({
                 key={`r-${r}`}
                 r={r}
                 rows={rows}
-                homeColor={home.color}
+                homeBar={home.bar}
                 published={published}
                 comfortable={comfortable}
                 cellFor={cellFor}
@@ -160,7 +178,7 @@ export function BlocksGrid({
 function RowCells({
   r,
   rows,
-  homeColor,
+  homeBar,
   published,
   comfortable,
   cellFor,
@@ -170,7 +188,7 @@ function RowCells({
 }: {
   r: number;
   rows: number[] | null;
-  homeColor: string;
+  homeBar: { bg: string; fg: string };
   published: boolean;
   comfortable: boolean;
   cellFor: (r: number, c: number) => CellState;
@@ -180,13 +198,16 @@ function RowCells({
 }) {
   return (
     <>
+      {/* Home digit cell: sits inside the home team's colored rail. */}
       <div
         className={cn(
-          "digit-in flex items-center justify-center pr-1 text-sm font-semibold tabular-nums",
-          comfortable && "sticky left-0 z-10 bg-background",
+          "digit-in flex items-center justify-center rounded-[4px] text-sm font-semibold tabular-nums",
+          !published && "opacity-70",
+          comfortable && "sticky left-0 z-10",
         )}
         style={{
-          color: published ? homeColor : "var(--text-muted, #8A9099)",
+          backgroundColor: homeBar.bg,
+          color: homeBar.fg,
           ["--digit-i" as string]: 10 + r,
         }}
         data-numeric
@@ -224,12 +245,22 @@ function GridCell({
   const status = b?.status ?? "available";
   const name = b?.display_name ?? null;
   const both = cell.isHalf && cell.isFinal;
+  // E2: a winning block that is not Assigned is a review flag — red
+  // overrides every other state, and no amount is shown because no payout
+  // exists.
+  const review = (cell.isHalf || cell.isFinal) && status !== "assigned";
 
   const label = [
     `Block ${cell.n}`,
     name ? `— ${name}` : "— available",
-    cell.isFinal ? `· final winner ${fmtUsd(finalAmount)}` : "",
-    cell.isHalf ? `· halftime winner ${fmtUsd(halfAmount)}` : "",
+    review
+      ? `· winning block is ${status} — under review, no payout`
+      : [
+          cell.isFinal ? `· final winner ${fmtUsd(finalAmount)}` : "",
+          cell.isHalf ? `· halftime winner ${fmtUsd(halfAmount)}` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
     cell.isLive ? "· leading if it ended now" : "",
   ]
     .filter(Boolean)
@@ -253,17 +284,22 @@ function GridCell({
         status === "held" &&
           "border-border bg-transparent text-muted-foreground",
         // Winner treatments override the base.
-        cell.isFinal &&
+        !review &&
+          cell.isFinal &&
           !both &&
           "reveal-cell z-10 border-final bg-final text-black",
-        cell.isHalf &&
+        !review &&
+          cell.isHalf &&
           !both &&
           "z-10 border-halftime ring-2 ring-halftime ring-inset",
-        both && "reveal-cell z-10 border-final text-black",
+        !review && both && "reveal-cell z-10 border-final text-black",
+        // The review flag overrides everything (spec E2).
+        review &&
+          "reveal-cell z-10 border-destructive bg-destructive/15 ring-2 ring-destructive/70 ring-inset text-foreground",
         cell.isLive && "live-pulse z-10 border-live",
       )}
       style={
-        both
+        both && !review
           ? {
               background:
                 "linear-gradient(135deg, var(--halftime) 0%, var(--halftime) 50%, var(--final) 50%, var(--final) 100%)",
@@ -300,14 +336,25 @@ function GridCell({
           <span
             className={cn(
               "absolute top-0.5 left-1 text-2xs tabular-nums",
-              cell.isFinal || both ? "text-black/70" : "text-muted-foreground",
+              (cell.isFinal || both) && !review
+                ? "text-black/70"
+                : "text-muted-foreground",
             )}
             data-numeric
           >
             {cell.n}
           </span>
-          {(cell.isFinal || both) && (
-            <Trophy className="size-3.5" aria-hidden />
+          {/* Paid glyph: Assigned vs Reserved never by color alone (E2). */}
+          {status === "assigned" && !cell.isFinal && !both && (
+            <BadgeCheck
+              className="absolute top-0.5 right-1 size-3 text-emerald-400"
+              aria-hidden
+            />
+          )}
+          {review ? (
+            <TriangleAlert className="size-3.5 text-destructive" aria-hidden />
+          ) : (
+            (cell.isFinal || both) && <Trophy className="size-3.5" aria-hidden />
           )}
           {name && (
             <span className="max-w-full truncate px-1 text-2xs leading-tight font-medium">
@@ -315,21 +362,29 @@ function GridCell({
             </span>
           )}
           <span className="flex flex-col items-center leading-none">
-            {cell.isHalf && (
-              <span
-                className={cn(
-                  "text-[9px] font-bold tracking-wide",
-                  both ? "text-black/80" : "text-halftime",
+            {review ? (
+              <span className="text-[9px] font-bold tracking-wide text-destructive">
+                ⚠ REVIEW · NO PAYOUT
+              </span>
+            ) : (
+              <>
+                {cell.isHalf && (
+                  <span
+                    className={cn(
+                      "text-[9px] font-bold tracking-wide",
+                      both ? "text-black/80" : "text-halftime",
+                    )}
+                    data-numeric
+                  >
+                    HALF {fmtUsd(halfAmount)}
+                  </span>
                 )}
-                data-numeric
-              >
-                HALF {fmtUsd(halfAmount)}
-              </span>
-            )}
-            {cell.isFinal && (
-              <span className="text-[9px] font-bold tracking-wide text-black/80" data-numeric>
-                FINAL {fmtUsd(finalAmount)}
-              </span>
+                {cell.isFinal && (
+                  <span className="text-[9px] font-bold tracking-wide text-black/80" data-numeric>
+                    FINAL {fmtUsd(finalAmount)}
+                  </span>
+                )}
+              </>
             )}
             {cell.isLive && (
               <span className="text-[8px] font-bold tracking-wide text-live">
@@ -341,12 +396,18 @@ function GridCell({
       ) : (
         <span
           className={cn(
-            "text-2xs font-medium tabular-nums",
-            (cell.isFinal || both) && "font-bold",
+            "inline-flex items-center gap-px text-2xs font-medium tabular-nums",
+            (cell.isFinal || both) && !review && "font-bold",
           )}
           data-numeric
         >
+          {review && (
+            <TriangleAlert className="size-2.5 text-destructive" aria-hidden />
+          )}
           {cell.n}
+          {status === "assigned" && !cell.isFinal && !both && (
+            <BadgeCheck className="size-2.5 text-emerald-400" aria-hidden />
+          )}
         </span>
       )}
     </Link>

@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 export function ScoreDigits({
   score,
   className,
+  style,
 }: {
   score: number | null;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   if (score === null || score === undefined) {
     return (
@@ -26,7 +28,11 @@ export function ScoreDigits({
   const head = s.slice(0, -1);
   const last = s.slice(-1);
   return (
-    <span className={cn("font-semibold tabular-nums", className)} data-numeric>
+    <span
+      className={cn("font-semibold tabular-nums", className)}
+      style={style}
+      data-numeric
+    >
       {head && <span className="opacity-60">{head}</span>}
       <span>{last}</span>
     </span>
