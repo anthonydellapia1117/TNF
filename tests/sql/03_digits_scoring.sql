@@ -150,6 +150,42 @@ begin
     raise exception 'owed payout survived a re-score onto a reserved block';
   end if;
 
+  -- D7: a corrected score recomputes the winning block, winner, and payout
+  -- row — a payout can never drift from its game. Promote Jr/Diz (full
+  -- payment) so blocks 36/38 are assigned, then correct the final onto
+  -- block 36: the single payout row for (game, final) must now carry the
+  -- new block and winner, back at owed.
+  perform admin_record_payment(
+    (select id from participants where full_name = 'Jr/Diz'),
+    100000, 'cash', current_date, null, null, 'D7 test', null, 'test');
+  if (select count(*) from blocks b
+        join participants p on p.id = b.participant_id
+       where p.full_name = 'Jr/Diz' and b.status = 'assigned') <> 2 then
+    raise exception 'Jr/Diz promotion did not assign both blocks';
+  end if;
+  -- Block 36 = row index 3, col index 5.
+  v_home := g.row_digits[4];
+  v_away := g.col_digits[6];
+  v_res := admin_score_game(g2, 'final', v_away, v_home, 'test');
+  if (v_res ->> 'block')::int <> 36 or not (v_res ->> 'payout_created')::boolean then
+    raise exception 'corrected score did not recompute: %', v_res;
+  end if;
+  if (select count(*) from payouts where game_id = g2 and payout_type = 'final') <> 1 then
+    raise exception 'score correction left more than one final payout row';
+  end if;
+  if not exists (
+    select 1 from payouts po
+      join participants p on p.id = po.participant_id
+     where po.game_id = g2 and po.payout_type = 'final'
+       and po.block_number = 36 and po.status = 'owed'
+       and po.amount_cents = 100000 and p.full_name = 'Jr/Diz'
+  ) then
+    raise exception 'payout row did not recompute to the corrected winner';
+  end if;
+  if (select final_block from games where id = g2) <> 36 then
+    raise exception 'game final_block did not recompute';
+  end if;
+
   -- The invariant held through every mutation above.
   if (select available + reserved + assigned + held from v_pot) <> 100 then
     raise exception 'block invariant broken during scoring';

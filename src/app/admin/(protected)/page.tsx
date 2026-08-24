@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, CircleDollarSign, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
+import { committedBlocks, placedBlocks } from "@/lib/pool";
 import { getConfig, getPot } from "@/lib/data/public";
 import {
   buildAlerts,
@@ -87,8 +88,8 @@ export default async function AdminOverview() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label="Blocks"
-          value={`${config.price_per_block_cents > 0 ? Math.round(pot.due_cents / config.price_per_block_cents) : 0} committed`}
-          sub={`${pot.reserved + pot.assigned} placed · ${fmtUsd(pot.due_cents)} due`}
+          value={`${committedBlocks(pot.due_cents, config.price_per_block_cents)} committed`}
+          sub={`${placedBlocks(pot)} placed · ${fmtUsd(pot.due_cents)} due`}
         />
         <Stat label="Collected" value={fmtUsd(pot.collected_cents)} sub={`of ${fmtUsd(pot.due_cents)} due`} />
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />

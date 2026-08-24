@@ -109,6 +109,11 @@ export async function holdBlock(
   );
 }
 
+/** H1: Scro confirmed a carried-over number is what his guy actually wants. */
+export async function confirmCarryover(n: number): Promise<ActionResult> {
+  return rpc("admin_confirm_carryover", { p_block_number: n }, EVERYTHING);
+}
+
 export async function promoteParticipant(
   participantId: string,
 ): Promise<ActionResult<number>> {

@@ -11,6 +11,8 @@ import {
 import { fmtDateET, fmtUsd } from "@/lib/format";
 import { blockPosition } from "@/lib/pool";
 import { cn } from "@/lib/utils";
+import { getAdminSession } from "@/lib/auth";
+import { getBlockHistory } from "@/lib/data/admin";
 import type { BlockStatus } from "@/lib/types";
 
 export const revalidate = 30;
@@ -178,6 +180,56 @@ export default async function BlockPage({
       </section>
 
       <BlockSeason games={games} n={n} config={config} />
+      <BlockHistory n={n} />
     </div>
+  );
+}
+
+/**
+ * B4: the block's full history — who held it, when, what changed. Rendered
+ * only for the signed-in admin; a public visitor never sees it.
+ */
+async function BlockHistory({ n }: { n: number }) {
+  const session = await getAdminSession();
+  if (!session) return null;
+  const { block, audit } = await getBlockHistory(n);
+  if (!block && audit.length === 0) return null;
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4">
+      <h2 className="text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
+        History · admin only
+      </h2>
+      {block && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {block.assignment_method && (
+            <>
+              Method <span className="text-foreground">{block.assignment_method}</span>
+              {block.requested_ref && <> · ref “{block.requested_ref}”</>}
+              {block.assigned_at && (
+                <> · assigned {fmtDateET(block.assigned_at)}</>
+              )}
+            </>
+          )}
+          {block.notes && (
+            <span className="mt-1 block text-halftime">{block.notes}</span>
+          )}
+        </p>
+      )}
+      {audit.length > 0 ? (
+        <ul className="mt-3 space-y-1.5">
+          {audit.map((r) => (
+            <li key={r.id} className="text-xs text-muted-foreground" data-numeric>
+              <span className="text-foreground">{r.action}</span> ·{" "}
+              {fmtDateET(r.at)} · {r.actor}
+              {r.note && <> — {r.note}</>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-3 text-xs text-muted-foreground">
+          No audited changes for this block yet.
+        </p>
+      )}
+    </section>
   );
 }

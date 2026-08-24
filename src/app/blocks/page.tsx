@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { BoardGrid } from "@/components/board/board-grid";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getConfig, getPot, getPublicBlocks } from "@/lib/data/public";
 import { fmtDateOnly, fmtUsd } from "@/lib/format";
+import { committedBlocks } from "@/lib/pool";
 
 export const metadata: Metadata = {
   title: "Blocks",
@@ -20,10 +23,7 @@ export default async function BlocksPage() {
 
   // Committed blocks include requests with no number chosen yet, so the
   // sales counter never oversells (due_cents counts them at read time).
-  const committed =
-    config.price_per_block_cents > 0
-      ? Math.round(pot.due_cents / config.price_per_block_cents)
-      : 0;
+  const committed = committedBlocks(pot.due_cents, config.price_per_block_cents);
   const open = Math.max(0, config.blocks_total - committed);
   const unnumbered = Math.max(0, pot.available - open);
 
@@ -58,7 +58,10 @@ export default async function BlocksPage() {
         )}
       </section>
 
-      <BoardGrid blocks={blocks} config={config} />
+      {/* Suspense: the board reads its ?show= filter from the URL. */}
+      <Suspense fallback={<Skeleton className="mx-auto aspect-square w-full max-w-3xl" />}>
+        <BoardGrid blocks={blocks} config={config} />
+      </Suspense>
     </div>
   );
 }

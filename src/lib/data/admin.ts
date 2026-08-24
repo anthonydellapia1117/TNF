@@ -100,6 +100,43 @@ export async function getPayouts(): Promise<Payout[]> {
   }));
 }
 
+export interface BlockAuditRow {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  target_id: string | null;
+  note: string | null;
+}
+
+/**
+ * One block's full history (spec B4): its admin row (method, refs, notes —
+ * release keeps the prior holder there) plus every audit entry that names
+ * it. Returns empty for non-admin sessions — RLS yields nothing.
+ */
+export async function getBlockHistory(
+  n: number,
+): Promise<{ block: AdminBlock | null; audit: BlockAuditRow[] }> {
+  const supabase = await createSupabaseServerClient();
+  const [{ data: block }, { data: audit }] = await Promise.all([
+    supabase.from("blocks").select("*").eq("block_number", n).maybeSingle(),
+    supabase
+      .from("audit_log")
+      .select("id, at, actor, action, target_id, note")
+      .eq("target_table", "blocks")
+      .order("at", { ascending: false })
+      .limit(200),
+  ]);
+  // Bulk actions store comma-separated block lists in target_id.
+  const rows = ((audit ?? []) as BlockAuditRow[]).filter((r) =>
+    String(r.target_id ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .includes(String(n)),
+  );
+  return { block: (block as AdminBlock | null) ?? null, audit: rows };
+}
+
 export {
   buildAlerts,
   type AdminAlert,

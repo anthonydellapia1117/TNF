@@ -229,6 +229,13 @@ export function ScoreClient({
                 placeholder="0"
                 value={awayStr}
                 onChange={(e) => setAwayStr(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  // F7: Enter walks away → home → confirm.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    document.getElementById("home")?.focus();
+                  }
+                }}
                 className="h-14 text-center !text-2xl tabular-nums"
               />
             </div>
@@ -247,6 +254,12 @@ export function ScoreClient({
                 placeholder="0"
                 value={homeStr}
                 onChange={(e) => setHomeStr(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && valid && published) {
+                    e.preventDefault();
+                    setConfirming(true);
+                  }
+                }}
                 className="h-14 text-center !text-2xl tabular-nums"
               />
             </div>
@@ -360,7 +373,7 @@ export function ScoreClient({
             <Button variant="ghost" onClick={() => setConfirming(false)}>
               No, go back
             </Button>
-            <Button disabled={pending} onClick={submitScore}>
+            <Button autoFocus disabled={pending} onClick={submitScore}>
               {pending ? "Scoring…" : "Yes, record it"}
             </Button>
           </DialogFooter>

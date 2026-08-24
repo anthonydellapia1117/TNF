@@ -15,9 +15,11 @@ import {
 import { fmtDateOnly, fmtKickoffET, fmtUsd } from "@/lib/format";
 import { teamInfo } from "@/lib/nfl";
 import {
+  committedBlocks,
   gameCode,
   lastDigit,
   payoutCents,
+  placedBlocks,
   seasonPayoutTotalCents,
 } from "@/lib/pool";
 import type { PoolConfig, PublicGame } from "@/lib/types";
@@ -180,15 +182,10 @@ export default async function DashboardPage() {
   const next = currentGame(games);
   const gamesById = new Map(games.map((g) => [g.id, g]));
 
-  // Two distinct block concepts, never conflated (vocabulary rule):
-  //   COMMITTED — blocks people agreed to buy (drives money); due_cents
-  //   already counts greatest(requested, held) per participant.
-  //   PLACED — blocks with an actual number on the grid.
-  const committed =
-    config.price_per_block_cents > 0
-      ? Math.round(pot.due_cents / config.price_per_block_cents)
-      : 0;
-  const placed = pot.reserved + pot.assigned;
+  // COMMITTED drives money, PLACED drives the grid — computed independently
+  // (tested in tests/unit/board.test.ts) and never conflated.
+  const committed = committedBlocks(pot.due_cents, config.price_per_block_cents);
+  const placed = placedBlocks(pot);
   const open = Math.max(0, config.blocks_total - committed);
   const committedPct =
     config.blocks_total > 0 ? (committed / config.blocks_total) * 100 : 0;
@@ -225,7 +222,7 @@ export default async function DashboardPage() {
             />
           </div>
           <p className="mt-1.5 text-2xs text-muted-foreground" data-numeric>
-            {placed} placed on the grid
+            {placed} placed · {open} open
           </p>
         </StatCard>
 

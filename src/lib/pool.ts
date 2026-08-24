@@ -1,7 +1,7 @@
 // Pure pool logic, mirrored 1:1 from the database functions. Every rule here
 // is locked by spec section 3 and covered in tests/unit/pool.test.ts.
 
-import type { GameType, PoolConfig, PublicGame } from "@/lib/types";
+import type { GameType, PoolConfig, Pot, PublicGame } from "@/lib/types";
 
 /** Every digit 0-9 exactly once. */
 export function isPermutation(arr: unknown): arr is number[] {
@@ -77,6 +77,22 @@ export function seasonPayoutTotalCents(
       payoutCents(g.game_type, "final", config),
     0,
   );
+}
+
+// Two distinct block concepts, computed independently and never conflated:
+// COMMITTED drives money, PLACED drives the grid.
+
+/** Blocks people agreed to buy — due already counts unnumbered requests. */
+export function committedBlocks(
+  dueCents: number,
+  pricePerBlockCents: number,
+): number {
+  return pricePerBlockCents > 0 ? Math.round(dueCents / pricePerBlockCents) : 0;
+}
+
+/** Blocks with an actual number on the grid. */
+export function placedBlocks(pot: Pick<Pot, "reserved" | "assigned">): number {
+  return pot.reserved + pot.assigned;
 }
 
 /** The eight cells adjacent to a block, for the near-miss wash. */
