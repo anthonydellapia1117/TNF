@@ -2,13 +2,19 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Dice5, Eye, Lock, Radio } from "lucide-react";
+import { CalendarClock, Dice5, Eye, Lock, Radio } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fmtKickoffET } from "@/lib/format";
+import {
+  etDateOf,
+  etWallClockToUtcISO,
+  fmtKickoffET,
+} from "@/lib/format";
 import { gameCode } from "@/lib/pool";
 import { matchupLabel } from "@/lib/nfl";
 import { assignDigits, publishDigits } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +31,42 @@ function asPublicGame(g: AdminGame): PublicGame {
   return { ...g, digits_assigned: g.digits_assigned_at !== null };
 }
 
+/** Whether the digits have actually reached the players yet. */
+function isRevealed(g: AdminGame): boolean {
+  return (
+    g.digits_published_at !== null &&
+    new Date(g.digits_published_at) <= new Date()
+  );
+}
+
+function isScheduled(g: AdminGame): boolean {
+  return (
+    g.digits_published_at !== null &&
+    new Date(g.digits_published_at) > new Date()
+  );
+}
+
+/** ET wall-clock parts of a stored instant, to prefill the schedule inputs. */
+function etParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  return {
+    date: d.toLocaleDateString("en-CA", { timeZone: "America/New_York" }),
+    time: d.toLocaleTimeString("en-GB", {
+      timeZone: "America/New_York",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }),
+  };
+}
+
+type PublishMode = "now" | "schedule";
+
+interface ConfirmState {
+  kind: "assign" | "publish";
+  game: AdminGame;
+}
+
 export function DigitsClient({
   games,
   blocks,
@@ -35,24 +77,48 @@ export function DigitsClient({
   config: PoolConfig;
 }) {
   const [previewNo, setPreviewNo] = useState<number | null>(null);
-  const [confirm, setConfirm] = useState<
-    { kind: "assign" | "publish"; game: AdminGame } | null
-  >(null);
+  const [confirm, setConfirm] = useState<ConfirmState | null>(null);
+  const [publishMode, setPublishMode] = useState<PublishMode>("now");
+  const [schedDate, setSchedDate] = useState("");
+  const [schedTime, setSchedTime] = useState("09:00");
   const [pending, startTransition] = useTransition();
 
   const preview = games.find((g) => g.game_no === previewNo) ?? null;
+
+  /** Open the publish dialog. Scheduled default: 9:00 AM ET on game date. */
+  const openPublish = (game: AdminGame, mode: PublishMode) => {
+    if (isScheduled(game) && game.digits_published_at) {
+      const p = etParts(game.digits_published_at);
+      setSchedDate(p.date);
+      setSchedTime(mode === "schedule" ? p.time : "09:00");
+    } else {
+      setSchedDate(game.kickoff_at ? etDateOf(game.kickoff_at) : "");
+      setSchedTime("09:00");
+    }
+    setPublishMode(mode);
+    setConfirm({ kind: "publish", game });
+  };
+
+  const scheduleISO =
+    publishMode === "schedule" && schedDate && schedTime
+      ? etWallClockToUtcISO(schedDate, schedTime)
+      : null;
+  const scheduleInFuture =
+    scheduleISO !== null && new Date(scheduleISO) > new Date();
 
   const act = (kind: "assign" | "publish", game: AdminGame) => {
     startTransition(async () => {
       const res =
         kind === "assign"
           ? await assignDigits(game.id)
-          : await publishDigits(game.id);
+          : await publishDigits(game.id, scheduleISO);
       if (res.ok) {
         toast.success(
           kind === "assign"
             ? `${gameCode(game.game_no)}: digits assigned — preview, then publish when ready.`
-            : `${gameCode(game.game_no)}: digits are live for the players.`,
+            : scheduleISO
+              ? `${gameCode(game.game_no)}: reveal scheduled for ${fmtKickoffET(scheduleISO)}. The site flips on its own — nothing else to do.`
+              : `${gameCode(game.game_no)}: digits are live for the players.`,
         );
         setConfirm(null);
         if (kind === "assign") setPreviewNo(game.game_no);
@@ -69,8 +135,9 @@ export function DigitsClient({
         <h1 className="text-xl">Digits</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Assign randomizes both axes — every digit exactly once, immutable
-          forever. Publishing is the separate, deliberate step that shows them
-          to the players.
+          forever. Publishing shows them to the players: immediately, or at a
+          scheduled reveal time. Until the reveal, the public grid keeps
+          showing ? on both axes.
         </p>
       </div>
 
@@ -91,6 +158,8 @@ export function DigitsClient({
                 : g.status === "void"
                   ? "void"
                   : null;
+          const revealed = isRevealed(g);
+          const scheduled = isScheduled(g);
           return (
             <div
               key={g.id}
@@ -106,9 +175,17 @@ export function DigitsClient({
                 {fmtKickoffET(g.kickoff_at)}
               </span>
               <span className="flex-1" />
-              {g.digits_published_at ? (
+              {revealed ? (
                 <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
                   <Radio className="size-3.5" /> Published
+                </span>
+              ) : scheduled ? (
+                <span
+                  className="inline-flex items-center gap-1.5 text-xs text-live"
+                  data-numeric
+                >
+                  <CalendarClock className="size-3.5" /> Reveals{" "}
+                  {fmtKickoffET(g.digits_published_at)}
                 </span>
               ) : g.digits_assigned_at ? (
                 <span className="inline-flex items-center gap-1.5 text-xs text-halftime">
@@ -141,14 +218,33 @@ export function DigitsClient({
                   Assign
                 </Button>
               )}
-              {g.digits_assigned_at && !g.digits_published_at && (
+              {g.digits_assigned_at && !revealed && !scheduled && (
                 <Button
                   size="sm"
                   disabled={pending}
-                  onClick={() => setConfirm({ kind: "publish", game: g })}
+                  onClick={() => openPublish(g, "now")}
                 >
                   Publish
                 </Button>
+              )}
+              {scheduled && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={pending}
+                    onClick={() => openPublish(g, "schedule")}
+                  >
+                    Reschedule
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={pending}
+                    onClick={() => openPublish(g, "now")}
+                  >
+                    Publish now
+                  </Button>
+                </>
               )}
             </div>
           );
@@ -159,9 +255,11 @@ export function DigitsClient({
         <div className="space-y-3 rounded-lg border border-border bg-surface p-4">
           <p className="text-sm font-semibold">
             {gameCode(preview.game_no)} preview
-            {!preview.digits_published_at && (
+            {!isRevealed(preview) && (
               <span className="ml-2 text-xs font-normal text-halftime">
-                only you can see this until you publish
+                {isScheduled(preview)
+                  ? `hidden from players until ${fmtKickoffET(preview.digits_published_at)}`
+                  : "only you can see this until you publish"}
               </span>
             )}
           </p>
@@ -188,23 +286,126 @@ export function DigitsClient({
             <DialogDescription>
               {confirm?.kind === "assign"
                 ? "Both axes get a fresh random permutation of 0–9. Digits are immutable once written — there is no re-roll."
-                : "Players see the digits immediately, and scoring unlocks. This cannot be undone."}
+                : "Choose when the players see the digits. Until the reveal time, the public grid keeps showing ? — the digits never leave the server."}
             </DialogDescription>
           </DialogHeader>
+
+          {confirm?.kind === "publish" && (
+            <div className="space-y-2">
+              <label
+                className={cn(
+                  "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                  publishMode === "now"
+                    ? "border-emerald-500/50 bg-emerald-500/10"
+                    : "border-border bg-surface-2/50",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="publish-mode"
+                  checked={publishMode === "now"}
+                  onChange={() => setPublishMode("now")}
+                  className="mt-0.5 accent-emerald-500"
+                />
+                <span>
+                  <span className="font-medium">Publish now</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Digits go live immediately; scoring unlocks.
+                  </span>
+                </span>
+              </label>
+              <label
+                className={cn(
+                  "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm transition-colors",
+                  publishMode === "schedule"
+                    ? "border-live/50 bg-live/10"
+                    : "border-border bg-surface-2/50",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="publish-mode"
+                  checked={publishMode === "schedule"}
+                  onChange={() => setPublishMode("schedule")}
+                  className="mt-0.5 accent-blue-500"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">Publish at a scheduled time</span>
+                  <span className="block text-xs text-muted-foreground">
+                    The reveal fires on its own — no further action needed.
+                  </span>
+                  {publishMode === "schedule" && (
+                    <span className="mt-2 grid grid-cols-2 gap-2">
+                      <span className="space-y-1">
+                        <Label htmlFor="sched-date" className="text-xs">
+                          Date
+                        </Label>
+                        <Input
+                          id="sched-date"
+                          type="date"
+                          value={schedDate}
+                          onChange={(e) => setSchedDate(e.target.value)}
+                          data-numeric
+                        />
+                      </span>
+                      <span className="space-y-1">
+                        <Label htmlFor="sched-time" className="text-xs">
+                          Time (ET)
+                        </Label>
+                        <Input
+                          id="sched-time"
+                          type="time"
+                          value={schedTime}
+                          onChange={(e) => setSchedTime(e.target.value)}
+                          data-numeric
+                        />
+                      </span>
+                      {scheduleISO && scheduleInFuture && (
+                        <span
+                          className="col-span-2 text-xs text-live"
+                          data-numeric
+                        >
+                          Reveals {fmtKickoffET(scheduleISO)}
+                        </span>
+                      )}
+                      {scheduleISO && !scheduleInFuture && (
+                        <span className="col-span-2 text-xs text-destructive">
+                          That time has already passed — pick a future time or
+                          publish now.
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </span>
+              </label>
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="ghost" onClick={() => setConfirm(null)}>
               Cancel
             </Button>
             <Button
-              disabled={pending}
+              disabled={
+                pending ||
+                (confirm?.kind === "publish" &&
+                  publishMode === "schedule" &&
+                  !scheduleInFuture)
+              }
               onClick={() => confirm && act(confirm.kind, confirm.game)}
-              className={cn(confirm?.kind === "publish" && "bg-emerald-600 hover:bg-emerald-600/80 text-white")}
+              className={cn(
+                confirm?.kind === "publish" &&
+                  publishMode === "now" &&
+                  "bg-emerald-600 hover:bg-emerald-600/80 text-white",
+              )}
             >
               {pending
                 ? "Working…"
                 : confirm?.kind === "assign"
                   ? "Assign digits"
-                  : "Publish to players"}
+                  : publishMode === "schedule"
+                    ? "Schedule the reveal"
+                    : "Publish to players"}
             </Button>
           </DialogFooter>
         </DialogContent>

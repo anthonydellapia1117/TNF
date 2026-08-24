@@ -43,6 +43,31 @@ export function fmtKickoffET(iso: string | null): string {
   return `${date}, ${time} ET`;
 }
 
+/** The ET calendar date (YYYY-MM-DD) an instant falls on. */
+export function etDateOf(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: ET });
+}
+
+/**
+ * An ET wall-clock date + time as a UTC ISO instant, DST-proof: Eastern is
+ * either -04:00 or -05:00, so try both and keep the one that round-trips to
+ * the same wall clock in America/New_York. (The ambiguous 1–2 AM fall-back
+ * hour resolves to EDT; no pool event lands there.)
+ */
+export function etWallClockToUtcISO(ymd: string, hm: string): string {
+  for (const offset of ["-04:00", "-05:00"]) {
+    const d = new Date(`${ymd}T${hm}:00${offset}`);
+    const back = d.toLocaleString("sv-SE", { timeZone: ET }).slice(0, 16);
+    if (back === `${ymd} ${hm}`) return d.toISOString();
+  }
+  return new Date(`${ymd}T${hm}:00-05:00`).toISOString();
+}
+
+/** 9:00 AM ET on the given ET date, as a UTC ISO instant (reveal default). */
+export function nineAmETUtcISO(ymd: string): string {
+  return etWallClockToUtcISO(ymd, "09:00");
+}
+
 /** "Sep 4, 2026" for dates stored as YYYY-MM-DD. */
 export function fmtDateOnly(ymd: string): string {
   const [y, m, d] = ymd.split("-").map(Number);

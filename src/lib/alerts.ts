@@ -22,11 +22,26 @@ export function buildAlerts(
   const alerts: AdminAlert[] = [];
   const code = (n: number) => `G${String(n).padStart(2, "0")}`;
 
-  // Red: kickoff within 24 hours and digits not published.
+  // Red: kickoff within 24 hours and digits not revealed — and a scheduled
+  // reveal that lands after kickoff is its own mistake worth flagging.
   for (const g of games) {
-    if (g.status === "void" || g.digits_published_at) continue;
-    if (!g.kickoff_at) continue;
-    const dt = new Date(g.kickoff_at).getTime() - now.getTime();
+    if (g.status === "void" || !g.kickoff_at) continue;
+    const kick = new Date(g.kickoff_at).getTime();
+    const dt = kick - now.getTime();
+    const revealAt = g.digits_published_at
+      ? new Date(g.digits_published_at).getTime()
+      : null;
+    if (revealAt !== null && revealAt <= now.getTime()) continue; // revealed
+    if (revealAt !== null) {
+      if (dt > 0 && revealAt >= kick) {
+        alerts.push({
+          level: "red",
+          text: `${code(g.game_no)} digits reveal is scheduled after kickoff — players would never see them`,
+          href: "/admin/digits",
+        });
+      }
+      continue; // scheduled before kickoff: on track, no nag
+    }
     if (dt > 0 && dt < 24 * 3600 * 1000) {
       alerts.push({
         level: "red",

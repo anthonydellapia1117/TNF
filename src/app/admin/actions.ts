@@ -201,8 +201,27 @@ export async function assignDigits(gameId: string): Promise<ActionResult> {
   return rpc("admin_assign_digits", { p_game_id: gameId }, ["/admin/digits", "/admin"]);
 }
 
-export async function publishDigits(gameId: string): Promise<ActionResult> {
-  return rpc("admin_publish_digits", { p_game_id: gameId }, EVERYTHING);
+/**
+ * Publish immediately (publishAt omitted/null) or schedule the reveal for a
+ * future instant. The database stores the timestamp; the public view compares
+ * it to now() on every read, so the reveal fires with no further action.
+ */
+export async function publishDigits(
+  gameId: string,
+  publishAt?: string | null,
+): Promise<ActionResult> {
+  if (publishAt) {
+    const at = new Date(publishAt);
+    if (Number.isNaN(at.getTime()))
+      return { ok: false, error: "Invalid reveal time." };
+    if (at.getTime() <= Date.now())
+      return { ok: false, error: "The reveal time must be in the future — or publish now." };
+  }
+  return rpc(
+    "admin_publish_digits",
+    { p_game_id: gameId, p_publish_at: publishAt ?? null },
+    EVERYTHING,
+  );
 }
 
 // ---------------------------------------------------------------------------

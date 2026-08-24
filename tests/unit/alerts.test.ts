@@ -86,6 +86,28 @@ describe("buildAlerts", () => {
     expect(alerts.some((a) => /24 hours/.test(a.text))).toBe(false);
   });
 
+  it("does not nag a game whose reveal is scheduled before kickoff", () => {
+    const g = game({
+      kickoff_at: "2026-08-22T20:00:00Z", // 8h away
+      digits_published_at: "2026-08-22T16:00:00Z", // reveal in 4h
+      status: "published",
+    });
+    const alerts = buildAlerts([g], [], [], "2026-09-04", NOW);
+    expect(alerts.some((a) => a.level === "red")).toBe(false);
+  });
+
+  it("flags a reveal scheduled after kickoff as red", () => {
+    const g = game({
+      kickoff_at: "2026-08-22T20:00:00Z",
+      digits_published_at: "2026-08-23T09:00:00Z", // after the game
+      status: "published",
+    });
+    const alerts = buildAlerts([g], [], [], "2026-09-04", NOW);
+    expect(
+      alerts.some((a) => a.level === "red" && /after kickoff/.test(a.text)),
+    ).toBe(true);
+  });
+
   it("flags a final game with no final payout as red (the review case)", () => {
     const g = game({ status: "final", final_block: 13 });
     const alerts = buildAlerts([g], [], [], "2026-09-04", NOW);

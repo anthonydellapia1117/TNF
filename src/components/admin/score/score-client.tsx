@@ -44,7 +44,13 @@ export function ScoreClient({
   config: PoolConfig;
 }) {
   const router = useRouter();
-  const scorable = games.filter((g) => g.digits_published_at !== null);
+  // Revealed only: a scheduled-but-unrevealed game is refused by the
+  // database, so don't offer it here either.
+  const scorable = games.filter(
+    (g) =>
+      g.digits_published_at !== null &&
+      new Date(g.digits_published_at) <= new Date(),
+  );
   const [gameId, setGameId] = useState<string>(scorable[0]?.id ?? "");
   const game = games.find((g) => g.id === gameId) ?? null;
 
@@ -98,9 +104,9 @@ export function ScoreClient({
       <div className="space-y-4">
         <h1 className="text-xl">Score</h1>
         <div className="rounded-lg border border-border bg-surface px-4 py-8 text-center text-sm text-muted-foreground">
-          No game has published digits yet. Scoring is refused by the database
-          before digits publish — assign and publish on the Digits screen
-          first.
+          No game has revealed digits yet. Scoring is refused by the database
+          until digits are published and the reveal time has passed — assign
+          and publish on the Digits screen first.
         </div>
       </div>
     );

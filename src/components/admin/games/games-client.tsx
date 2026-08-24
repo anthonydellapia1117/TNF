@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
+  Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtKickoffET } from "@/lib/format";
@@ -243,11 +244,7 @@ export function GamesClient({ games }: { games: AdminGame[] }) {
                 {g.holiday_label || "Holiday"}
               </Badge>
             )}
-            {g.digits_assigned_at && (
-              <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground">
-                <Lock className="size-3" /> digits locked
-              </span>
-            )}
+            <RevealState g={g} />
             <span className="flex-1" />
             <span className="hidden text-2xs tracking-widest text-muted-foreground uppercase sm:inline">
               {g.status.replace(/_/g, " ")}
@@ -281,6 +278,38 @@ export function GamesClient({ games }: { games: AdminGame[] }) {
         onOpenChange={setDialogOpen}
       />
     </div>
+  );
+}
+
+/**
+ * Per-game reveal state: not assigned (silent), assigned only, scheduled for
+ * a future reveal, or published. Reads the same timestamps the database
+ * gates on.
+ */
+function RevealState({ g }: { g: AdminGame }) {
+  if (!g.digits_assigned_at) return null;
+  if (g.digits_published_at) {
+    if (new Date(g.digits_published_at) > new Date()) {
+      return (
+        <span
+          className="inline-flex items-center gap-1 text-2xs text-live"
+          data-numeric
+        >
+          <CalendarClock className="size-3" /> reveals{" "}
+          {fmtKickoffET(g.digits_published_at)}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-2xs text-emerald-400">
+        <Radio className="size-3" /> digits published
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground">
+      <Lock className="size-3" /> assigned, not published
+    </span>
   );
 }
 
