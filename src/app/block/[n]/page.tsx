@@ -128,6 +128,23 @@ export default async function BlockPage({
                 {block.display_name}
               </p>
             )}
+            {block?.assignment_method && (
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full border px-2 py-0.5 text-2xs font-semibold tracking-wide whitespace-nowrap",
+                  block.assignment_method === "requested"
+                    ? "border-final/50 bg-final/10 text-final"
+                    : "border-border bg-surface-2 text-muted-foreground",
+                )}
+                title={
+                  block.assignment_method === "requested"
+                    ? "This number was specifically asked for this year"
+                    : "This number was assigned by the pool draw"
+                }
+              >
+                {block.assignment_method.toUpperCase()}
+              </span>
+            )}
             <p className="text-2xs text-muted-foreground" data-numeric>
               Row {row + 1} · Col {col + 1}
             </p>

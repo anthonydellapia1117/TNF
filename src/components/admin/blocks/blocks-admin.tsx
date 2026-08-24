@@ -366,6 +366,10 @@ export function BlocksAdmin({
             <span className="size-2.5 rounded-xs border border-border/40 opacity-50" />
             Held
           </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-final" />
+            <span className="text-final">Requested number</span>
+          </span>
         </div>
 
         <div
@@ -410,6 +414,13 @@ export function BlocksAdmin({
                     aria-hidden
                   />
                 ) : null}
+                {/* Policy: requested numbers are marked apart from random ones */}
+                {b.assignment_method === "requested" && (
+                  <span
+                    className="absolute bottom-0.5 left-0.5 size-1 rounded-full bg-final"
+                    aria-hidden
+                  />
+                )}
                 <span className="text-2xs leading-none" data-numeric>
                   {b.block_number}
                 </span>
@@ -566,6 +577,11 @@ function ParticipantSummary({
                       held.map((b) => (
                         <span
                           key={b.block_number}
+                          title={
+                            b.assignment_method
+                              ? `#${b.block_number}: ${b.assignment_method}`
+                              : undefined
+                          }
                           className={
                             b.status === "reserved"
                               ? "text-halftime"
@@ -573,6 +589,9 @@ function ParticipantSummary({
                           }
                         >
                           #{b.block_number}
+                          {b.assignment_method === "requested" && (
+                            <span className="text-final"> req</span>
+                          )}
                         </span>
                       ))
                     )}

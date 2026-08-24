@@ -58,6 +58,14 @@ begin
   -- The public projections DO serve anon.
   select count(*) into n from v_public_blocks;
   if n <> 100 then raise exception 'v_public_blocks should serve 100 rows to anon'; end if;
+  -- Assignment policy: requested-vs-random is public per block.
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'v_public_blocks'
+      and column_name = 'assignment_method'
+  ) then
+    raise exception 'v_public_blocks should expose assignment_method';
+  end if;
   select count(*) into n from v_public_games;
   if n <> 23 then raise exception 'v_public_games should serve 23 rows to anon'; end if;
   select count(*) into n from v_pot;

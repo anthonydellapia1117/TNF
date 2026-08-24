@@ -66,6 +66,7 @@ export interface PublicBlock {
   display_name: string | null;
   owner_group: OwnerGroup | null;
   participant_id: string | null;
+  assignment_method: "requested" | "carryover" | "random" | "admin" | null;
 }
 
 export interface PublicPayout {
