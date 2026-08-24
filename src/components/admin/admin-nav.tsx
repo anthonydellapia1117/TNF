@@ -8,6 +8,7 @@ import { signOut } from "@/app/admin/actions";
 const ITEMS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/participants", label: "Participants" },
+  { href: "/admin/emails", label: "Emails" },
   { href: "/admin/blocks", label: "Blocks" },
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/games", label: "Games" },

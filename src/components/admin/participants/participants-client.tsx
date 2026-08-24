@@ -2,13 +2,32 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search, StickyNote, UserPlus } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Plus,
+  Search,
+  StickyNote,
+  TriangleAlert,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
-import { OWNER_GROUPS, type OwnerGroup, type ParticipantFinance } from "@/lib/types";
+import {
+  OWNER_GROUPS,
+  type AdminBlock,
+  type OwnerGroup,
+  type ParticipantFinance,
+  type Payment,
+} from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
 import { promoteParticipant, upsertParticipant } from "@/app/admin/actions";
+import {
+  compareValues,
+  useTableSort,
+  type TableSort,
+} from "@/components/admin/use-table-sort";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,10 +71,82 @@ function canPromote(f: ParticipantFinance): boolean {
   );
 }
 
+/** H2: a note containing "disput" (Rob Gambino) must scream from the list. */
+function disputeNote(notes: string | null): string | null {
+  return notes && /disput/i.test(notes) ? notes : null;
+}
+
+// F1/F2: sortable columns on the desktop table, applied after search.
+const SORT_KEYS = [
+  "name",
+  "alias",
+  "group",
+  "held",
+  "due",
+  "paid",
+  "balance",
+] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+function sortValue(p: ParticipantWithFinance, key: SortKey): unknown {
+  switch (key) {
+    case "name":
+      return p.full_name;
+    case "alias":
+      return p.display_alias;
+    case "group":
+      return p.owner_group;
+    case "held":
+      return p.finance.blocks_held;
+    case "due":
+      return p.finance.amount_due_cents;
+    case "paid":
+      return p.finance.amount_paid_cents;
+    case "balance":
+      return p.finance.amount_due_cents - p.finance.amount_paid_cents;
+  }
+}
+
+function SortHead({
+  label,
+  k,
+  sort,
+  onToggle,
+  align,
+}: {
+  label: string;
+  k: SortKey;
+  sort: TableSort<SortKey>;
+  onToggle: (key: SortKey) => void;
+  align?: "right";
+}) {
+  const active = sort.key === k;
+  const Chevron = sort.dir === "asc" ? ChevronUp : ChevronDown;
+  return (
+    <TableHead className={align === "right" ? "text-right" : undefined}>
+      <button
+        type="button"
+        onClick={() => onToggle(k)}
+        className={cn(
+          "inline-flex items-center gap-1 transition-colors duration-150 hover:text-foreground",
+          active && "text-foreground",
+        )}
+      >
+        {label}
+        {active && <Chevron className="size-3" />}
+      </button>
+    </TableHead>
+  );
+}
+
 export function ParticipantsClient({
   participants,
+  blocks,
+  payments,
 }: {
   participants: ParticipantWithFinance[];
+  blocks: AdminBlock[];
+  payments: Payment[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -71,6 +162,11 @@ export function ParticipantsClient({
   const [editing, setEditing] = useState<ParticipantWithFinance | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  const [sort, toggleSort] = useTableSort<SortKey>(SORT_KEYS, {
+    key: "name",
+    dir: "asc",
+  });
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return participants;
@@ -80,6 +176,14 @@ export function ParticipantsClient({
         (p.display_alias ?? "").toLowerCase().includes(q),
     );
   }, [participants, search]);
+
+  // Sort applies after the search filter (F1).
+  const sorted = useMemo(() => {
+    const mult = sort.dir === "asc" ? 1 : -1;
+    return [...filtered].sort(
+      (a, b) => mult * compareValues(sortValue(a, sort.key), sortValue(b, sort.key)),
+    );
+  }, [filtered, sort]);
 
   function openEdit(p: ParticipantWithFinance | null) {
     setEditing(p);
@@ -222,7 +326,7 @@ export function ParticipantsClient({
         </Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted-foreground">
           {participants.length === 0
             ? "No participants yet. Add the first one above."
@@ -232,7 +336,7 @@ export function ParticipantsClient({
         <>
           {/* Mobile: stacked cards */}
           <div className="space-y-2 md:hidden">
-            {filtered.map((p) => (
+            {sorted.map((p) => (
               <div
                 key={p.id}
                 role="button"
@@ -253,6 +357,11 @@ export function ParticipantsClient({
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5">
+                    {disputeNote(p.notes) && (
+                      <span title={p.notes ?? undefined}>
+                        <TriangleAlert className="size-3.5 text-destructive" />
+                      </span>
+                    )}
                     {p.notes && (
                       <StickyNote className="size-3.5 text-muted-foreground" />
                     )}
@@ -304,19 +413,43 @@ export function ParticipantsClient({
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead>Name</TableHead>
-                  <TableHead>Alias</TableHead>
-                  <TableHead>Group</TableHead>
-                  <TableHead className="text-right">Blocks</TableHead>
-                  <TableHead className="text-right">Due</TableHead>
-                  <TableHead className="text-right">Paid</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
+                  <SortHead label="Name" k="name" sort={sort} onToggle={toggleSort} />
+                  <SortHead label="Alias" k="alias" sort={sort} onToggle={toggleSort} />
+                  <SortHead label="Group" k="group" sort={sort} onToggle={toggleSort} />
+                  <SortHead
+                    label="Blocks"
+                    k="held"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
+                  <SortHead
+                    label="Due"
+                    k="due"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
+                  <SortHead
+                    label="Paid"
+                    k="paid"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
+                  <SortHead
+                    label="Balance"
+                    k="balance"
+                    sort={sort}
+                    onToggle={toggleSort}
+                    align="right"
+                  />
                   <TableHead>Source</TableHead>
                   <TableHead className="text-right" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((p) => (
+                {sorted.map((p) => (
                   <TableRow
                     key={p.id}
                     onClick={() => openEdit(p)}
@@ -355,6 +488,11 @@ export function ParticipantsClient({
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="inline-flex items-center justify-end gap-1.5">
+                        {disputeNote(p.notes) && (
+                          <span title={p.notes ?? undefined}>
+                            <TriangleAlert className="size-3.5 text-destructive" />
+                          </span>
+                        )}
                         {p.notes && (
                           <StickyNote className="size-3.5 text-muted-foreground" />
                         )}
@@ -383,6 +521,8 @@ export function ParticipantsClient({
 
       <ParticipantDialog
         participant={editing}
+        blocks={blocks}
+        payments={payments}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />

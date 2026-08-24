@@ -25,6 +25,13 @@ begin
   end if;
 end $$;
 
+-- Remember the true pot figures before dropping to anon — the public pot
+-- must serve the same numbers to an anonymous visitor.
+select set_config('test.expected_due',
+  (select coalesce(sum(amount_due_cents), 0)::text from v_participant_finance), true);
+select set_config('test.expected_collected',
+  (select coalesce(sum(amount_cents), 0)::text from payments), true);
+
 -- Behavioral: as anon, raw tables yield zero rows and the finance view is
 -- not selectable at all.
 set local role anon;
@@ -57,6 +64,27 @@ begin
   if n <> 1 then raise exception 'v_pot should serve anon'; end if;
   select count(*) into n from config;
   if n <> 1 then raise exception 'config should serve anon'; end if;
+end $$;
+
+-- Regression: v_pot's aggregates must survive RLS for anon — due_cents once
+-- collapsed to 0 because it was read through an invoker view, which
+-- evaluates RLS as the session user even inside a definer view.
+do $$
+declare
+  pot v_pot;
+begin
+  select * into pot from v_pot;
+  if pot.due_cents::text <> current_setting('test.expected_due', true) then
+    raise exception 'anon v_pot.due_cents % != true due %',
+      pot.due_cents, current_setting('test.expected_due', true);
+  end if;
+  if pot.due_cents <= 0 then
+    raise exception 'anon v_pot.due_cents should be positive with a seeded pool';
+  end if;
+  if pot.collected_cents::text <> current_setting('test.expected_collected', true) then
+    raise exception 'anon v_pot.collected_cents % != ledger %',
+      pot.collected_cents, current_setting('test.expected_collected', true);
+  end if;
 end $$;
 
 reset role;

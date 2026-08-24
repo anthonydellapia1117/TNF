@@ -2,13 +2,24 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Copy, MessageSquareText } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  MessageSquareText,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fmtDateET, fmtDateOnly, fmtUsd } from "@/lib/format";
 import { gameCode, winnerMessage } from "@/lib/pool";
 import { matchupLabel } from "@/lib/nfl";
 import { reopenPayout, settlePayout } from "@/app/admin/actions";
+import {
+  compareValues,
+  useTableSort,
+  type TableSort,
+} from "@/components/admin/use-table-sort";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +38,16 @@ function todayYmd(): string {
   // en-CA renders as YYYY-MM-DD in the user's local time zone.
   return new Date().toLocaleDateString("en-CA");
 }
+
+const PAYOUT_SORT_KEYS = [
+  "game",
+  "type",
+  "block",
+  "winner",
+  "amount",
+  "date",
+] as const;
+type PayoutSortKey = (typeof PAYOUT_SORT_KEYS)[number];
 
 function buildWinnerMessage(p: Payout, g: AdminGame | undefined): string | null {
   if (!g) return null;
@@ -63,11 +84,57 @@ export function PayoutsClient({
   const [messageFor, setMessageFor] = useState<Payout | null>(null);
 
   const gameById = new Map(games.map((g) => [g.id, g]));
-  const owed = payouts.filter((p) => p.status === "owed");
-  const paid = payouts.filter((p) => p.status === "paid");
-  const voided = payouts.filter((p) => p.status === "void");
-  const owedTotal = owed.reduce((s, p) => s + p.amount_cents, 0);
-  const paidTotal = paid.reduce((s, p) => s + p.amount_cents, 0);
+
+  // F1: search filters, then the active sort orders rows within each status
+  // group. The Owed/Paid stat tiles always reflect the full unfiltered lists.
+  const [query, setQuery] = useState("");
+  const [sort, toggleSort] = useTableSort<PayoutSortKey>(PAYOUT_SORT_KEYS, {
+    key: "date",
+    dir: "desc",
+  });
+
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (p: Payout) => {
+    if (!q) return true;
+    const g = gameById.get(p.game_id);
+    return [
+      g ? gameCode(g.game_no) : "",
+      g ? matchupLabel(g.away_team, g.home_team) : "",
+      p.display_name ?? "",
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(q);
+  };
+  const sortValue = (p: Payout): unknown => {
+    switch (sort.key) {
+      case "game":
+        return gameById.get(p.game_id)?.game_no ?? null;
+      case "type":
+        return p.payout_type;
+      case "block":
+        return p.block_number;
+      case "winner":
+        return p.display_name;
+      case "amount":
+        return p.amount_cents;
+      case "date":
+        return p.created_at;
+    }
+  };
+  const sortGroup = (list: Payout[]) =>
+    list.filter(matchesQuery).sort((a, b) => {
+      const cmp = compareValues(sortValue(a), sortValue(b));
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+
+  const allOwed = payouts.filter((p) => p.status === "owed");
+  const allPaid = payouts.filter((p) => p.status === "paid");
+  const owed = sortGroup(allOwed);
+  const paid = sortGroup(allPaid);
+  const voided = sortGroup(payouts.filter((p) => p.status === "void"));
+  const owedTotal = allOwed.reduce((s, p) => s + p.amount_cents, 0);
+  const paidTotal = allPaid.reduce((s, p) => s + p.amount_cents, 0);
 
   const message = messageFor
     ? buildWinnerMessage(messageFor, gameById.get(messageFor.game_id))
@@ -223,7 +290,7 @@ export function PayoutsClient({
             {fmtUsd(owedTotal)}
           </p>
           <p className="mt-0.5 text-2xs text-muted-foreground" data-numeric>
-            {owed.length} payout{owed.length === 1 ? "" : "s"} open
+            {allOwed.length} payout{allOwed.length === 1 ? "" : "s"} open
           </p>
         </div>
         <div className="rounded-lg border border-border bg-surface px-4 py-3">
@@ -234,7 +301,7 @@ export function PayoutsClient({
             {fmtUsd(paidTotal)}
           </p>
           <p className="mt-0.5 text-2xs text-muted-foreground" data-numeric>
-            {paid.length} settled
+            {allPaid.length} settled
           </p>
         </div>
       </div>
@@ -244,10 +311,38 @@ export function PayoutsClient({
           No payouts yet. They appear here the moment a game is scored.
         </div>
       ) : (
-        <div className="space-y-4">
-          {owed.length > 0 && <Group title="Owed" list={owed} />}
-          {paid.length > 0 && <Group title="Paid" list={paid} />}
-          {voided.length > 0 && <Group title="Void" list={voided} />}
+        <div className="space-y-3">
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search game, matchup, winner…"
+            autoComplete="off"
+            aria-label="Search payouts"
+            className="h-12 sm:h-8"
+          />
+
+          {/* F1 sort bar — one set of column buttons orders every group. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-2xs tracking-widest text-muted-foreground uppercase">
+            <SortHead label="Game" k="game" sort={sort} onSort={toggleSort} />
+            <SortHead label="Type" k="type" sort={sort} onSort={toggleSort} />
+            <SortHead label="Block" k="block" sort={sort} onSort={toggleSort} />
+            <SortHead label="Winner" k="winner" sort={sort} onSort={toggleSort} />
+            <SortHead label="Amount" k="amount" sort={sort} onSort={toggleSort} />
+            <SortHead label="Date" k="date" sort={sort} onSort={toggleSort} />
+          </div>
+
+          {owed.length === 0 && paid.length === 0 && voided.length === 0 ? (
+            <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted-foreground">
+              No payouts match &ldquo;{query}&rdquo;.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {owed.length > 0 && <Group title="Owed" list={owed} />}
+              {paid.length > 0 && <Group title="Paid" list={paid} />}
+              {voided.length > 0 && <Group title="Void" list={voided} />}
+            </div>
+          )}
         </div>
       )}
 
@@ -332,5 +427,34 @@ export function PayoutsClient({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+/** F1 column-header sort button: label + ▲/▼ on the active column. */
+function SortHead<K extends string>({
+  label,
+  k,
+  sort,
+  onSort,
+}: {
+  label: string;
+  k: K;
+  sort: TableSort<K>;
+  onSort: (key: K) => void;
+}) {
+  const active = sort.key === k;
+  const Chevron = sort.dir === "desc" ? ChevronDown : ChevronUp;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className={cn(
+        "inline-flex items-center gap-0.5 transition-colors hover:text-foreground",
+        active && "text-foreground",
+      )}
+    >
+      {label}
+      {active && <Chevron className="size-3" />}
+    </button>
   );
 }

@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { fmtUsd } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { fmtDateOnly, fmtUsd } from "@/lib/format";
 import {
   OWNER_GROUPS,
+  type AdminBlock,
+  type BlockStatus,
   type OwnerGroup,
   type Participant,
+  type Payment,
 } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
 import { upsertParticipant } from "@/app/admin/actions";
@@ -40,6 +44,14 @@ const SOURCES: { value: Source; label: string }[] = [
   { value: "import", label: "Import" },
 ];
 
+// Chip look per block status — same language as the blocks board (spec 4.7).
+const BLOCK_CHIP: Record<BlockStatus, string> = {
+  available: "border-dashed border-border text-muted-foreground",
+  reserved: "border-halftime/60 text-halftime",
+  assigned: "border-border bg-surface-2 text-foreground",
+  held: "border-border/40 text-muted-foreground/50",
+};
+
 interface FormState {
   full_name: string;
   display_alias: string;
@@ -68,10 +80,14 @@ const BLANK: FormState = {
 
 export function ParticipantDialog({
   participant,
+  blocks,
+  payments,
   open,
   onOpenChange,
 }: {
   participant: ParticipantWithFinance | null;
+  blocks: AdminBlock[];
+  payments: Payment[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -98,6 +114,23 @@ export function ParticipantDialog({
         : BLANK,
     );
   }, [open, participant]);
+
+  // F3: the drawer is the whole story — this person's blocks and money,
+  // read-only, below the editable fields.
+  const myBlocks = useMemo(
+    () =>
+      participant
+        ? blocks.filter((b) => b.participant_id === participant.id)
+        : [],
+    [blocks, participant],
+  );
+  const myPayments = useMemo(
+    () =>
+      participant
+        ? payments.filter((pm) => pm.participant_id === participant.id)
+        : [],
+    [payments, participant],
+  );
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -148,7 +181,7 @@ export function ParticipantDialog({
           </DialogTitle>
           <DialogDescription data-numeric>
             {f
-              ? `${f.blocks_held} held · ${f.blocks_assigned} assigned · ${fmtUsd(f.amount_due_cents)} due · ${fmtUsd(f.amount_paid_cents)} paid`
+              ? `${f.blocks_held} held · ${f.blocks_assigned} assigned · ${fmtUsd(f.amount_due_cents)} due · ${fmtUsd(f.amount_paid_cents)} paid · ${fmtUsd(f.amount_due_cents - f.amount_paid_cents)} open`
               : "Full record — the quick-add row covers the common case."}
           </DialogDescription>
         </DialogHeader>
@@ -204,6 +237,13 @@ export function ParticipantDialog({
               onChange={(e) => set("email", e.target.value)}
               autoComplete="off"
             />
+            {/* F4: informational only — never blocks save. */}
+            {!form.email.trim() && (
+              <p className="text-2xs text-halftime">
+                No email — fine for text/in-person signups, but they won&apos;t
+                get pool emails.
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -281,6 +321,85 @@ export function ParticipantDialog({
               className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
             />
           </div>
+
+          {participant && (
+            <>
+              {/* F3: their blocks, read-only */}
+              <div className="col-span-2 space-y-1.5 border-t border-border pt-3">
+                <p className="text-2xs tracking-widest text-muted-foreground uppercase">
+                  Blocks
+                </p>
+                {myBlocks.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No blocks yet.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {myBlocks.map((b) => (
+                      <span
+                        key={b.block_number}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-2xs font-semibold whitespace-nowrap",
+                          BLOCK_CHIP[b.status],
+                        )}
+                        data-numeric
+                      >
+                        #{b.block_number}
+                        <span className="font-normal tracking-wide uppercase">
+                          {b.status}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* F3: their payment rows, read-only — the ledger records */}
+              <div className="col-span-2 space-y-1.5">
+                <p className="text-2xs tracking-widest text-muted-foreground uppercase">
+                  Payments
+                </p>
+                {myPayments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No payments recorded.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border rounded-lg border border-border">
+                    {myPayments.map((pm) => (
+                      <li
+                        key={pm.id}
+                        className="flex items-center gap-2 px-2.5 py-1.5 text-xs"
+                      >
+                        <span
+                          className="shrink-0 text-muted-foreground"
+                          data-numeric
+                        >
+                          {fmtDateOnly(pm.paid_on)}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 font-medium",
+                            pm.amount_cents < 0 && "text-destructive",
+                          )}
+                          data-numeric
+                        >
+                          {fmtUsd(pm.amount_cents)}
+                        </span>
+                        <span className="shrink-0 text-muted-foreground capitalize">
+                          {pm.method}
+                        </span>
+                        {pm.venmo_txn_id && (
+                          <span className="min-w-0 truncate font-mono text-2xs text-muted-foreground">
+                            {pm.venmo_txn_id}
+                          </span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
 
           <DialogFooter className="col-span-2 mt-1">
             <DialogClose asChild>

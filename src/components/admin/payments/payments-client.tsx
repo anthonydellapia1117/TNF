@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fmtDateOnly, fmtUsd } from "@/lib/format";
 import type { Payment } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
 import { recordPayment } from "@/app/admin/actions";
+import {
+  compareValues,
+  useTableSort,
+  type TableSort,
+} from "@/components/admin/use-table-sort";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +46,16 @@ const METHODS: { value: Method; label: string }[] = [
 
 /** Sentinel — Radix Select items cannot carry an empty value. */
 const UNMATCHED = "__unmatched__";
+
+const LEDGER_SORT_KEYS = [
+  "date",
+  "participant",
+  "amount",
+  "method",
+  "txn",
+  "note",
+] as const;
+type LedgerSortKey = (typeof LEDGER_SORT_KEYS)[number];
 
 /** Local YYYY-MM-DD, computed on the phone so "today" is Anthony's today. */
 function todayLocalYMD(): string {
@@ -83,8 +99,52 @@ export function PaymentsClient({
       new Map(participants.map((p) => [p.id, p.display_alias || p.full_name])),
     [participants],
   );
-  const paymentName = (p: Payment) =>
-    p.participant_id ? (nameById.get(p.participant_id) ?? "Unknown") : "Unmatched";
+  const paymentName = useCallback(
+    (p: Payment) =>
+      p.participant_id
+        ? (nameById.get(p.participant_id) ?? "Unknown")
+        : "Unmatched",
+    [nameById],
+  );
+
+  // F1: search filters the ledger, then the active sort orders what's left.
+  const [query, setQuery] = useState("");
+  const [sort, toggleSort] = useTableSort<LedgerSortKey>(LEDGER_SORT_KEYS, {
+    key: "date",
+    dir: "desc",
+  });
+
+  const ledger = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? payments.filter((p) =>
+          [paymentName(p), p.method, p.venmo_txn_id ?? ""]
+            .join(" ")
+            .toLowerCase()
+            .includes(q),
+        )
+      : payments;
+    const value = (p: Payment): unknown => {
+      switch (sort.key) {
+        case "date":
+          return p.paid_on;
+        case "participant":
+          return paymentName(p);
+        case "amount":
+          return p.amount_cents;
+        case "method":
+          return p.method;
+        case "txn":
+          return p.venmo_txn_id;
+        case "note":
+          return p.note;
+      }
+    };
+    return [...filtered].sort((a, b) => {
+      const cmp = compareValues(value(a), value(b));
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+  }, [payments, query, sort, paymentName]);
 
   const options = useMemo(
     () =>
@@ -347,89 +407,119 @@ export function PaymentsClient({
               </div>
             ) : (
               <>
-                {/* Mobile: stacked cards */}
-                <div className="space-y-2 md:hidden">
-                  {payments.map((p) => (
-                    <div
-                      key={p.id}
-                      className="rounded-lg border border-border bg-surface p-3"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-medium">
-                          {paymentName(p)}
-                        </p>
-                        <p
-                          className={cn(
-                            "shrink-0 text-sm font-medium",
-                            p.amount_cents < 0 && "text-destructive",
-                          )}
-                          data-numeric
-                        >
-                          {fmtUsd(p.amount_cents)}
-                        </p>
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                        <span data-numeric>{fmtDateOnly(p.paid_on)}</span>
-                        <Badge variant="outline">{p.method}</Badge>
-                        {p.venmo_txn_id && (
-                          <span className="max-w-32 truncate font-mono text-2xs">
-                            {p.venmo_txn_id}
-                          </span>
-                        )}
-                      </div>
-                      {p.note && (
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {p.note}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <Input
+                  type="search"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search name, method, txn…"
+                  autoComplete="off"
+                  aria-label="Search ledger"
+                  className="h-12 sm:h-8"
+                />
 
-                {/* Desktop: dense table */}
-                <div className="hidden rounded-lg border border-border bg-surface md:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead>Date</TableHead>
-                        <TableHead>Participant</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
-                        <TableHead>Method</TableHead>
-                        <TableHead>Venmo txn</TableHead>
-                        <TableHead>Note</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments.map((p) => (
-                        <TableRow key={p.id} className="h-10">
-                          <TableCell className="whitespace-nowrap">
-                            {fmtDateOnly(p.paid_on)}
-                          </TableCell>
-                          <TableCell className="max-w-44 truncate font-medium">
+                {ledger.length === 0 ? (
+                  <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted-foreground">
+                    No payments match &ldquo;{query}&rdquo;.
+                  </div>
+                ) : (
+                  <>
+                  {/* Mobile: stacked cards */}
+                  <div className="space-y-2 md:hidden">
+                    {ledger.map((p) => (
+                      <div
+                        key={p.id}
+                        className="rounded-lg border border-border bg-surface p-3"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate text-sm font-medium">
                             {paymentName(p)}
-                          </TableCell>
-                          <TableCell
+                          </p>
+                          <p
                             className={cn(
-                              "text-right",
+                              "shrink-0 text-sm font-medium",
                               p.amount_cents < 0 && "text-destructive",
                             )}
+                            data-numeric
                           >
                             {fmtUsd(p.amount_cents)}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{p.method}</Badge>
-                          </TableCell>
-                          <TableCell className="max-w-28 truncate font-mono text-xs text-muted-foreground">
-                            {p.venmo_txn_id ?? "—"}
-                          </TableCell>
-                          <TableCell className="max-w-48 truncate text-muted-foreground">
-                            {p.note ?? "—"}
-                          </TableCell>
+                          </p>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span data-numeric>{fmtDateOnly(p.paid_on)}</span>
+                          <Badge variant="outline">{p.method}</Badge>
+                          {p.venmo_txn_id && (
+                            <span className="max-w-32 truncate font-mono text-2xs">
+                              {p.venmo_txn_id}
+                            </span>
+                          )}
+                        </div>
+                        {p.note && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {p.note}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop: dense table */}
+                  <div className="hidden rounded-lg border border-border bg-surface md:block">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent">
+                          <TableHead>
+                            <SortHead label="Date" k="date" sort={sort} onSort={toggleSort} />
+                          </TableHead>
+                          <TableHead>
+                            <SortHead label="Participant" k="participant" sort={sort} onSort={toggleSort} />
+                          </TableHead>
+                          <TableHead className="text-right">
+                            <SortHead label="Amount" k="amount" sort={sort} onSort={toggleSort} />
+                          </TableHead>
+                          <TableHead>
+                            <SortHead label="Method" k="method" sort={sort} onSort={toggleSort} />
+                          </TableHead>
+                          <TableHead>
+                            <SortHead label="Venmo txn" k="txn" sort={sort} onSort={toggleSort} />
+                          </TableHead>
+                          <TableHead>
+                            <SortHead label="Note" k="note" sort={sort} onSort={toggleSort} />
+                          </TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                      </TableHeader>
+                      <TableBody>
+                        {ledger.map((p) => (
+                          <TableRow key={p.id} className="h-10">
+                            <TableCell className="whitespace-nowrap">
+                              {fmtDateOnly(p.paid_on)}
+                            </TableCell>
+                            <TableCell className="max-w-44 truncate font-medium">
+                              {paymentName(p)}
+                            </TableCell>
+                            <TableCell
+                              className={cn(
+                                "text-right",
+                                p.amount_cents < 0 && "text-destructive",
+                              )}
+                            >
+                              {fmtUsd(p.amount_cents)}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{p.method}</Badge>
+                            </TableCell>
+                            <TableCell className="max-w-28 truncate font-mono text-xs text-muted-foreground">
+                              {p.venmo_txn_id ?? "—"}
+                            </TableCell>
+                            <TableCell className="max-w-48 truncate text-muted-foreground">
+                              {p.note ?? "—"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -488,6 +578,35 @@ export function PaymentsClient({
         </div>
       </div>
     </div>
+  );
+}
+
+/** F1 column-header sort button: label + ▲/▼ on the active column. */
+function SortHead<K extends string>({
+  label,
+  k,
+  sort,
+  onSort,
+}: {
+  label: string;
+  k: K;
+  sort: TableSort<K>;
+  onSort: (key: K) => void;
+}) {
+  const active = sort.key === k;
+  const Chevron = sort.dir === "desc" ? ChevronDown : ChevronUp;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className={cn(
+        "inline-flex items-center gap-0.5 transition-colors hover:text-foreground",
+        active && "text-foreground",
+      )}
+    >
+      {label}
+      {active && <Chevron className="size-3" />}
+    </button>
   );
 }
 

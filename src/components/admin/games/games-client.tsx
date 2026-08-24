@@ -3,12 +3,24 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarCheck2, CalendarClock, Lock } from "lucide-react";
+import {
+  CalendarCheck2,
+  CalendarClock,
+  ChevronDown,
+  ChevronUp,
+  Lock,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 import { fmtKickoffET } from "@/lib/format";
 import { gameCode } from "@/lib/pool";
 import { matchupLabel, NFL_TEAMS } from "@/lib/nfl";
 import type { AdminGame, GameType } from "@/lib/types";
 import { updateGame } from "@/app/admin/actions";
+import {
+  compareValues,
+  useTableSort,
+  type TableSort,
+} from "@/components/admin/use-table-sort";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -34,6 +46,16 @@ import {
 const ET = "America/New_York";
 const TEAM_NAMES = Object.keys(NFL_TEAMS);
 const CUSTOM = "__custom__";
+
+const GAME_SORT_KEYS = [
+  "game",
+  "week",
+  "matchup",
+  "kickoff",
+  "network",
+  "status",
+] as const;
+type GameSortKey = (typeof GAME_SORT_KEYS)[number];
 
 /**
  * Kickoffs are entered as ET wall-clock (two explicit fields — date + time —
@@ -101,6 +123,51 @@ export function GamesClient({ games }: { games: AdminGame[] }) {
 
   const confirmed = games.filter((g) => g.date_confirmed).length;
 
+  // F1: search filters, then the active sort orders the single list
+  // (game_no by default — the season order).
+  const [query, setQuery] = useState("");
+  const [sort, toggleSort] = useTableSort<GameSortKey>(GAME_SORT_KEYS, {
+    key: "game",
+    dir: "asc",
+  });
+
+  const q = query.trim().toLowerCase();
+  const sortValue = (g: AdminGame): unknown => {
+    switch (sort.key) {
+      case "game":
+        return g.game_no;
+      case "week":
+        return g.week;
+      case "matchup":
+        return matchupLabel(g.away_team, g.home_team);
+      case "kickoff":
+        return g.kickoff_at;
+      case "network":
+        return g.network;
+      case "status":
+        return g.status;
+    }
+  };
+  const visible = games
+    .filter(
+      (g) =>
+        !q ||
+        [
+          matchupLabel(g.away_team, g.home_team),
+          g.away_team,
+          g.home_team,
+          g.network ?? "",
+          g.holiday_label ?? "",
+        ]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
+    )
+    .sort((a, b) => {
+      const cmp = compareValues(sortValue(a), sortValue(b));
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+
   return (
     <div className="space-y-4">
       <div>
@@ -110,8 +177,34 @@ export function GamesClient({ games }: { games: AdminGame[] }) {
         </p>
       </div>
 
+      <Input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search matchup, network, label…"
+        autoComplete="off"
+        aria-label="Search games"
+        className="h-12 sm:h-8"
+      />
+
+      {/* F1 sort bar — every column of the list is click-to-sort. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-2xs tracking-widest text-muted-foreground uppercase">
+        <SortHead label="Game" k="game" sort={sort} onSort={toggleSort} />
+        <SortHead label="Week" k="week" sort={sort} onSort={toggleSort} />
+        <SortHead label="Matchup" k="matchup" sort={sort} onSort={toggleSort} />
+        <SortHead label="Kickoff" k="kickoff" sort={sort} onSort={toggleSort} />
+        <SortHead label="Network" k="network" sort={sort} onSort={toggleSort} />
+        <SortHead label="Status" k="status" sort={sort} onSort={toggleSort} />
+      </div>
+
+      {visible.length === 0 && (
+        <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted-foreground">
+          No games match &ldquo;{query}&rdquo;.
+        </div>
+      )}
+
       <div className="space-y-2">
-        {games.map((g) => (
+        {visible.map((g) => (
           <div
             key={g.id}
             role="button"
@@ -501,5 +594,34 @@ function TeamField({
         />
       )}
     </div>
+  );
+}
+
+/** F1 column-header sort button: label + ▲/▼ on the active column. */
+function SortHead<K extends string>({
+  label,
+  k,
+  sort,
+  onSort,
+}: {
+  label: string;
+  k: K;
+  sort: TableSort<K>;
+  onSort: (key: K) => void;
+}) {
+  const active = sort.key === k;
+  const Chevron = sort.dir === "desc" ? ChevronDown : ChevronUp;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(k)}
+      className={cn(
+        "inline-flex items-center gap-0.5 transition-colors hover:text-foreground",
+        active && "text-foreground",
+      )}
+    >
+      {label}
+      {active && <Chevron className="size-3" />}
+    </button>
   );
 }

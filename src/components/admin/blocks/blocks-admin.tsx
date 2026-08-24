@@ -1,8 +1,15 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type KeyboardEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -14,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  confirmCarryover,
   holdBlock,
   promoteParticipant,
   releaseBlock,
@@ -44,6 +52,9 @@ export function BlocksAdmin({
   const [isPending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [participantId, setParticipantId] = useState("");
+  // F7: roving tabindex — one cell is tabbable, arrows move focus.
+  const [focusedIndex, setFocusedIndex] = useState(0);
+  const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const byNumber = useMemo(
     () => new Map(blocks.map((b) => [b.block_number, b])),
@@ -72,6 +83,17 @@ export function BlocksAdmin({
     for (const b of blocks) c[b.status]++;
     return c;
   }, [blocks]);
+
+  // H1: carried-over numbers nobody has re-confirmed yet.
+  const unconfirmedCarryovers = useMemo(
+    () =>
+      blocks.filter(
+        (b) =>
+          b.assignment_method === "carryover" &&
+          (b.notes ?? "").toLowerCase().includes("unconfirmed"),
+      ),
+    [blocks],
+  );
 
   const sortedParticipants = useMemo(
     () =>
@@ -175,6 +197,70 @@ export function BlocksAdmin({
     });
   }
 
+  function onConfirmCarryover(n: number) {
+    startTransition(async () => {
+      const result = await confirmCarryover(n);
+      if (result.ok) {
+        toast.success(`Block ${n} confirmed as requested`);
+      } else {
+        toast.error(result.error ?? "Confirm failed.");
+      }
+      router.refresh();
+    });
+  }
+
+  function onReleaseCarryover(n: number) {
+    if (
+      !window.confirm(
+        `Release block ${n} back to the pool? This frees the number but keeps its history.`,
+      )
+    )
+      return;
+    startTransition(async () => {
+      const result = await releaseBlock(n);
+      if (result.ok) {
+        toast.success(`Block ${n} released to the pool`);
+      } else {
+        toast.error(result.error ?? "Release failed.");
+      }
+      router.refresh();
+    });
+  }
+
+  // F7: arrows move within the 10x10 grid, Space/Enter toggles selection.
+  function onCellKeyDown(
+    e: KeyboardEvent<HTMLButtonElement>,
+    i: number,
+    n: number,
+  ) {
+    let next: number;
+    switch (e.key) {
+      case "ArrowLeft":
+        next = i - 1;
+        break;
+      case "ArrowRight":
+        next = i + 1;
+        break;
+      case "ArrowUp":
+        next = i - 10;
+        break;
+      case "ArrowDown":
+        next = i + 10;
+        break;
+      case " ":
+      case "Enter":
+        e.preventDefault(); // keep Space from scrolling the page
+        toggle(n);
+        return;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const clamped = Math.max(0, Math.min(blocks.length - 1, next));
+    setFocusedIndex(clamped);
+    cellRefs.current[clamped]?.focus();
+  }
+
   function onPromote(p: ParticipantWithFinance) {
     const alias = p.display_alias ?? p.full_name;
     startTransition(async () => {
@@ -203,6 +289,64 @@ export function BlocksAdmin({
         </p>
       </div>
 
+      {/* H1: carried-over numbers still waiting on a yes from the group */}
+      {unconfirmedCarryovers.length > 0 ? (
+        <div className="rounded-lg border border-halftime/60 bg-surface p-3">
+          <h2 className="flex items-center gap-1.5 text-sm font-medium text-halftime">
+            <TriangleAlert className="size-4 shrink-0" aria-hidden />
+            Carryover numbers awaiting confirmation
+          </h2>
+          <p className="mt-0.5 text-2xs text-muted-foreground">
+            Waiting on confirmation that these carried-over numbers are what
+            the group actually wants.
+          </p>
+          <div className="mt-2 divide-y divide-border">
+            {unconfirmedCarryovers.map((b) => {
+              const alias = b.participant_id
+                ? aliasById.get(b.participant_id)
+                : undefined;
+              return (
+                <div
+                  key={b.block_number}
+                  className="space-y-1.5 py-2 first:pt-0 last:pb-0"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="shrink-0 text-sm font-medium" data-numeric>
+                      #{b.block_number}
+                    </span>
+                    <span className="truncate text-sm">{alias ?? "—"}</span>
+                    {b.notes ? (
+                      <span className="min-w-0 flex-1 truncate text-2xs text-muted-foreground">
+                        {b.notes}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-9 min-w-0 flex-1 sm:h-7 sm:flex-none"
+                      disabled={isPending}
+                      onClick={() => onConfirmCarryover(b.block_number)}
+                    >
+                      <span className="truncate">Confirm as requested</span>
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 min-w-0 flex-1 sm:h-7 sm:flex-none"
+                      disabled={isPending}
+                      onClick={() => onReleaseCarryover(b.block_number)}
+                    >
+                      <span className="truncate">Release to pool</span>
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {/* Grid card: legend + 10x10 mini-grid, toggle-select cells */}
       <div className="rounded-lg border border-border bg-surface p-2 sm:p-3">
         <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-2xs text-muted-foreground">
@@ -224,24 +368,48 @@ export function BlocksAdmin({
           </span>
         </div>
 
-        <div className="grid grid-cols-10 gap-0.5 sm:gap-1">
-          {blocks.map((b) => {
+        <div
+          role="grid"
+          aria-label="Block selection grid — arrow keys move between blocks, Space or Enter toggles selection"
+          className="grid grid-cols-10 gap-0.5 sm:gap-1"
+        >
+          {blocks.map((b, i) => {
             const isSelected = selected.has(b.block_number);
             const alias = b.participant_id
               ? aliasById.get(b.participant_id)
               : undefined;
+            const disputed = /disput/i.test(b.notes ?? "");
             return (
               <button
                 key={b.block_number}
+                ref={(el) => {
+                  cellRefs.current[i] = el;
+                }}
                 type="button"
+                tabIndex={i === focusedIndex ? 0 : -1}
+                onFocus={() => setFocusedIndex(i)}
+                onKeyDown={(e) => onCellKeyDown(e, i, b.block_number)}
                 onClick={() => toggle(b.block_number)}
                 aria-pressed={isSelected}
+                title={b.notes ?? undefined}
                 className={cn(
                   "relative flex aspect-square touch-manipulation flex-col items-center justify-center gap-0.5 rounded-md border transition-colors duration-100",
                   CELL[b.status],
                   isSelected && "z-10 bg-primary/10 ring-2 ring-ring ring-inset",
                 )}
               >
+                {/* H2: note markers — red triangle for disputes, amber dot otherwise */}
+                {disputed ? (
+                  <TriangleAlert
+                    className="absolute top-0.5 right-0.5 size-2.5 text-destructive"
+                    aria-hidden
+                  />
+                ) : b.notes ? (
+                  <span
+                    className="absolute top-0.5 right-0.5 size-1 rounded-full bg-halftime"
+                    aria-hidden
+                  />
+                ) : null}
                 <span className="text-2xs leading-none" data-numeric>
                   {b.block_number}
                 </span>
