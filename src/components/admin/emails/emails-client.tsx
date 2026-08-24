@@ -3,7 +3,10 @@
 // F5: the distribution list. One tap to copy every visible address into a
 // BCC field — filtered to paid, unpaid, or missing-email as needed. A
 // missing email is a legitimate state (spec H4: text/in-person signups),
-// so it renders amber-informational, never as an error.
+// so it renders amber-informational, never as an error. Likewise a SHARED
+// address is a legitimate state — spouses, business partners, friends who
+// let one guy handle the email — so it gets an informational marker only,
+// never a duplicate warning or a merge suggestion (owner rule, 2026-08-24).
 
 import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
@@ -95,11 +98,25 @@ export function EmailsClient({
     () => sorted.filter((p) => matches(p, filter)),
     [sorted, filter],
   );
+  // How many participants use each address, across the whole pool — so the
+  // shared marker doesn't come and go as filters change.
+  const usersPerEmail = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of participants) {
+      const e = emailOf(p)?.toLowerCase();
+      if (e) m.set(e, (m.get(e) ?? 0) + 1);
+    }
+    return m;
+  }, [participants]);
+
+  // A shared address goes into the BCC field once, not once per person.
   const addresses = useMemo(
     () =>
-      visible
-        .map(emailOf)
-        .filter((e): e is string => e !== null),
+      Array.from(
+        new Set(
+          visible.map(emailOf).filter((e): e is string => e !== null),
+        ),
+      ),
     [visible],
   );
   const joined = addresses.join(", ");
@@ -189,8 +206,19 @@ export function EmailsClient({
                   {p.display_alias ?? p.full_name}
                 </span>
                 {email ? (
-                  <span className="truncate font-mono text-xs text-muted-foreground">
-                    {email}
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className="truncate font-mono text-xs text-muted-foreground">
+                      {email}
+                    </span>
+                    {(usersPerEmail.get(email.toLowerCase()) ?? 0) > 1 && (
+                      <span
+                        title="Shared contact address — informational only, not a duplicate"
+                        className="shrink-0 rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-2xs text-muted-foreground"
+                        data-numeric
+                      >
+                        shared ×{usersPerEmail.get(email.toLowerCase())}
+                      </span>
+                    )}
                   </span>
                 ) : (
                   <span className="shrink-0 rounded-md border border-halftime/50 bg-halftime/10 px-1.5 py-0.5 text-2xs text-halftime">
