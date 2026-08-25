@@ -46,6 +46,8 @@ export interface PublicGame {
   col_digits: number[] | null; // null until published
   digits_assigned: boolean;
   digits_published_at: string | null;
+  /** Announced drop time — public even while the digits themselves are gated. */
+  digits_reveal_at?: string | null;
   live_home: number | null;
   live_away: number | null;
   live_updated_at: string | null;

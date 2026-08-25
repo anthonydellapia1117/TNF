@@ -60,6 +60,11 @@ begin
   if r.digits_assigned is not true then
     raise exception 'TEST FAILURE: digits_assigned flag should remain visible';
   end if;
+  -- The announced drop TIME is public while scheduled (NEXT REVEAL card);
+  -- only the digit set itself stays gated.
+  if r.digits_reveal_at is null then
+    raise exception 'TEST FAILURE: the announced reveal time should be public while scheduled';
+  end if;
   reset role;
   perform set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true);
 end $$;

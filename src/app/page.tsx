@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, LayoutGrid, Trophy, Wallet } from "lucide-react";
+import { ArrowRight, CalendarDays, LayoutGrid, Wallet } from "lucide-react";
 import { Countdown } from "@/components/dashboard/countdown";
 import { HotDigits } from "@/components/dashboard/hot-digits";
+import { NextRevealCard } from "@/components/dashboard/next-reveal-card";
 import { StatusChip } from "@/components/grid/status-chip";
 import {
   currentGame,
   getConfig,
   getPot,
+  getPublicBlocks,
   getPublicGames,
   getPublicPayouts,
 } from "@/lib/data/public";
@@ -172,11 +174,12 @@ function Panel({
 }
 
 export default async function DashboardPage() {
-  const [games, payouts, config, pot] = await Promise.all([
+  const [games, payouts, config, pot, blocks] = await Promise.all([
     getPublicGames(),
     getPublicPayouts(),
     getConfig(),
     getPot(),
+    getPublicBlocks(),
   ]);
 
   const next = currentGame(games);
@@ -238,17 +241,7 @@ export default async function DashboardPage() {
           </p>
         </StatCard>
 
-        <StatCard
-          label="Payouts remaining"
-          icon={<Trophy className="size-3" aria-hidden />}
-        >
-          <p className="mt-2 text-2xl font-semibold" data-numeric>
-            {fmtUsd(remaining)}
-          </p>
-          <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
-            of {fmtUsd(seasonTotal)}
-          </p>
-        </StatCard>
+        <NextRevealCard games={games} payouts={payouts} blocks={blocks} />
 
         <StatCard
           label="Next deadline"
