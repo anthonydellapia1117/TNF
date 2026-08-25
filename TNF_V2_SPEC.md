@@ -1,7 +1,7 @@
 # TNF BLOCK POOL — V2 ENHANCEMENT SPECIFICATION
 
 Repo: `tnf`
-Live: `tnf-2026.vercel.app`
+Live: `ad-26-tnf.vercel.app`
 Supabase: project `bqisojzdwodwaznzwega`
 Written 2026-08-24. Claim and payment deadline **September 4**. First game **G01, Wednesday September 9**.
 

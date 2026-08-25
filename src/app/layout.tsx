@@ -13,13 +13,32 @@ const geistSans = Geist({
   preload: true,
 });
 
+const SITE_URL = "https://ad-26-tnf.vercel.app";
+const SITE_TITLE = "1622 TNF Block Pool";
+const SITE_DESCRIPTION =
+  "1622 TNF Block Pool, 2026 season — live grid, winners, and payouts. 100 blocks, 23 games.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: "1622 TNF Block Pool",
-    template: "%s · 1622 TNF Block Pool",
+    default: SITE_TITLE,
+    template: `%s · ${SITE_TITLE}`,
   },
-  description:
-    "1622 TNF Block Pool, 2026 season — live grid, winners, and payouts. 100 blocks, 23 games.",
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    type: "website",
+    url: "/",
+    siteName: SITE_TITLE,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: [{ url: "/api/og", width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["/api/og"],
+  },
 };
 
 export const viewport: Viewport = {
