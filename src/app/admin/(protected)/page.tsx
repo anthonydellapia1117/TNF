@@ -46,12 +46,21 @@ export default async function AdminOverview() {
             What needs attention, in priority order.
           </p>
         </div>
-        <a
-          href="/api/export/pool.xlsx"
-          className="shrink-0 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
-        >
-          Export .xlsx
-        </a>
+        <div className="flex shrink-0 gap-2">
+          <a
+            href="/api/export/pool.xlsx"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            Export .xlsx
+          </a>
+          <a
+            href="/api/export/backup.sql"
+            title="Full data backup — one runnable SQL file that restores everything"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            Backup
+          </a>
+        </div>
       </div>
 
       {alerts.length === 0 ? (
