@@ -3,7 +3,11 @@ import Link from "next/link";
 import { AlertTriangle, CircleDollarSign, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
-import { committedBlocks, placedBlocks } from "@/lib/pool";
+import {
+  committedBlocks,
+  placedBlocks,
+  seasonPayoutTotalCents,
+} from "@/lib/pool";
 import { getConfig, getPot } from "@/lib/data/public";
 import {
   buildAlerts,
@@ -95,7 +99,75 @@ export default async function AdminOverview() {
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />
         <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents)} owed to winners`} />
       </div>
+
+      {/* The full liability picture lives here and only here — the public
+          dashboard tells the season's story, never the balance sheet. */}
+      <SeasonPayoutProgress
+        seasonTotal={seasonPayoutTotalCents(games, config)}
+        paid={pot.paid_out_cents}
+        owed={pot.owed_out_cents}
+        gameCount={games.length}
+      />
     </div>
+  );
+}
+
+function SeasonPayoutProgress({
+  seasonTotal,
+  paid,
+  owed,
+  gameCount,
+}: {
+  seasonTotal: number;
+  paid: number;
+  owed: number;
+  gameCount: number;
+}) {
+  const remaining = Math.max(0, seasonTotal - paid - owed);
+  const pctOf = (cents: number) =>
+    seasonTotal > 0 ? `${(cents / seasonTotal) * 100}%` : "0%";
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4">
+      <h2 className="mb-3 text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
+        Season payout progress
+      </h2>
+      <div
+        className="flex h-2.5 overflow-hidden rounded-full bg-surface-2"
+        role="img"
+        aria-label={`${fmtUsd(paid)} paid, ${fmtUsd(owed)} owed, ${fmtUsd(remaining)} remaining of ${fmtUsd(seasonTotal)}`}
+      >
+        {paid > 0 && <div className="bg-final" style={{ width: pctOf(paid) }} />}
+        {owed > 0 && (
+          <div className="bg-halftime" style={{ width: pctOf(owed) }} />
+        )}
+      </div>
+      <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="size-2 rounded-sm bg-final" aria-hidden />
+          <dt className="text-muted-foreground">Paid</dt>
+          <dd className="font-medium" data-numeric>
+            {fmtUsd(paid)}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="size-2 rounded-sm bg-halftime" aria-hidden />
+          <dt className="text-muted-foreground">Owed</dt>
+          <dd className="font-medium" data-numeric>
+            {fmtUsd(owed)}
+          </dd>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="size-2 rounded-sm bg-surface-2" aria-hidden />
+          <dt className="text-muted-foreground">Remaining</dt>
+          <dd className="font-medium" data-numeric>
+            {fmtUsd(remaining)}
+          </dd>
+        </div>
+      </dl>
+      <p className="mt-2 text-2xs text-muted-foreground" data-numeric>
+        {fmtUsd(seasonTotal)} in fixed payouts across {gameCount} games.
+      </p>
+    </section>
   );
 }
 

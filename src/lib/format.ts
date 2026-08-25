@@ -25,6 +25,17 @@ export function fmtDateET(iso: string | null): string {
   });
 }
 
+/** "Wednesday, September 9" */
+export function fmtDateLongET(iso: string | null): string {
+  if (!iso) return "TBD";
+  return new Date(iso).toLocaleDateString("en-US", {
+    timeZone: ET,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 /** "Thu Nov 26, 4:30 PM ET" */
 export function fmtKickoffET(iso: string | null): string {
   if (!iso) return "Date TBD";

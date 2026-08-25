@@ -14,15 +14,15 @@ import {
   getPublicGames,
   getPublicPayouts,
 } from "@/lib/data/public";
-import { fmtDateOnly, fmtKickoffET, fmtUsd } from "@/lib/format";
+import { fmtDateLongET, fmtDateOnly, fmtKickoffET, fmtUsd } from "@/lib/format";
 import { teamInfo } from "@/lib/nfl";
+import { seasonStory } from "@/lib/next-reveal";
 import {
   committedBlocks,
   gameCode,
   lastDigit,
   payoutCents,
   placedBlocks,
-  seasonPayoutTotalCents,
 } from "@/lib/pool";
 import type { PoolConfig, PublicGame } from "@/lib/types";
 
@@ -193,13 +193,7 @@ export default async function DashboardPage() {
   const committedPct =
     config.blocks_total > 0 ? (committed / config.blocks_total) * 100 : 0;
 
-  const seasonTotal = seasonPayoutTotalCents(games, config);
-  const paid = pot.paid_out_cents;
-  const owed = pot.owed_out_cents;
-  const remaining = Math.max(0, seasonTotal - paid - owed);
-  const pctOf = (cents: number) =>
-    seasonTotal > 0 ? `${(cents / seasonTotal) * 100}%` : "0%";
-
+  const story = seasonStory(games, payouts);
   const deadlineDays = daysUntil(config.claim_deadline);
   const recent = payouts.slice(0, 5);
 
@@ -341,45 +335,51 @@ export default async function DashboardPage() {
           )}
         </Panel>
 
-        <Panel title="Season payout progress">
-          <div
-            className="flex h-2.5 overflow-hidden rounded-full bg-surface-2"
-            role="img"
-            aria-label={`${fmtUsd(paid)} paid, ${fmtUsd(owed)} owed, ${fmtUsd(remaining)} remaining of ${fmtUsd(seasonTotal)}`}
-          >
-            {paid > 0 && (
-              <div className="bg-final" style={{ width: pctOf(paid) }} />
-            )}
-            {owed > 0 && (
-              <div className="bg-halftime" style={{ width: pctOf(owed) }} />
-            )}
-          </div>
-          <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-sm bg-final" aria-hidden />
-              <dt className="text-muted-foreground">Paid</dt>
-              <dd className="font-medium" data-numeric>
-                {fmtUsd(paid)}
-              </dd>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-sm bg-halftime" aria-hidden />
-              <dt className="text-muted-foreground">Owed</dt>
-              <dd className="font-medium" data-numeric>
-                {fmtUsd(owed)}
-              </dd>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="size-2 rounded-sm bg-surface-2" aria-hidden />
-              <dt className="text-muted-foreground">Remaining</dt>
-              <dd className="font-medium" data-numeric>
-                {fmtUsd(remaining)}
-              </dd>
-            </div>
-          </dl>
-          <p className="mt-2 text-2xs text-muted-foreground" data-numeric>
-            {fmtUsd(seasonTotal)} in fixed payouts across {games.length} games.
-          </p>
+        <Panel title="Season so far">
+          {story.preSeason ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Season starts {fmtDateLongET(story.firstKickoffISO)}.
+            </p>
+          ) : (
+            <dl className="space-y-2 text-sm">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">Games played</dt>
+                <dd className="font-medium" data-numeric>
+                  {story.gamesPlayed} of {story.gamesTotal}
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="text-muted-foreground">Paid out so far</dt>
+                <dd className="font-medium" data-numeric>
+                  {fmtUsd(story.paidOutCents)}
+                </dd>
+              </div>
+              {story.biggestWin && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted-foreground">Biggest single win</dt>
+                  <dd className="font-medium" data-numeric>
+                    {fmtUsd(story.biggestWin.cents)}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {story.biggestWin.label}
+                    </span>
+                  </dd>
+                </div>
+              )}
+              {story.mostWins && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="text-muted-foreground">Most wins</dt>
+                  <dd className="max-w-40 truncate font-medium" data-numeric>
+                    {story.mostWins.name}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {story.mostWins.count}
+                    </span>
+                  </dd>
+                </div>
+              )}
+            </dl>
+          )}
         </Panel>
 
         <Panel title="Hot digits">

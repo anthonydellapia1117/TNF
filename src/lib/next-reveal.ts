@@ -81,6 +81,75 @@ export function revealCardState(
   };
 }
 
+/**
+ * The season's story so far, for the public dashboard panel — what has
+ * happened, never the balance sheet. No liability, no owed, no remaining.
+ */
+export interface SeasonStory {
+  preSeason: boolean;
+  firstKickoffISO: string | null;
+  gamesPlayed: number;
+  gamesTotal: number;
+  paidOutCents: number;
+  biggestWin: { cents: number; label: string } | null;
+  mostWins: { name: string; count: number } | null;
+}
+
+export function seasonStory(
+  games: PublicGame[],
+  payouts: PublicPayout[],
+): SeasonStory {
+  const gamesPlayed = games.filter((g) => g.status === "final").length;
+  const firstKickoffISO =
+    games
+      .map((g) => g.kickoff_at)
+      .filter((k): k is string => k !== null)
+      .sort()[0] ?? null;
+
+  const byGame = new Map(games.map((g) => [g.id, g]));
+  let biggestWin: SeasonStory["biggestWin"] = null;
+  for (const p of payouts) {
+    if (!biggestWin || p.amount_cents > biggestWin.cents) {
+      const g = byGame.get(p.game_id);
+      const label = g
+        ? `G${String(g.game_no).padStart(2, "0")}${g.holiday_label ? ` ${g.holiday_label}` : ""}`
+        : `Block ${p.block_number}`;
+      biggestWin = { cents: p.amount_cents, label };
+    }
+  }
+
+  const wins = new Map<string, { count: number; cents: number }>();
+  for (const p of payouts) {
+    const name = p.display_name ?? `Block ${p.block_number}`;
+    const w = wins.get(name) ?? { count: 0, cents: 0 };
+    w.count += 1;
+    w.cents += p.amount_cents;
+    wins.set(name, w);
+  }
+  let mostWins: SeasonStory["mostWins"] = null;
+  let mostCents = 0;
+  for (const [name, w] of wins) {
+    if (
+      !mostWins ||
+      w.count > mostWins.count ||
+      (w.count === mostWins.count && w.cents > mostCents)
+    ) {
+      mostWins = { name, count: w.count };
+      mostCents = w.cents;
+    }
+  }
+
+  return {
+    preSeason: gamesPlayed === 0 && payouts.length === 0,
+    firstKickoffISO,
+    gamesPlayed,
+    gamesTotal: games.length,
+    paidOutCents: payouts.reduce((s, p) => s + p.amount_cents, 0),
+    biggestWin,
+    mostWins,
+  };
+}
+
 export interface SeasonSummary {
   gamesPlayed: number;
   totalWonCents: number;

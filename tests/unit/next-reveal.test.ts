@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { revealCardState, revealTimeISO, seasonSummary } from "@/lib/next-reveal";
+import {
+  revealCardState,
+  revealTimeISO,
+  seasonStory,
+  seasonSummary,
+} from "@/lib/next-reveal";
 import type { PublicGame, PublicPayout } from "@/lib/types";
 
 const NOW = new Date("2026-09-01T12:00:00Z").getTime();
@@ -129,6 +134,38 @@ describe("revealCardState — one card, four states", () => {
       status: "published",
     });
     expect(revealCardState([done, next], NOW).kind).toBe("numbers_live");
+  });
+
+  it("seasonStory: pre-season points at the opener, no zeros against a total", () => {
+    const s = seasonStory([game({}), game({ game_no: 2 })], []);
+    expect(s.preSeason).toBe(true);
+    expect(s.firstKickoffISO).toBe("2026-09-10T00:20:00Z");
+  });
+
+  it("seasonStory: the story rows — played, paid, biggest, most wins", () => {
+    const g1 = game({ status: "final" });
+    const g13 = game({
+      game_no: 13,
+      status: "final",
+      game_type: "holiday",
+      holiday_label: "Thanksgiving",
+      kickoff_at: "2026-11-26T18:00:00Z",
+    });
+    const open = game({ game_no: 14 });
+    const s = seasonStory(
+      [g1, g13, open],
+      [
+        payout({ game_id: g1.id, amount_cents: 100000, display_name: "Breeze" }),
+        payout({ game_id: g1.id, payout_type: "halftime", amount_cents: 75000, display_name: "Breeze" }),
+        payout({ game_id: g13.id, amount_cents: 150000, display_name: "Scro" }),
+      ],
+    );
+    expect(s.preSeason).toBe(false);
+    expect(s.gamesPlayed).toBe(2);
+    expect(s.gamesTotal).toBe(3);
+    expect(s.paidOutCents).toBe(325000);
+    expect(s.biggestWin).toEqual({ cents: 150000, label: "G13 Thanksgiving" });
+    expect(s.mostWins).toEqual({ name: "Breeze", count: 2 });
   });
 
   it("season over: SEASON SUMMARY", () => {

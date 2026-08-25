@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s · 1622 TNF Block Pool",
   },
   description:
-    "1622 TNF Block Pool, 2026 season — live grid, winners, and payouts. 100 blocks, 23 games, $44,250 in payouts.",
+    "1622 TNF Block Pool, 2026 season — live grid, winners, and payouts. 100 blocks, 23 games.",
 };
 
 export const viewport: Viewport = {

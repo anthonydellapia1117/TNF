@@ -11,7 +11,7 @@ import {
 } from "@/lib/data/public";
 import { fmtKickoffET, fmtUsd } from "@/lib/format";
 import { teamPalette } from "@/lib/nfl";
-import { gameCode, payoutCents, seasonPayoutTotalCents } from "@/lib/pool";
+import { gameCode, payoutCents } from "@/lib/pool";
 import { cn } from "@/lib/utils";
 import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
 
@@ -201,14 +201,13 @@ export default async function SchedulePage() {
   const blocks = new Map(blockList.map((b) => [b.block_number, b]));
   const current = currentGame(games);
   const weeks = [...new Set(games.map((g) => g.week))].sort((a, b) => a - b);
-  const total = seasonPayoutTotalCents(games, config);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl">Schedule</h1>
         <p className="mt-0.5 text-sm text-muted-foreground" data-numeric>
-          {games.length} games · {fmtUsd(total)} in payouts · all times ET
+          {games.length} games · all times ET
         </p>
       </div>
 
