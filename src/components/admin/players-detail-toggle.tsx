@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { setPlayersDetail } from "@/app/admin/actions";
 
 const MODES = [
-  { value: "full", label: "Full", hint: "player · group · block · method · status" },
+  { value: "full", label: "Full", hint: "player · group · block · method" },
   { value: "lean", label: "Lean", hint: "player · block only" },
 ] as const;
 

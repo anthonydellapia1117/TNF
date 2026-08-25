@@ -2,8 +2,11 @@
 
 // The public Players roster: read-only, one row per claimed block. Search,
 // sort by any column (state in the URL), group filter for the co-runners.
-// FULL mode shows method/status/group; LEAN is #, player, block only.
-// Rows link to the block's read-only detail page — no edit controls exist.
+// FULL mode adds group and method; LEAN is #, player, block only.
+// Method speaks a two-word vocabulary — REQUESTED (green) or RANDOMIZED
+// (orange) — and status never appears here: reserved-vs-assigned is a
+// payment distinction that lives on /admin. Rows link to the block's
+// read-only detail page — no edit controls exist.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -16,15 +19,11 @@ import {
   type TableSort,
 } from "@/components/admin/use-table-sort";
 import { Input } from "@/components/ui/input";
+import { MethodChip, methodLabel } from "@/components/players/method-chip";
 
-const FULL_SORT_KEYS = ["player", "group", "block", "method", "status"] as const;
+const FULL_SORT_KEYS = ["player", "group", "block", "method"] as const;
 const LEAN_SORT_KEYS = ["player", "block"] as const;
 type SortKey = (typeof FULL_SORT_KEYS)[number];
-
-const STATUS_LABEL: Record<string, string> = {
-  reserved: "Reserved",
-  assigned: "Assigned",
-};
 
 export function PlayersClient({
   blocks,
@@ -58,9 +57,7 @@ export function PlayersClient({
       case "block":
         return b.block_number;
       case "method":
-        return b.assignment_method ?? "";
-      case "status":
-        return b.status;
+        return methodLabel(b.assignment_method);
     }
   };
 
@@ -75,8 +72,7 @@ export function PlayersClient({
                 b.display_name ?? "",
                 String(b.block_number),
                 full ? (b.owner_group ?? "") : "",
-                full ? (b.assignment_method ?? "") : "",
-                full ? b.status : "",
+                full ? methodLabel(b.assignment_method) : "",
               ]
                 .join(" ")
                 .toLowerCase()
@@ -150,27 +146,25 @@ export function PlayersClient({
         </div>
       )}
 
-      {/* Sort header. On phones in FULL mode, Method and Status share one
-          folded cell — the sort buttons still target each independently. */}
+      {/* Column header — five columns fit a 390px phone with no folding. */}
       <div className="flex items-center gap-2 px-3 text-2xs tracking-widest text-muted-foreground uppercase">
-        <span className="w-7" data-numeric>
+        <span className="w-6" data-numeric>
           #
         </span>
         <span className="min-w-0 flex-1">
           <Head label="Player" k="player" sort={sort} onSort={toggleSort} />
         </span>
         {full && (
-          <span className="hidden w-14 sm:block">
+          <span className="w-12">
             <Head label="Group" k="group" sort={sort} onSort={toggleSort} />
           </span>
         )}
-        <span className="w-12 text-right">
+        <span className="w-10 text-right">
           <Head label="Block" k="block" sort={sort} onSort={toggleSort} />
         </span>
         {full && (
-          <span className="flex w-20 flex-col items-start gap-0.5 sm:w-40 sm:flex-row sm:gap-3">
+          <span className="w-24 text-right">
             <Head label="Method" k="method" sort={sort} onSort={toggleSort} />
-            <Head label="Status" k="status" sort={sort} onSort={toggleSort} />
           </span>
         )}
       </div>
@@ -187,48 +181,26 @@ export function PlayersClient({
               href={`/block/${b.block_number}`}
               className="flex min-h-12 items-center gap-2 border-b border-border px-3 py-2 transition-colors duration-150 last:border-b-0 hover:bg-surface-2"
             >
-              <span className="w-7 shrink-0 text-xs text-muted-foreground" data-numeric>
+              <span className="w-6 shrink-0 text-xs text-muted-foreground" data-numeric>
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {b.display_name ?? "—"}
               </span>
               {full && (
-                <span className="hidden w-14 shrink-0 text-xs text-muted-foreground sm:block">
+                <span className="w-12 shrink-0 text-2xs text-muted-foreground">
                   {b.owner_group ?? ""}
                 </span>
               )}
               <span
-                className="w-12 shrink-0 text-right text-sm font-semibold"
+                className="w-10 shrink-0 text-right text-sm font-semibold"
                 data-numeric
               >
                 #{b.block_number}
               </span>
               {full && (
-                <span className="flex w-20 shrink-0 flex-col items-start gap-0.5 sm:w-40 sm:flex-row sm:items-center sm:gap-3">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 text-2xs font-semibold tracking-wide",
-                      b.assignment_method === "requested"
-                        ? "text-final"
-                        : "text-muted-foreground",
-                    )}
-                  >
-                    {b.assignment_method === "requested" && (
-                      <span className="size-1.5 rounded-full bg-final" aria-hidden />
-                    )}
-                    {(b.assignment_method ?? "").toUpperCase()}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-2xs",
-                      b.status === "reserved"
-                        ? "text-halftime"
-                        : "text-foreground",
-                    )}
-                  >
-                    {STATUS_LABEL[b.status] ?? b.status}
-                  </span>
+                <span className="flex w-24 shrink-0 justify-end">
+                  <MethodChip method={b.assignment_method} />
                 </span>
               )}
             </Link>
