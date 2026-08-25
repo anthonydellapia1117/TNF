@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { claimedEntries } from "@/lib/pool";
 import {
   adjacentBlocks,
   blockDigits,
@@ -27,6 +28,7 @@ const CONFIG: PoolConfig = {
   claim_deadline: "2026-09-04",
   timezone: "America/New_York",
   season_status: "open",
+  players_detail: "full",
 };
 
 describe("winningBlock", () => {
@@ -181,5 +183,33 @@ describe("labels", () => {
     expect(lastDigit(0)).toBe(0);
     expect(lastDigit(30)).toBe(0);
     expect(lastDigit(27)).toBe(7);
+  });
+});
+
+describe("claimedEntries — the public list, one row per claimed block", () => {
+  const blocks = [
+    { block_number: 38, status: "reserved", display_name: "Jr/Diz" },
+    { block_number: 5, status: "reserved", display_name: "AAA" },
+    { block_number: 36, status: "reserved", display_name: "Jr/Diz" },
+    { block_number: 24, status: "available", display_name: null },
+    { block_number: 15, status: "assigned", display_name: "Nicco Esgro" },
+    { block_number: 3, status: "reserved", display_name: "AAA" },
+    { block_number: 90, status: "held", display_name: null },
+  ];
+
+  it("sorts alias then block, includes reserved and assigned only", () => {
+    expect(claimedEntries(blocks)).toEqual([
+      { name: "AAA", blockNumber: 3 },
+      { name: "AAA", blockNumber: 5 },
+      { name: "Jr/Diz", blockNumber: 36 },
+      { name: "Jr/Diz", blockNumber: 38 },
+      { name: "Nicco Esgro", blockNumber: 15 },
+    ]);
+  });
+
+  it("never numbers aliases apart — a two-block holder repeats verbatim", () => {
+    const names = claimedEntries(blocks).map((e) => e.name);
+    expect(names.filter((n) => n === "Jr/Diz")).toEqual(["Jr/Diz", "Jr/Diz"]);
+    expect(names.some((n) => /Jr\/Diz.*[12]/.test(n))).toBe(false);
   });
 });

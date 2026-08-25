@@ -17,6 +17,8 @@ const NAV = [
   { href: "/", label: "Home" },
   { href: "/grid", label: "Grid" },
   { href: "/blocks", label: "Board" },
+  { href: "/players", label: "Players" },
+  { href: "/list", label: "List" },
   { href: "/schedule", label: "Schedule" },
   { href: "/winners", label: "Winners" },
   { href: "/admin", label: "Admin" },
@@ -39,19 +41,19 @@ export function SiteHeader() {
         >
           <span className="text-pool-accent">1622</span>
           <span>TNF</span>
-          <span className="hidden text-2xs font-normal text-muted-foreground md:inline">
+          <span className="hidden text-2xs font-normal text-muted-foreground lg:inline">
             Block Pool ’26
           </span>
         </Link>
 
         {/* Desktop: inline nav */}
         <nav className="hidden min-w-0 flex-1 items-center gap-0.5 sm:flex">
-          {NAV.slice(0, 5).map((item) => (
+          {NAV.slice(0, 7).map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-md px-2.5 py-1.5 text-sm whitespace-nowrap transition-colors duration-150",
+                "rounded-md px-2 py-1.5 text-sm whitespace-nowrap transition-colors duration-150 lg:px-2.5",
                 isActive(pathname, item.href)
                   ? "bg-surface-2 text-foreground"
                   : "text-muted-foreground hover:text-foreground",

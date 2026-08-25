@@ -202,10 +202,20 @@ export default async function DashboardPage() {
       {next && <Hero game={next} config={config} />}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <StatCard
-          label="Blocks committed"
-          icon={<LayoutGrid className="size-3" aria-hidden />}
+        {/* Clickable: the committed count opens the public Players roster.
+            Whole card is the tap target; chevron + hover ring on desktop. */}
+        <Link
+          href="/players"
+          className="group rounded-lg border border-border bg-surface p-4 transition-colors duration-150 hover:border-pool-accent/60"
         >
+          <p className="flex items-center gap-1.5 text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
+            <LayoutGrid className="size-3" aria-hidden />
+            Blocks committed
+            <ArrowRight
+              className="ml-auto size-3 text-muted-foreground transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-pool-accent"
+              aria-hidden
+            />
+          </p>
           <p className="mt-2 text-2xl font-semibold" data-numeric>
             {committed}
             <span className="text-sm font-normal text-muted-foreground">
@@ -221,7 +231,7 @@ export default async function DashboardPage() {
           <p className="mt-1.5 text-2xs text-muted-foreground" data-numeric>
             {placed} placed · {open} open
           </p>
-        </StatCard>
+        </Link>
 
         <StatCard
           label="Collected"

@@ -225,6 +225,21 @@ export async function publishDigits(
 }
 
 // ---------------------------------------------------------------------------
+// Public display settings
+// ---------------------------------------------------------------------------
+
+/** Flip the public /players detail level — FULL or LEAN, no deploy. */
+export async function setPlayersDetail(
+  mode: "full" | "lean",
+): Promise<ActionResult> {
+  return rpc("admin_set_players_detail", { p_mode: mode }, [
+    "/players",
+    "/",
+    "/admin",
+  ]);
+}
+
+// ---------------------------------------------------------------------------
 // Scoring
 // ---------------------------------------------------------------------------
 

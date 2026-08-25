@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, CircleDollarSign, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PlayersDetailToggle } from "@/components/admin/players-detail-toggle";
 import { fmtUsd } from "@/lib/format";
 import {
   committedBlocks,
@@ -108,6 +109,8 @@ export default async function AdminOverview() {
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />
         <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents)} owed to winners`} />
       </div>
+
+      <PlayersDetailToggle current={config.players_detail ?? "full"} />
 
       {/* The full liability picture lives here and only here — the public
           dashboard tells the season's story, never the balance sheet. */}

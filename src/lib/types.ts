@@ -93,6 +93,8 @@ export interface PoolConfig {
   claim_deadline: string;
   timezone: string;
   season_status: string;
+  /** Public /players detail level — flipped from admin, no deploy needed. */
+  players_detail: "full" | "lean";
 }
 
 export interface Pot {

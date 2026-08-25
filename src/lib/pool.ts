@@ -159,6 +159,26 @@ export function buildListExport(
   return lines.join("\n");
 }
 
+/**
+ * The public list entries: one per CLAIMED block, alias then block number.
+ * An alias with two blocks appears twice, never numbered apart — Jr/Diz is
+ * one person on both rows, distinguished by block number alone.
+ */
+export function claimedEntries(
+  blocks: {
+    block_number: number;
+    status: string;
+    display_name: string | null;
+  }[],
+): { name: string; blockNumber: number }[] {
+  return blocks
+    .filter((b) => b.status === "reserved" || b.status === "assigned")
+    .map((b) => ({ name: b.display_name ?? "—", blockNumber: b.block_number }))
+    .sort(
+      (a, b) => a.name.localeCompare(b.name) || a.blockNumber - b.blockNumber,
+    );
+}
+
 /** Echo-confirm line, away-at-home order (spec section 3). */
 export function echoConfirm(
   gameNo: number,
