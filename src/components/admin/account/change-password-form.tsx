@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { changePasswordState, passwordRules } from "@/lib/password";
+import { recordPasswordChange } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,8 +25,9 @@ export function ChangePasswordForm({ email }: { email: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [auditWarning, setAuditWarning] = useState<string | null>(null);
 
-  const rules = passwordRules(next);
+  const rules = passwordRules(next, current);
   const { canSubmit, blocker } = changePasswordState(current, next, confirm);
 
   async function submit(e: React.FormEvent) {
@@ -34,6 +36,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
     setBusy(true);
     setError(null);
     setDone(false);
+    setAuditWarning(null);
     const supabase = createSupabaseBrowserClient();
 
     // 1. Prove the current password — this is what stops someone using an
@@ -58,10 +61,16 @@ export function ChangePasswordForm({ email }: { email: string }) {
       return;
     }
 
+    // 3. Record the event in the audit trail — actor, timestamp, surface.
+    //    Never any password material. The credential is already changed, so
+    //    a failure here is surfaced but does not undo the change.
+    const audit = await recordPasswordChange("admin/account");
+
     setCurrent("");
     setNext("");
     setConfirm("");
     setDone(true);
+    setAuditWarning(audit.ok ? null : (audit.error ?? "audit write failed"));
     setBusy(false);
     toast.success("Password changed. Use it the next time you sign in.");
   }
@@ -143,6 +152,12 @@ export function ChangePasswordForm({ email }: { email: string }) {
       {error && (
         <p className="text-sm text-destructive" role="alert">
           {error}
+        </p>
+      )}
+      {auditWarning && (
+        <p className="text-sm text-halftime" role="status">
+          Password changed, but the audit row could not be written:{" "}
+          {auditWarning}
         </p>
       )}
       {done && (

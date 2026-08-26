@@ -225,6 +225,21 @@ export async function publishDigits(
 }
 
 // ---------------------------------------------------------------------------
+// Account
+// ---------------------------------------------------------------------------
+
+/**
+ * Audit a password change. The credential itself is changed by Supabase from
+ * the browser; this records that it happened — actor, timestamp, surface —
+ * and never sees any password material.
+ */
+export async function recordPasswordChange(
+  surface: string,
+): Promise<ActionResult> {
+  return rpc("admin_log_password_change", { p_surface: surface }, ["/admin"]);
+}
+
+// ---------------------------------------------------------------------------
 // Public display settings
 // ---------------------------------------------------------------------------
 
