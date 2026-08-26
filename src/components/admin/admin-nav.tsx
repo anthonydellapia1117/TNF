@@ -16,6 +16,7 @@ const ITEMS = [
   { href: "/admin/score", label: "Score" },
   { href: "/admin/payouts", label: "Payouts" },
   { href: "/admin/list", label: "List" },
+  { href: "/admin/account", label: "Account" },
 ] as const;
 
 export function AdminNav() {
