@@ -113,6 +113,17 @@ export function ensureContrast(hex: string, bg: string, min = 4.5): string {
   return "#ffffff";
 }
 
+/**
+ * The text color that reads best on an arbitrary background: white or the
+ * page's near-black, whichever contrasts more. Computed, never hardcoded —
+ * the winner-fill treatment recolors its contents through this.
+ */
+export function bestTextOn(bg: string): string {
+  const dark = "#0B0D0F";
+  const white = "#FFFFFF";
+  return contrastRatio(white, bg) >= contrastRatio(dark, bg) ? white : dark;
+}
+
 // The axis bar is a large solid fill, so it uses the TRUE brand color —
 // unless that color sits too close to the page background to register as a
 // bar at all, in which case fall back: secondary, then the display variant

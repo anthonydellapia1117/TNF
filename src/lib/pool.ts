@@ -179,6 +179,16 @@ export function claimedEntries(
     );
 }
 
+/**
+ * Grid-density prize label: "$750", "$1K", "$1.5K". The abbreviated form
+ * fits winner badges; exact figures live on the schedule and payouts pages.
+ */
+export function amountBadge(cents: number): string {
+  if (cents >= 100_000 && cents % 100_000 === 0) return `$${cents / 100_000}K`;
+  if (cents >= 100_000) return `$${(cents / 100_000).toFixed(1)}K`;
+  return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+}
+
 /** Echo-confirm line, away-at-home order (spec section 3). */
 export function echoConfirm(
   gameNo: number,

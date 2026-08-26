@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimedEntries } from "@/lib/pool";
+import { amountBadge, claimedEntries } from "@/lib/pool";
 import {
   adjacentBlocks,
   blockDigits,
@@ -211,5 +211,14 @@ describe("claimedEntries — the public list, one row per claimed block", () => 
     const names = claimedEntries(blocks).map((e) => e.name);
     expect(names.filter((n) => n === "Jr/Diz")).toEqual(["Jr/Diz", "Jr/Diz"]);
     expect(names.some((n) => /Jr\/Diz.*[12]/.test(n))).toBe(false);
+  });
+});
+
+describe("amountBadge — grid-density prize labels", () => {
+  it("abbreviates exactly as specified", () => {
+    expect(amountBadge(75000)).toBe("$750");
+    expect(amountBadge(100000)).toBe("$1K");
+    expect(amountBadge(150000)).toBe("$1.5K");
+    expect(amountBadge(200000)).toBe("$2K");
   });
 });
