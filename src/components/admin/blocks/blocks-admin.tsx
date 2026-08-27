@@ -26,6 +26,7 @@ import {
   promoteParticipant,
   releaseBlock,
   reserveBlocks,
+  setComped,
 } from "@/app/admin/actions";
 import type { AdminBlock, BlockStatus } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
@@ -84,6 +85,11 @@ export function BlocksAdmin({
     return c;
   }, [blocks]);
 
+  const compedCount = useMemo(
+    () => blocks.filter((b) => b.comped).length,
+    [blocks],
+  );
+
   // H1: carried-over numbers nobody has re-confirmed yet.
   const unconfirmedCarryovers = useMemo(
     () =>
@@ -111,6 +117,12 @@ export function BlocksAdmin({
   const selTaken = selectedList.filter(
     (n) => byNumber.get(n)?.status !== "available",
   );
+  // Comping needs an owner — an unowned block has nobody to comp.
+  const selOwned = selectedList.filter(
+    (n) => byNumber.get(n)?.participant_id != null,
+  );
+  const selToComp = selOwned.filter((n) => !byNumber.get(n)?.comped);
+  const selToUncomp = selOwned.filter((n) => byNumber.get(n)?.comped);
 
   const chosenAlias = participantId ? aliasById.get(participantId) : undefined;
   const canReserve =
@@ -191,6 +203,32 @@ export function BlocksAdmin({
         toast.error(done > 0 ? `Held ${done}, then failed: ${failed}` : failed);
       } else {
         toast.success(`Held ${done} block${plural(done)}`);
+        setSelected(new Set());
+      }
+      router.refresh();
+    });
+  }
+
+  function onComp(comped: boolean) {
+    const targets = comped ? selToComp : selToUncomp;
+    const verb = comped ? "Comped" : "Un-comped";
+    startTransition(async () => {
+      let failed: string | null = null;
+      let done = 0;
+      for (const n of targets) {
+        const result = await setComped(n, comped);
+        if (!result.ok) {
+          failed = result.error ?? `Block ${n} would not update.`;
+          break;
+        }
+        done++;
+      }
+      if (failed) {
+        toast.error(
+          done > 0 ? `${verb} ${done}, then failed: ${failed}` : failed,
+        );
+      } else {
+        toast.success(`${verb} ${done} block${plural(done)}`);
         setSelected(new Set());
       }
       router.refresh();
@@ -286,6 +324,7 @@ export function BlocksAdmin({
         <p className="mt-0.5 text-sm text-muted-foreground" data-numeric>
           {counts.available} open · {counts.reserved} reserved ·{" "}
           {counts.assigned} assigned · {counts.held} held
+          {compedCount > 0 ? ` · ${compedCount} comped` : ""}
         </p>
       </div>
 
@@ -370,6 +409,10 @@ export function BlocksAdmin({
             <span className="size-1.5 rounded-full bg-final" />
             <span className="text-final">Requested number</span>
           </span>
+          <span className="flex items-center gap-1.5">
+            <span className="font-bold text-primary">C</span>
+            <span className="text-primary">Comped — owes $0, still wins</span>
+          </span>
         </div>
 
         <div
@@ -395,7 +438,11 @@ export function BlocksAdmin({
                 onKeyDown={(e) => onCellKeyDown(e, i, b.block_number)}
                 onClick={() => toggle(b.block_number)}
                 aria-pressed={isSelected}
-                title={b.notes ?? undefined}
+                title={
+                  [b.comped ? "COMPED — owes $0, still wins" : null, b.notes]
+                    .filter(Boolean)
+                    .join(" · ") || undefined
+                }
                 className={cn(
                   "relative flex aspect-square touch-manipulation flex-col items-center justify-center gap-0.5 rounded-md border transition-colors duration-100",
                   CELL[b.status],
@@ -414,6 +461,15 @@ export function BlocksAdmin({
                     aria-hidden
                   />
                 ) : null}
+                {/* Comped: in play and winnable, owes nothing. Admin only. */}
+                {b.comped && (
+                  <span
+                    className="absolute right-0.5 bottom-0.5 text-[8px] leading-none font-bold text-primary"
+                    aria-hidden
+                  >
+                    C
+                  </span>
+                )}
                 {/* Policy: requested numbers are marked apart from random ones */}
                 {b.assignment_method === "requested" && (
                   <span
@@ -499,6 +555,31 @@ export function BlocksAdmin({
               Hold{selAvailable.length > 0 ? ` ${selAvailable.length}` : ""}
             </Button>
           </div>
+          {selOwned.length > 0 ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-12 min-w-0 flex-1 sm:h-8"
+                disabled={isPending || selToComp.length === 0}
+                onClick={() => onComp(true)}
+              >
+                <span className="truncate">
+                  Comp{selToComp.length > 0 ? ` ${selToComp.length}` : ""} — $0
+                  due, still wins
+                </span>
+              </Button>
+              {selToUncomp.length > 0 ? (
+                <Button
+                  variant="outline"
+                  className="h-12 sm:h-8"
+                  disabled={isPending}
+                  onClick={() => onComp(false)}
+                >
+                  Un-comp {selToUncomp.length}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -578,9 +659,14 @@ function ParticipantSummary({
                         <span
                           key={b.block_number}
                           title={
-                            b.assignment_method
-                              ? `#${b.block_number}: ${b.assignment_method}`
-                              : undefined
+                            [
+                              b.assignment_method
+                                ? `#${b.block_number}: ${b.assignment_method}`
+                                : null,
+                              b.comped ? "comped — owes $0, still wins" : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || undefined
                           }
                           className={
                             b.status === "reserved"
@@ -591,6 +677,9 @@ function ParticipantSummary({
                           #{b.block_number}
                           {b.assignment_method === "requested" && (
                             <span className="text-final"> req</span>
+                          )}
+                          {b.comped && (
+                            <span className="text-primary"> comp</span>
                           )}
                         </span>
                       ))

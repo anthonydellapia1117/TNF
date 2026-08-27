@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { boardCounts, isBoardShowMode } from "@/lib/board-filter";
-import { committedBlocks, placedBlocks } from "@/lib/pool";
+import { committedBlocks, housePosition, placedBlocks } from "@/lib/pool";
 
 describe("board filter counts (spec B1)", () => {
   const blocks = [
@@ -33,16 +33,73 @@ describe("board filter counts (spec B1)", () => {
 });
 
 describe("committed vs placed are computed independently (spec G1)", () => {
-  it("committed comes from money, placed from the grid — they can differ", () => {
-    // 30 blocks' worth of commitments, but only 29 numbers on the grid:
-    // someone committed without picking a spot yet.
+  it("committed is a real count, placed comes from the grid — they can differ", () => {
+    // 30 blocks committed, but only 29 numbers on the grid: someone
+    // committed without picking a spot yet.
     const pot = { reserved: 27, assigned: 2 };
-    expect(committedBlocks(1_500_000, 50_000)).toBe(30);
+    expect(committedBlocks({ committed_blocks: 30 })).toBe(30);
     expect(placedBlocks(pot)).toBe(29);
-    expect(committedBlocks(1_500_000, 50_000)).not.toBe(placedBlocks(pot));
+    expect(committedBlocks({ committed_blocks: 30 })).not.toBe(placedBlocks(pot));
   });
 
-  it("handles the degenerate price", () => {
-    expect(committedBlocks(1_000_000, 0)).toBe(0);
+  it("counts a comped block as committed even though it owes nothing", () => {
+    // The trap the count replaces: due / price reads 29 with one block
+    // comped, which would have dropped it out of the committed total.
+    const pot = { committed_blocks: 30 };
+    const dueCents = 29 * 50_000; // one of the 30 is comped
+    expect(committedBlocks(pot)).toBe(30);
+    expect(dueCents / 50_000).not.toBe(committedBlocks(pot));
+  });
+});
+
+describe("house position against the FIXED payout (admin only)", () => {
+  const SEASON = 4_425_000; // $44,250
+  const PRICE = 50_000; // $500
+
+  it("needs 89 paying blocks to break even", () => {
+    const h = housePosition(
+      { collected_cents: 0, committed_blocks: 0 },
+      0,
+      SEASON,
+      PRICE,
+    );
+    expect(h.payingBlocksNeeded).toBe(89); // ceil(44250 / 500)
+    expect(h.blocksToBreakEven).toBe(89);
+    expect(h.positionCents).toBe(-SEASON);
+  });
+
+  it("excludes comped blocks from the paying count", () => {
+    const h = housePosition(
+      { collected_cents: 1_500_000, committed_blocks: 31 },
+      1,
+      SEASON,
+      PRICE,
+    );
+    expect(h.payingBlocksSold).toBe(30);
+    expect(h.blocksToBreakEven).toBe(59);
+    expect(h.positionCents).toBe(1_500_000 - SEASON);
+  });
+
+  it("goes positive and clamps to zero once break-even is cleared", () => {
+    const h = housePosition(
+      { collected_cents: 5_000_000, committed_blocks: 100 },
+      1,
+      SEASON,
+      PRICE,
+    );
+    expect(h.positionCents).toBe(5_000_000 - SEASON);
+    expect(h.positionCents).toBeGreaterThan(0);
+    expect(h.blocksToBreakEven).toBe(0);
+  });
+
+  it("handles the degenerate price without dividing by zero", () => {
+    const h = housePosition(
+      { collected_cents: 0, committed_blocks: 0 },
+      0,
+      SEASON,
+      0,
+    );
+    expect(h.payingBlocksNeeded).toBe(0);
+    expect(h.blocksToBreakEven).toBe(0);
   });
 });

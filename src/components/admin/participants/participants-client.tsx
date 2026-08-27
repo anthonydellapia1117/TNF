@@ -377,6 +377,11 @@ export function ParticipantsClient({
                     assigned
                   </span>
                   <span>{fmtUsd(p.finance.amount_due_cents)} due</span>
+                  {p.finance.blocks_comped > 0 ? (
+                    <span className="text-primary">
+                      {p.finance.blocks_comped} comped
+                    </span>
+                  ) : null}
                   <span>{fmtUsd(p.finance.amount_paid_cents)} paid</span>
                   <span className={cn("font-medium", balanceClass(p.finance))}>
                     {fmtUsd(

@@ -181,7 +181,7 @@ export function ParticipantDialog({
           </DialogTitle>
           <DialogDescription data-numeric>
             {f
-              ? `${f.blocks_held} held · ${f.blocks_assigned} assigned · ${fmtUsd(f.amount_due_cents)} due · ${fmtUsd(f.amount_paid_cents)} paid · ${fmtUsd(f.amount_due_cents - f.amount_paid_cents)} open`
+              ? `${f.blocks_held} held · ${f.blocks_assigned} assigned · ${fmtUsd(f.amount_due_cents)} due · ${fmtUsd(f.amount_paid_cents)} paid · ${fmtUsd(f.amount_due_cents - f.amount_paid_cents)} open${f.blocks_comped > 0 ? ` · ${f.blocks_comped} comped (owes $0)` : ""}`
               : "Full record — the quick-add row covers the common case."}
           </DialogDescription>
         </DialogHeader>

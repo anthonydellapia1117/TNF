@@ -24,22 +24,21 @@ const C = {
 };
 
 interface Pot {
-  due_cents: number;
+  committed_blocks: number;
 }
 
 export async function GET() {
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const [{ data: games }, { data: pot }, { data: config }] = await Promise.all([
     supabase.from("v_public_games").select("*").order("game_no"),
-    supabase.from("v_pot").select("due_cents").single(),
+    supabase.from("v_pot").select("committed_blocks").single(),
     supabase.from("config").select("*").eq("id", 1).single(),
   ]);
 
   const cfg = config as PoolConfig;
-  const committed = committedBlocks(
-    (pot as Pot | null)?.due_cents ?? 0,
-    cfg.price_per_block_cents,
-  );
+  const committed = committedBlocks({
+    committed_blocks: (pot as Pot | null)?.committed_blocks ?? 0,
+  });
   const open = Math.max(0, cfg.blocks_total - committed);
   const next = currentGame((games ?? []) as PublicGame[]);
   const away = next ? teamInfo(next.away_team) : null;

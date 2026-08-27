@@ -64,6 +64,7 @@ function person(finance: Partial<ParticipantFinance>) {
       blocks_assigned: 0,
       amount_due_cents: 0,
       amount_paid_cents: 0,
+      blocks_comped: 0,
       ...finance,
     },
   };

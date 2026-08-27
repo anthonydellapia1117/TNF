@@ -6,12 +6,15 @@ import { PlayersDetailToggle } from "@/components/admin/players-detail-toggle";
 import { fmtUsd } from "@/lib/format";
 import {
   committedBlocks,
+  housePosition,
   placedBlocks,
   seasonPayoutTotalCents,
 } from "@/lib/pool";
 import { getConfig, getPot } from "@/lib/data/public";
+import type { Pot } from "@/lib/types";
 import {
   buildAlerts,
+  getAdminBlocks,
   getAdminGames,
   getParticipantsWithFinance,
   getPayouts,
@@ -21,13 +24,17 @@ export const metadata: Metadata = { title: "Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverview() {
-  const [games, payouts, participants, config, pot] = await Promise.all([
+  const [games, payouts, participants, config, pot, blocks] = await Promise.all([
     getAdminGames(),
     getPayouts(),
     getParticipantsWithFinance(),
     getConfig(),
     getPot(),
+    getAdminBlocks(),
   ]);
+  // Comped blocks are admin-only: the count comes from the blocks table
+  // under admin RLS, never from a public projection.
+  const comped = blocks.filter((b) => b.comped).length;
   const alerts = buildAlerts(games, payouts, participants, config.claim_deadline);
 
   const unpaid = participants.filter(
@@ -102,13 +109,23 @@ export default async function AdminOverview() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat
           label="Blocks"
-          value={`${committedBlocks(pot.due_cents, config.price_per_block_cents)} committed`}
+          value={`${committedBlocks(pot)} committed`}
           sub={`${placedBlocks(pot)} placed · ${fmtUsd(pot.due_cents)} due`}
         />
         <Stat label="Collected" value={fmtUsd(pot.collected_cents)} sub={`of ${fmtUsd(pot.due_cents)} due`} />
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />
         <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents)} owed to winners`} />
       </div>
+
+      {/* The number the owner manages to: collected against the FIXED
+          payout, and how many more blocks must sell to break even. Admin
+          only — this never appears on any public route. */}
+      <HousePosition
+        pot={pot}
+        comped={comped}
+        seasonTotal={seasonPayoutTotalCents(games, config)}
+        pricePerBlock={config.price_per_block_cents}
+      />
 
       <PlayersDetailToggle current={config.players_detail ?? "full"} />
 
@@ -121,6 +138,81 @@ export default async function AdminOverview() {
         gameCount={games.length}
       />
     </div>
+  );
+}
+
+function HousePosition({
+  pot,
+  comped,
+  seasonTotal,
+  pricePerBlock,
+}: {
+  pot: Pot;
+  comped: number;
+  seasonTotal: number;
+  pricePerBlock: number;
+}) {
+  const h = housePosition(pot, comped, seasonTotal, pricePerBlock);
+  const behind = h.positionCents < 0;
+  const pct =
+    h.payingBlocksNeeded > 0
+      ? Math.min(100, (h.payingBlocksSold / h.payingBlocksNeeded) * 100)
+      : 0;
+  return (
+    <section className="rounded-lg border border-border bg-surface p-4">
+      <h2 className="mb-3 flex items-center gap-1.5 text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
+        House position
+        <span className="rounded border border-border px-1 py-px text-[9px] tracking-normal normal-case">
+          admin only
+        </span>
+      </h2>
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p
+          className={cn(
+            "text-2xl font-semibold tabular-nums",
+            behind ? "text-destructive" : "text-emerald-400",
+          )}
+          data-numeric
+        >
+          {behind ? "−" : "+"}
+          {fmtUsd(Math.abs(h.positionCents))}
+        </p>
+        <p className="text-sm text-muted-foreground" data-numeric>
+          {fmtUsd(pot.collected_cents)} collected − {fmtUsd(seasonTotal)} fixed
+          payout
+        </p>
+      </div>
+
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2">
+        <div
+          className={cn(
+            "h-full rounded-full",
+            h.blocksToBreakEven === 0 ? "bg-emerald-500" : "bg-halftime",
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <p className="mt-2 text-sm" data-numeric>
+        {h.blocksToBreakEven === 0 ? (
+          <span className="text-emerald-400">
+            Break-even cleared — {h.payingBlocksSold} paying blocks sold.
+          </span>
+        ) : (
+          <>
+            <span className="font-semibold text-halftime">
+              {h.blocksToBreakEven} more paying blocks
+            </span>{" "}
+            <span className="text-muted-foreground">
+              to break even — {h.payingBlocksSold} of {h.payingBlocksNeeded} sold
+              {comped > 0
+                ? ` · ${comped} comped (owes nothing, still in play)`
+                : ""}
+            </span>
+          </>
+        )}
+      </p>
+    </section>
   );
 }
 

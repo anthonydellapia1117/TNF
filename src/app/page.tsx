@@ -187,7 +187,7 @@ export default async function DashboardPage() {
 
   // COMMITTED drives money, PLACED drives the grid — computed independently
   // (tested in tests/unit/board.test.ts) and never conflated.
-  const committed = committedBlocks(pot.due_cents, config.price_per_block_cents);
+  const committed = committedBlocks(pot);
   const placed = placedBlocks(pot);
   const open = Math.max(0, config.blocks_total - committed);
   const committedPct =

@@ -106,6 +106,8 @@ export interface Pot {
   due_cents: number;
   paid_out_cents: number;
   owed_out_cents: number;
+  /** A real COUNT of committed blocks, never money divided by price. */
+  committed_blocks: number;
 }
 
 // Admin-only shapes (RLS keeps these away from the public).
@@ -132,6 +134,7 @@ export interface ParticipantFinance {
   blocks_assigned: number;
   amount_due_cents: number;
   amount_paid_cents: number;
+  blocks_comped: number;
 }
 
 export interface AdminBlock {
@@ -142,6 +145,8 @@ export interface AdminBlock {
   requested_ref: string | null;
   assigned_at: string | null;
   notes: string | null;
+  /** Comped: in play and winnable, but owes nothing. Admin-only. */
+  comped: boolean;
 }
 
 export interface Payment {

@@ -23,7 +23,7 @@ export default async function BlocksPage() {
 
   // Committed blocks include requests with no number chosen yet, so the
   // sales counter never oversells (due_cents counts them at read time).
-  const committed = committedBlocks(pot.due_cents, config.price_per_block_cents);
+  const committed = committedBlocks(pot);
   const open = Math.max(0, config.blocks_total - committed);
   const unnumbered = Math.max(0, pot.available - open);
 

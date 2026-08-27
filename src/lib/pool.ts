@@ -82,12 +82,43 @@ export function seasonPayoutTotalCents(
 // Two distinct block concepts, computed independently and never conflated:
 // COMMITTED drives money, PLACED drives the grid.
 
-/** Blocks people agreed to buy — due already counts unnumbered requests. */
-export function committedBlocks(
-  dueCents: number,
+/**
+ * Blocks people agreed to buy — a real count from the pot, never money
+ * divided by price. A comped block owes $0 but is still committed, so the
+ * old division would have silently undercounted it.
+ */
+export function committedBlocks(pot: Pick<Pot, "committed_blocks">): number {
+  return pot.committed_blocks;
+}
+
+/**
+ * The house position against the FIXED season payout: what has been
+ * collected minus what must go out, and how many more blocks must sell to
+ * break even. Admin-only — never shown publicly, and the comped count comes
+ * from the admin-only blocks table, never from a public projection.
+ */
+export function housePosition(
+  pot: Pick<Pot, "collected_cents" | "committed_blocks">,
+  compedBlocks: number,
+  seasonPayoutCents: number,
   pricePerBlockCents: number,
-): number {
-  return pricePerBlockCents > 0 ? Math.round(dueCents / pricePerBlockCents) : 0;
+): {
+  positionCents: number;
+  payingBlocksNeeded: number;
+  payingBlocksSold: number;
+  blocksToBreakEven: number;
+} {
+  const payingBlocksSold = Math.max(0, pot.committed_blocks - compedBlocks);
+  const payingBlocksNeeded =
+    pricePerBlockCents > 0
+      ? Math.ceil(seasonPayoutCents / pricePerBlockCents)
+      : 0;
+  return {
+    positionCents: pot.collected_cents - seasonPayoutCents,
+    payingBlocksNeeded,
+    payingBlocksSold,
+    blocksToBreakEven: Math.max(0, payingBlocksNeeded - payingBlocksSold),
+  };
 }
 
 /** Blocks with an actual number on the grid. */

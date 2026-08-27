@@ -98,6 +98,21 @@ export async function releaseBlock(n: number): Promise<ActionResult> {
   return rpc("admin_release_block", { p_block_number: n }, EVERYTHING);
 }
 
+/**
+ * Comp a block: it stays in play and fully winnable, but owes $0. Audited
+ * both directions so it is always reversible. Never surfaced publicly.
+ */
+export async function setComped(
+  n: number,
+  comped: boolean,
+): Promise<ActionResult> {
+  return rpc(
+    "admin_set_comped",
+    { p_block_number: n, p_comped: comped },
+    EVERYTHING,
+  );
+}
+
 export async function holdBlock(
   n: number,
   note: string,
