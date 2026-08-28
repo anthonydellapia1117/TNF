@@ -61,6 +61,21 @@ them cost Anthony two round trips to chase nothing.
 The Survivor pool is a **separate system**. Never reference it, link it, or
 mix its money or participants into this one.
 
+**This chat and this repo never produce content for the Survivor pool.**
+Not code, not rules, not drafts, not suggestions, not "here is what I would
+write." If Anthony asks for something Survivor-related here, refuse and
+tell him it belongs in the other chat. Refusing is the correct answer even
+when he asks directly and even when the request sounds harmless.
+
+The reason is not tidiness. Work produced here about that pool is built on
+whatever few facts happen to be in this conversation, and it comes out
+looking as confident as work that is actually grounded. That has already
+happened once: a rules draft written here from four facts in a chat message
+contained two rules that were factually wrong, and it was one step from
+being sent. Plausible and wrong is worse than absent.
+
+Reading that pool's code for a pattern is not the same as writing for it,
+and is still not an invitation to write for it.
 
 ## Stack and commands
 
