@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, CircleDollarSign, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ContactGaps } from "@/components/admin/contact-gaps";
 import { PlayersDetailToggle } from "@/components/admin/players-detail-toggle";
 import { fmtUsd } from "@/lib/format";
 import {
@@ -10,6 +11,7 @@ import {
   placedBlocks,
   seasonPayoutTotalCents,
 } from "@/lib/pool";
+import { contactGaps } from "@/lib/contact-gaps";
 import { getConfig, getPot } from "@/lib/data/public";
 import type { Pot } from "@/lib/types";
 import {
@@ -35,6 +37,8 @@ export default async function AdminOverview() {
   // Comped blocks are admin-only: the count comes from the blocks table
   // under admin RLS, never from a public projection.
   const comped = blocks.filter((b) => b.comped).length;
+  // Who cannot be reached if their block hits, grouped by relaying owner.
+  const gaps = contactGaps(participants, blocks);
   const alerts = buildAlerts(games, payouts, participants, config.claim_deadline);
 
   const unpaid = participants.filter(
@@ -126,6 +130,8 @@ export default async function AdminOverview() {
         seasonTotal={seasonPayoutTotalCents(games, config)}
         pricePerBlock={config.price_per_block_cents}
       />
+
+      <ContactGaps groups={gaps} />
 
       <PlayersDetailToggle current={config.players_detail ?? "full"} />
 
