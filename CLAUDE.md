@@ -61,7 +61,50 @@ them cost Anthony two round trips to chase nothing.
 The Survivor pool is a **separate system**. Never reference it, link it, or
 mix its money or participants into this one.
 
+
+## Stack and commands
+
+Next.js 15 (App Router) · TypeScript strict · Tailwind v4 · Supabase
+(Postgres) · Vitest · ESLint flat config (`eslint.config.mjs`).
+
+```
+npm run dev        # local dev server
+npm run build      # production build
+npm run lint       # ESLint
+npm run test       # Vitest unit suite
+npm run test:db    # the SQL suites against a local Postgres — run these too
+```
+
+`npm run test` alone is not a green light. Schema, RLS, and RPC behaviour
+are covered by `npm run test:db` (tests/sql/*.sql), and that is where the
+money rules are actually enforced.
+
+## Code conventions
+
+- **Money is stored in CENTS, everywhere.** `price_per_block_cents = 50000`
+  is $500; `regular_final_cents = 100000` is $1,000. Never treat a `_cents`
+  column as dollars — that is a 100x error waiting to happen. Format for
+  display with the helpers in `src/lib/format.ts`, never by hand.
+- Server components by default; `"use client"` only where there is real
+  interactivity.
+- Every write goes through an audited `admin_*` RPC that re-checks
+  `is_admin()`. Server actions shape arguments and revalidate; they are not
+  the security boundary.
+- Public pages read only the `v_public_*` / `v_pot` projections. Never
+  compute block status client-side, and never query base tables from a
+  public route.
+- Schema changes are new numbered migrations in `supabase/migrations/`,
+  applied to production only after the local SQL suites pass. A
+  `create or replace view` can only APPEND columns — new columns go last.
+- A `security_invoker` view nested inside a `security definer` view still
+  evaluates RLS as the session user. `v_pot` therefore inlines all of its
+  computation from base tables; do not refactor that into nested views.
+- Pure logic lives in `src/lib/` with unit tests. Anything that decides
+  money or a winner gets a test before it ships.
+
 ## Security
 
-No service-role key anywhere. The anon key plus RLS is the security
-boundary; the committed fallbacks in `src/lib/env.ts` are safe by design.
+No service-role key anywhere, client or server. The anon key plus RLS is
+the security boundary; the committed fallbacks in `src/lib/env.ts` are safe
+by design. Never add an auth library without first checking whether
+Supabase Auth already covers it.

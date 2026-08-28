@@ -1,37 +1,20 @@
-# TNF - Thursday Night Football Squares Pool
+# TNF — instructions live in CLAUDE.md
 
-## Project Overview
-Web app for an NFL squares/block pool. 100 blocks at $500 each with fixed payouts. Public-facing block grid, admin management, and payout tracking.
+**Read [`../CLAUDE.md`](../CLAUDE.md) before working in this repo.** It is
+the single source of truth for this pool: the standing operating rules
+(payment sweeps, money, public surfaces, data, isolation), the stack and
+commands, and the code conventions.
 
-## Tech Stack
-- Framework: Next.js 15 (App Router) + TypeScript
-- Database: Supabase (PostgreSQL) - views like v_pot, v_public_blocks drive the UI
-- Styling: Tailwind CSS (PostCSS)
-- Testing: Vitest
-- Linting: ESLint (flat config, eslint.config.mjs)
+This file is deliberately a pointer, not a second copy. Two instruction
+files drift from each other; one drifts from nothing.
 
-## Build & Test Commands
-- npm run dev - local dev server
-- npm run build - production build
-- npm run test - run Vitest suite
-- npm run lint - ESLint check
+Two corrections, because the earlier version of this file got them wrong
+and the errors were expensive ones:
 
-## Architecture Notes
-- Supabase schema lives in /supabase/ - SQL migrations and RLS policies
-- All money values are in whole dollars (no cents). Block price is $500.
-- The pot view (v_pot) calculates total pot from sold blocks. Never hardcode pot totals.
-- Block grid renders from v_public_blocks - do not compute block status client-side.
-- Payouts are fixed and defined in spec docs (TNF_V2_SPEC.md, TNF_APP_BUILD_SPEC.md).
-
-## Coding Conventions
-- TypeScript strict mode. No any types.
-- Server components by default; "use client" only for interactivity.
-- Supabase queries go through server-side client, never expose service role key.
-- All new API routes must have input validation.
-- Test new features with Vitest before committing.
-
-## What NOT To Do
-- Do not expose Supabase service role credentials in client-side code
-- Do not store financial logic in client components - all payout calculations server-side
-- Do not round money values - they are already whole dollars
-- Do not add authentication libraries without checking if Supabase Auth is sufficient
+- **Money is stored in CENTS, not whole dollars.**
+  `price_per_block_cents = 50000` is $500. Treating a `_cents` column as
+  dollars is a 100x error.
+- **Payouts are FIXED at $44,250 regardless of how many blocks sell.**
+  `v_pot` does not compute a pot from blocks sold — it reports counts plus
+  collected, due, paid out and owed. Never imply that payouts scale with
+  sales, anywhere in the UI.
