@@ -31,7 +31,6 @@ export const GROUP_COLORS: Record<OwnerGroup, string> = {
   EJD: "#E36FA5",
   NL: "#00B8C4",
   GD: "#E05252",
-  DIRECT: "#8A9099",
 };
 
 export function BoardGrid({

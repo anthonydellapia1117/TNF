@@ -60,7 +60,7 @@ Counts are live. Default is `ALL` — this board is the sales tool and the whole
 
 **B2. Open blocks are visually loud.** Dashed border, bright, inviting, with the number large. Claimed blocks are quiet — solid surface, owner alias in muted text. Assigned versus Reserved distinguished by a small paid glyph, not by color alone.
 
-**B3. Color-by toggle.** Switch the board between coloring by status (open / reserved / assigned) and coloring by owner group (AVD, MAP, RM, JPOD, EJD, NL, GD, DIRECT). The group view makes it obvious at a glance who brought whom.
+**B3. Color-by toggle.** Switch the board between coloring by status (open / reserved / assigned) and coloring by owner group (AVD, MAP, RM, JPOD, EJD, NL, GD). The group view makes it obvious at a glance who brought whom.
 
 **B4. Nothing is ever released by deletion.** Releasing a block sets it back to available with an audit row and preserves the prior holder in notes. A block's full history — who held it, when, what changed — is reachable from `/block/[n]`.
 

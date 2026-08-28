@@ -65,8 +65,8 @@ create table participants (
   display_alias text,                  -- what Anthony calls them in the group chat: "Gurt", "Breeze", "Bo-Gang"
   email text,                          -- nullable; text and in-person signups are legitimate
   phone text,
-  owner_group text not null default 'DIRECT'
-    check (owner_group in ('AVD','MAP','RM','JPOD','EJD','NL','GD','DIRECT')),
+  owner_group text not null default 'AVD'
+    check (owner_group in ('AVD','MAP','RM','JPOD','EJD','NL','GD')),
   shared_group_id text,                -- e.g. 'SG-CUGINOS' for Virga + Fowler
   source text not null default 'email' check (source in ('email','text','in_person','import')),
   source_ref text,
@@ -231,7 +231,7 @@ Public reads: `games`, `v_public_blocks`, `payouts` (winner and amount only), `c
 | Invalid winner | If the winning block is Available, Reserved, or Held: record the score, create **no payout**, raise a review flag. Never pay an unassigned block |
 | Payout settlement | Rows start `owed`. Only Anthony marks `paid`. **The app never moves money** |
 | Winner message | Any generated winner text contains exactly this line: `I'll get you paid this week - Venmo or cash.` |
-| Owner groups | AVD, MAP, RM, JPOD, EJD, NL, GD, DIRECT. No other values |
+| Owner groups | AVD, MAP, RM, JPOD, EJD, NL, GD. No other values. DIRECT was retired 2026-08-28 and folded into AVD (migration 13) |
 | Names | Stored verbatim. `display_alias` is what shows publicly when set |
 
 ---
@@ -435,6 +435,9 @@ Seed the remaining 22 from `05_SCHEDULE_2026_TNF.csv` if it is in the repo. If n
 ### 6.3 Participants and blocks - 26 blocks committed
 
 | Participant | Alias | Blocks | Group | Notes |
+> **Historical:** the DIRECT values in this import table are as loaded in August 2026.
+> DIRECT was retired on 2026-08-28 and every one of these participants now reads AVD.
+
 |---|---|---|---|---|
 | Robert Gambino | Rob Gambino | 1 (#99) | DIRECT | Payment disputed - see below |
 | Konnor McGrorty | Gurt | 1 | DIRECT | |

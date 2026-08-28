@@ -154,7 +154,7 @@ export function ParticipantsClient({
   // Quick-add row
   const [qaName, setQaName] = useState("");
   const [qaAlias, setQaAlias] = useState("");
-  const [qaGroup, setQaGroup] = useState<OwnerGroup>("DIRECT");
+  const [qaGroup, setQaGroup] = useState<OwnerGroup>("AVD");
   const [qaBlocks, setQaBlocks] = useState("1");
 
   // Search + edit dialog

@@ -70,7 +70,7 @@ const BLANK: FormState = {
   display_alias: "",
   email: "",
   phone: "",
-  owner_group: "DIRECT",
+  owner_group: "AVD",
   shared_group_id: "",
   source: "text",
   source_ref: "",
