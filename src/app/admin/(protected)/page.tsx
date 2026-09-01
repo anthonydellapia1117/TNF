@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, CircleDollarSign, OctagonAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BlockNames } from "@/components/admin/block-names";
 import { ContactGaps } from "@/components/admin/contact-gaps";
 import { PlayersDetailToggle } from "@/components/admin/players-detail-toggle";
 import { fmtUsd } from "@/lib/format";
@@ -11,6 +12,7 @@ import {
   placedBlocks,
   seasonPayoutTotalCents,
 } from "@/lib/pool";
+import { blockNameCandidates, namedBlocks } from "@/lib/block-names";
 import { contactGaps } from "@/lib/contact-gaps";
 import { getConfig, getPot } from "@/lib/data/public";
 import type { Pot } from "@/lib/types";
@@ -39,6 +41,9 @@ export default async function AdminOverview() {
   const comped = blocks.filter((b) => b.comped).length;
   // Who cannot be reached if their block hits, grouped by relaying owner.
   const gaps = contactGaps(participants, blocks);
+  // Blocks with their own name, plus the naming that predates the column.
+  const named = namedBlocks(blocks);
+  const nameCandidates = blockNameCandidates(participants, blocks);
   const alerts = buildAlerts(games, payouts, participants, config.claim_deadline);
 
   const unpaid = participants.filter(
@@ -132,6 +137,8 @@ export default async function AdminOverview() {
       />
 
       <ContactGaps groups={gaps} />
+
+      <BlockNames named={named} candidates={nameCandidates} />
 
       <PlayersDetailToggle current={config.players_detail ?? "full"} />
 

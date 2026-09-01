@@ -99,6 +99,21 @@ export async function releaseBlock(n: number): Promise<ActionResult> {
 }
 
 /**
+ * Give a block its own name, or clear it back to the owner's alias. Display
+ * only — it never touches who owes what.
+ */
+export async function setBlockName(
+  n: number,
+  name: string,
+): Promise<ActionResult> {
+  return rpc(
+    "admin_set_block_name",
+    { p_block_number: n, p_display_name: name },
+    EVERYTHING,
+  );
+}
+
+/**
  * Comp a block: it stays in play and fully winnable, but owes $0. Audited
  * both directions so it is always reversible. Never surfaced publicly.
  */

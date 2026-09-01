@@ -26,6 +26,7 @@ import {
   promoteParticipant,
   releaseBlock,
   reserveBlocks,
+  setBlockName,
   setComped,
 } from "@/app/admin/actions";
 import type { AdminBlock, BlockStatus } from "@/lib/types";
@@ -235,6 +236,32 @@ export function BlocksAdmin({
     });
   }
 
+  function onNameBlock(n: number) {
+    const b = byNumber.get(n);
+    if (!b) return;
+    const current = b.display_name ?? "";
+    const next = window.prompt(
+      `Name for block ${n}?\n\nThis block shows this name instead of the owner's alias. `
+        + `Leave it empty to fall back to the alias. Money is unaffected — the owner still owes once.`,
+      current,
+    );
+    if (next === null) return; // cancelled
+    startTransition(async () => {
+      const result = await setBlockName(n, next);
+      if (result.ok) {
+        toast.success(
+          next.trim()
+            ? `Block ${n} now reads "${next.trim()}"`
+            : `Block ${n} falls back to the owner's alias`,
+        );
+        setSelected(new Set());
+      } else {
+        toast.error(result.error ?? "Could not set the name.");
+      }
+      router.refresh();
+    });
+  }
+
   function onConfirmCarryover(n: number) {
     startTransition(async () => {
       const result = await confirmCarryover(n);
@@ -439,7 +466,11 @@ export function BlocksAdmin({
                 onClick={() => toggle(b.block_number)}
                 aria-pressed={isSelected}
                 title={
-                  [b.comped ? "COMPED — owes $0, still wins" : null, b.notes]
+                  [
+                    b.display_name ? `"${b.display_name}"` : null,
+                    b.comped ? "COMPED — owes $0, still wins" : null,
+                    b.notes,
+                  ]
                     .filter(Boolean)
                     .join(" · ") || undefined
                 }
@@ -555,6 +586,22 @@ export function BlocksAdmin({
               Hold{selAvailable.length > 0 ? ` ${selAvailable.length}` : ""}
             </Button>
           </div>
+          {selOwned.length === 1 ? (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="h-12 min-w-0 flex-1 sm:h-8"
+                disabled={isPending}
+                onClick={() => onNameBlock(selOwned[0])}
+              >
+                <span className="truncate">
+                  {byNumber.get(selOwned[0])?.display_name
+                    ? `Rename block ${selOwned[0]}`
+                    : `Name block ${selOwned[0]}`}
+                </span>
+              </Button>
+            </div>
+          ) : null}
           {selOwned.length > 0 ? (
             <div className="flex gap-2">
               <Button
@@ -675,6 +722,12 @@ function ParticipantSummary({
                           }
                         >
                           #{b.block_number}
+                          {b.display_name ? (
+                            <span className="text-foreground">
+                              {" "}
+                              {b.display_name}
+                            </span>
+                          ) : null}
                           {b.assignment_method === "requested" && (
                             <span className="text-final"> req</span>
                           )}

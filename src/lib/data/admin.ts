@@ -84,20 +84,29 @@ export async function getPayouts(): Promise<Payout[]> {
   if (error) throw new Error(`payouts: ${error.message}`);
   const list = (data ?? []) as (Payout & { display_name?: string })[];
   if (list.length === 0) return [];
-  const { data: people } = await supabase
-    .from("participants")
-    .select("id, display_alias, full_name");
+  const [{ data: people }, { data: blockRows }] = await Promise.all([
+    supabase.from("participants").select("id, display_alias, full_name"),
+    supabase.from("blocks").select("block_number, display_name"),
+  ]);
   const names = new Map(
     (people ?? []).map((p) => [
       p.id as string,
       (p.display_alias ?? p.full_name) as string,
     ]),
   );
+  // A payout is announced under the name on the block that hit, matching
+  // v_public_payouts. The owner's alias is the fallback, not the source.
+  const blockNames = new Map(
+    (blockRows ?? []).map((b) => [
+      b.block_number as number,
+      (b.display_name as string | null) ?? null,
+    ]),
+  );
   return list.map((po) => ({
     ...po,
-    display_name: po.participant_id
-      ? (names.get(po.participant_id) ?? null)
-      : null,
+    display_name:
+      blockNames.get(po.block_number) ??
+      (po.participant_id ? (names.get(po.participant_id) ?? null) : null),
   }));
 }
 

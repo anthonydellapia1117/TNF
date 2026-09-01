@@ -145,6 +145,8 @@ export interface AdminBlock {
   notes: string | null;
   /** Comped: in play and winnable, but owes nothing. Admin-only. */
   comped: boolean;
+  /** This block's own name, if it has one. Falls back to the owner's alias. */
+  display_name: string | null;
 }
 
 export interface Payment {
