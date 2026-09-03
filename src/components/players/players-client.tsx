@@ -96,18 +96,15 @@ export function PlayersClient({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl">Players</h1>
+          {/* No roster size. How many people are in is administrative — the
+              board at /blocks is where availability belongs. A search shows
+              how many rows matched, which says nothing about the total. */}
           <p className="mt-0.5 text-sm text-muted-foreground" data-numeric>
             {visible.length === blocks.length
-              ? `${blocks.length} claimed blocks`
-              : `${visible.length} of ${blocks.length} claimed blocks`}
+              ? "Every claimed block and the name on it."
+              : `${visible.length} matching`}
           </p>
         </div>
-        <Link
-          href="/list"
-          className="shrink-0 pt-1 text-xs text-muted-foreground underline-offset-4 transition-colors duration-150 hover:text-foreground hover:underline"
-        >
-          Copy list
-        </Link>
       </div>
 
       <Input
