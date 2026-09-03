@@ -74,28 +74,66 @@ begin
   if n <> 1 then raise exception 'config should serve anon'; end if;
 end $$;
 
--- Regression: v_pot's aggregates must survive RLS for anon — due_cents once
--- collapsed to 0 because it was read through an invoker view, which
--- evaluates RLS as the session user even inside a definer view.
+-- Money is withheld from anon entirely (migrations 15 and 16). This block
+-- used to assert that anon saw the SAME due_cents and collected_cents as the
+-- admin — correct when those columns were public, and the reason the numbers
+-- were captured above. They are admin-only now, so what anon must see is
+-- nothing at all. The value regression that lived here moved below, to an
+-- admin session where the numbers are actually visible.
 do $$
 declare
   pot v_pot;
 begin
   select * into pot from v_pot;
-  if pot.due_cents::text <> current_setting('test.expected_due', true) then
-    raise exception 'anon v_pot.due_cents % != true due %',
-      pot.due_cents, current_setting('test.expected_due', true);
+  if pot.due_cents is not null then
+    raise exception 'anon can see due_cents (%)', pot.due_cents;
   end if;
-  if pot.due_cents <= 0 then
-    raise exception 'anon v_pot.due_cents should be positive with a seeded pool';
+  if pot.collected_cents is not null then
+    raise exception 'anon can see collected_cents (%)', pot.collected_cents;
   end if;
-  if pot.collected_cents::text <> current_setting('test.expected_collected', true) then
-    raise exception 'anon v_pot.collected_cents % != ledger %',
-      pot.collected_cents, current_setting('test.expected_collected', true);
+  if pot.owed_out_cents is not null then
+    raise exception 'anon can see owed_out_cents (%)', pot.owed_out_cents;
+  end if;
+  -- What anon KEEPS: the block counts /blocks computes "51 open" from, and
+  -- paid-out history, which is the same winner list /winners publishes.
+  if pot.available is null or pot.committed_blocks is null then
+    raise exception 'anon lost the public block counts';
+  end if;
+  if pot.paid_out_cents is null then
+    raise exception 'anon lost paid_out_cents (public winner history)';
   end if;
 end $$;
 
 reset role;
+
+-- Regression, now as ADMIN: v_pot's aggregates must survive RLS — due_cents
+-- once collapsed to 0 because it was read through an invoker view, which
+-- evaluates RLS as the session user even inside a definer view. v_pot
+-- therefore inlines its computation from base tables; this is the test that
+-- catches a refactor putting a nested view back.
+select set_config('request.jwt.claims',
+  '{"email":"anthonydellapia@gmail.com"}', true);
+do $$
+declare
+  pot v_pot;
+begin
+  select * into pot from v_pot;
+  if pot.due_cents is null or pot.collected_cents is null then
+    raise exception 'admin cannot see v_pot money — the checks below would be '
+      'vacuous rather than passing';
+  end if;
+  if pot.due_cents::text <> current_setting('test.expected_due', true) then
+    raise exception 'v_pot.due_cents % != true due %',
+      pot.due_cents, current_setting('test.expected_due', true);
+  end if;
+  if pot.due_cents <= 0 then
+    raise exception 'v_pot.due_cents should be positive with a seeded pool';
+  end if;
+  if pot.collected_cents::text <> current_setting('test.expected_collected', true) then
+    raise exception 'v_pot.collected_cents % != ledger %',
+      pot.collected_cents, current_setting('test.expected_collected', true);
+  end if;
+end $$;
 
 -- Digits stay hidden from the public until published (acceptance 6).
 select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true);

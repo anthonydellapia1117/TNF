@@ -1,6 +1,16 @@
 -- Finance is computed, never stored (spec 2.1, section 7 rows 1 and 3).
 begin;
 
+-- Claim admin for the whole suite. Since migrations 15 and 16, v_pot's money
+-- columns are `case when is_admin() then ... end` — so without claims they
+-- come back NULL, every `if money <> expected` is NULL, and the IF never
+-- fires. These assertions passed while asserting collected = $9,999,999.99.
+-- is_admin() reads request.jwt.claims, a session GUC that SECURITY DEFINER
+-- does not touch, so setting it here is what the real admin caller does.
+-- Local to the transaction, rolled back with everything else.
+select set_config('request.jwt.claims',
+  '{"email":"anthonydellapia@gmail.com"}', true);
+
 -- No code path writes a derived total: the base tables carry no derived
 -- money or count columns at all.
 do $$
@@ -67,6 +77,11 @@ begin
   end if;
   if pot.assigned <> 1 or pot.reserved <> 12 or pot.available <> 87 then
     raise exception 'seed block counts wrong: %', to_json(pot);
+  end if;
+  -- If these are NULL the money assertions below are no-ops, not passes.
+  if pot.collected_cents is null or pot.due_cents is null then
+    raise exception 'v_pot money is NULL — this suite is not running as admin, '
+      'so every money assertion below is vacuous';
   end if;
   if pot.collected_cents <> 100000 then
     raise exception 'collected should be $1,000: %', pot.collected_cents;

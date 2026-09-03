@@ -1,6 +1,12 @@
 -- The ledger is append-only and the database is the dedupe (section 7 rows 2-3).
 begin;
 
+-- Admin claims: v_pot.collected_cents is admin-only since migration 16, so
+-- without these the ledger-equals-pot half of the reconciliation below is
+-- NULL and never fires. See the note at the top of 01_finance.sql.
+select set_config('request.jwt.claims',
+  '{"email":"anthonydellapia@gmail.com"}', true);
+
 -- Duplicate venmo_txn_id is rejected by the DATABASE, not app code.
 do $$
 begin
@@ -61,6 +67,10 @@ begin
 
   select collected_cents into v_pot_collected from v_pot;
   select coalesce(sum(amount_cents), 0) into v_ledger from payments;
+  if v_pot_collected is null then
+    raise exception 'v_pot.collected_cents is NULL — not running as admin, so '
+      'the ledger-equals-pot check below is vacuous';
+  end if;
   if v_ledger <> v_pot_collected or v_ledger <> 50000 then
     raise exception 'ledger % vs pot % after correction', v_ledger, v_pot_collected;
   end if;
