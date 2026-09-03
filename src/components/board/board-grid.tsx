@@ -5,7 +5,6 @@ import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fmtUsd } from "@/lib/format";
-import { isSeasonMode } from "@/lib/season-mode";
 import {
   BoardToggle,
   boardCounts,
@@ -64,10 +63,6 @@ export function BoardGrid({
 
   const byNumber = new Map(blocks.map((b) => [b.block_number, b]));
   const price = fmtUsd(config.price_per_block_cents);
-  // In season mode the legend still teaches the colours — a player needs
-  // that to find their block — but the counts go: "Open numbers 51" is the
-  // same "pool that did not fill" line as the big counter above it.
-  const showCounts = !isSeasonMode(config);
 
   let open = 0;
   let taken = 0;
@@ -92,12 +87,7 @@ export function BoardGrid({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* OPEN / CLAIMED / ALL — views filter, data persists (spec B1) */}
-        <BoardToggle
-          mode={show}
-          counts={counts}
-          onChange={setShow}
-          showCounts={showCounts}
-        />
+        <BoardToggle mode={show} counts={counts} onChange={setShow} />
 
         {/* Color-by toggle (spec B3) */}
         <div className="flex items-center gap-1">
@@ -143,14 +133,14 @@ export function BoardGrid({
               className="size-2.5 rounded-[2px] border border-dashed border-pool-accent/60 bg-pool-accent/10"
               aria-hidden
             />
-            Open numbers{showCounts && <span data-numeric>{open}</span>}
+            Open numbers <span data-numeric>{open}</span>
           </span>
           <span className="flex items-center gap-1.5">
             <span
               className="size-2.5 rounded-[2px] border border-border bg-surface-2"
               aria-hidden
             />
-            Placed{showCounts && <span data-numeric>{taken}</span>}
+            Placed <span data-numeric>{taken}</span>
           </span>
           {held > 0 && (
             <span className="flex items-center gap-1.5">
@@ -158,7 +148,7 @@ export function BoardGrid({
                 className="size-2.5 rounded-[2px] border border-border/60 bg-surface-2/40"
                 aria-hidden
               />
-              Held{showCounts && <span data-numeric>{held}</span>}
+              Held <span data-numeric>{held}</span>
             </span>
           )}
         </div>

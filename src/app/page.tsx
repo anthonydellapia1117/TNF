@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarDays, LayoutGrid, Wallet } from "lucide-react";
+import { ArrowRight, CalendarDays, LayoutGrid } from "lucide-react";
 import { Countdown } from "@/components/dashboard/countdown";
+import { CloseCalls } from "@/components/dashboard/close-calls";
+import { HolidayCard } from "@/components/dashboard/holiday-card";
+import { HotCells } from "@/components/dashboard/hot-cells";
 import { HotDigits } from "@/components/dashboard/hot-digits";
 import { NextRevealCard } from "@/components/dashboard/next-reveal-card";
 import { StatusChip } from "@/components/grid/status-chip";
 import {
   currentGame,
   getConfig,
-  getPot,
   getPublicBlocks,
   getPublicGames,
   getPublicPayouts,
@@ -18,13 +20,18 @@ import { fmtDateLongET, fmtDateOnly, fmtKickoffET, fmtUsd } from "@/lib/format";
 import { teamInfo } from "@/lib/nfl";
 import { seasonStory } from "@/lib/next-reveal";
 import {
-  committedBlocks,
-  gameCode,
-  lastDigit,
-  payoutCents,
-  placedBlocks,
-} from "@/lib/pool";
-import { dashboardPanels, isSeasonMode } from "@/lib/season-mode";
+  closeCalls,
+  digitReport,
+  hotCells,
+  nextHolidayGame,
+  repeatWinners,
+} from "@/lib/fan-stats";
+import { gameCode, payoutCents } from "@/lib/pool";
+import {
+  dashboardPanels,
+  isSeasonMode,
+  type DashboardPanel,
+} from "@/lib/season-mode";
 import type { PoolConfig, PublicGame } from "@/lib/types";
 
 // Season mode reaches the link preview too: the description is what shows
@@ -47,22 +54,6 @@ function daysUntil(ymd: string): number {
     0,
     Math.ceil((Date.UTC(y, m - 1, d) - Date.now()) / 86_400_000),
   );
-}
-
-/** Last digit of every scored event across the season, bucketed 0-9. */
-function digitCounts(games: PublicGame[]): number[] {
-  const counts = Array.from({ length: 10 }, () => 0);
-  for (const g of games) {
-    if (g.halftime_home !== null && g.halftime_away !== null) {
-      counts[lastDigit(g.halftime_home)]++;
-      counts[lastDigit(g.halftime_away)]++;
-    }
-    if (g.final_home !== null && g.final_away !== null) {
-      counts[lastDigit(g.final_home)]++;
-      counts[lastDigit(g.final_away)]++;
-    }
-  }
-  return counts;
 }
 
 function Hero({ game, config }: { game: PublicGame; config: PoolConfig }) {
@@ -217,100 +208,45 @@ function GridLink({ game }: { game: PublicGame | null }) {
 }
 
 export default async function DashboardPage() {
-  const [games, payouts, config, pot, blocks] = await Promise.all([
+  // No getPot() here on purpose. Collection status and the committed count
+  // are administrative and live on /admin, so the viewer dashboard has no
+  // reason to read the money projection at all.
+  const [games, payouts, config, blocks] = await Promise.all([
     getPublicGames(),
     getPublicPayouts(),
     getConfig(),
-    getPot(),
     getPublicBlocks(),
   ]);
 
   const next = currentGame(games);
   const gamesById = new Map(games.map((g) => [g.id, g]));
 
-  // COMMITTED drives money, PLACED drives the grid — computed independently
-  // (tested in tests/unit/board.test.ts) and never conflated.
-  const committed = committedBlocks(pot);
-  const placed = placedBlocks(pot);
-  const open = Math.max(0, config.blocks_total - committed);
-  const committedPct =
-    config.blocks_total > 0 ? (committed / config.blocks_total) * 100 : 0;
-
   const story = seasonStory(games, payouts);
   const deadlineDays = daysUntil(config.claim_deadline);
   const recent = payouts.slice(0, 5);
 
+  // The season, as a fan sees it.
+  const digits = digitReport(games);
+  const calls = closeCalls(games, blocks);
+  const cells = hotCells(games);
+  const holiday = nextHolidayGame(games, config, Date.now());
+  const repeats = repeatWinners(payouts);
+
   // What this page shows, and in what order, is decided in one tested place.
   const seasonMode = isSeasonMode(config);
-  const panels = dashboardPanels(seasonMode, {
-    hasNextGame: next !== null,
-    openBlocks: open,
-  });
-  const shows = (p: (typeof panels)[number]) => panels.includes(p);
+  const panels = dashboardPanels(seasonMode, { hasNextGame: next !== null });
+  const shows = (p: DashboardPanel) => panels.includes(p);
 
   return (
     <div className="space-y-4">
       {next && <Hero game={next} config={config} />}
 
-      {/* The stat row is sales framing except for the reveal countdown, so
-          in season mode it collapses to that one card. */}
-      <div
-        className={
-          seasonMode
-            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4"
-            : "grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4"
-        }
-      >
-        {/* Clickable: the committed count opens the public Players roster.
-            Whole card is the tap target; chevron + hover ring on desktop. */}
-        {shows("blocks_committed") && (
-        <Link
-          href="/players"
-          className="group rounded-lg border border-border bg-surface p-4 transition-colors duration-150 hover:border-pool-accent/60"
-        >
-          <p className="flex items-center gap-1.5 text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
-            <LayoutGrid className="size-3" aria-hidden />
-            Blocks committed
-            <ArrowRight
-              className="ml-auto size-3 text-muted-foreground transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-pool-accent"
-              aria-hidden
-            />
-          </p>
-          <p className="mt-2 text-2xl font-semibold" data-numeric>
-            {committed}
-            <span className="text-sm font-normal text-muted-foreground">
-              /{config.blocks_total}
-            </span>
-          </p>
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full rounded-full bg-pool-accent"
-              style={{ width: `${committedPct}%` }}
-            />
-          </div>
-          <p className="mt-1.5 text-2xs text-muted-foreground" data-numeric>
-            {placed} placed · {open} open
-          </p>
-        </Link>
-        )}
-
-        {/* collected_cents is null once season mode withholds it, which is
-            the same condition that removes this card — belt and braces. */}
-        {shows("collected") && pot.collected_cents !== null && (
-          <StatCard
-            label="Collected"
-            icon={<Wallet className="size-3" aria-hidden />}
-          >
-            <p className="mt-2 text-2xl font-semibold" data-numeric>
-              {fmtUsd(pot.collected_cents)}
-            </p>
-            <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
-              {fmtUsd(config.price_per_block_cents)} per block
-            </p>
-          </StatCard>
-        )}
-
+      {/* Everything a viewer needs at a glance: when the numbers drop, and
+          the next holiday game. Nothing about collection or headcount. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 lg:gap-4">
         <NextRevealCard games={games} payouts={payouts} blocks={blocks} />
+
+        {shows("holiday_next") && <HolidayCard holiday={holiday} />}
 
         {shows("claim_deadline") && (
           <StatCard
@@ -334,34 +270,6 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {shows("claim_cta") && (
-          <Link
-            href="/blocks"
-            className="flex flex-col justify-between gap-4 rounded-lg border border-pool-accent/60 bg-surface p-5 transition-colors duration-150 hover:border-pool-accent"
-          >
-            <div>
-              <p className="text-2xs font-semibold tracking-widest text-pool-accent uppercase">
-                Get in the pool
-              </p>
-              <p className="mt-2 text-3xl font-semibold" data-numeric>
-                {open}
-                <span className="text-lg font-normal text-muted-foreground">
-                  {" "}
-                  {open === 1 ? "block" : "blocks"} open
-                </span>
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground" data-numeric>
-                {fmtUsd(config.price_per_block_cents)} each · claim by{" "}
-                {fmtDateOnly(config.claim_deadline)}
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-pool-accent">
-              Claim a block
-              <ArrowRight className="size-4" aria-hidden />
-            </span>
-          </Link>
-        )}
-
         <Panel
           title="Recent winners"
           action={
@@ -457,16 +365,49 @@ export default async function DashboardPage() {
                   </dd>
                 </div>
               )}
+              {repeats.length > 1 && (
+                <div className="flex items-baseline justify-between gap-3">
+                  <dt className="shrink-0 text-muted-foreground">
+                    Won more than once
+                  </dt>
+                  <dd
+                    className="min-w-0 truncate text-right font-medium"
+                    data-numeric
+                  >
+                    {repeats
+                      .map((r) => `${r.name} ×${r.wins}`)
+                      .join(" · ")}
+                  </dd>
+                </div>
+              )}
             </dl>
           )}
         </Panel>
 
-        <Panel title="Hot digits">
-          <HotDigits counts={digitCounts(games)} />
-          <p className="mt-2 text-2xs text-muted-foreground">
-            Winning last digits across every scored halftime and final.
-          </p>
-        </Panel>
+        {shows("hot_digits") && (
+          <Panel title="Hot digits">
+            <HotDigits report={digits} />
+            <p className="mt-2 text-2xs text-muted-foreground">
+              Winning last digits across every scored halftime and final.
+            </p>
+          </Panel>
+        )}
+
+        {shows("close_calls") && (
+          <Panel title="Close calls">
+            <CloseCalls calls={calls} gamesPlayed={story.gamesPlayed} />
+            <p className="mt-2 text-2xs text-muted-foreground">
+              Blocks that would have won if either team had scored one more
+              point, or one fewer.
+            </p>
+          </Panel>
+        )}
+
+        {shows("hot_cells") && (
+          <Panel title="Score patterns">
+            <HotCells cells={cells} gamesPlayed={story.gamesPlayed} />
+          </Panel>
+        )}
       </div>
     </div>
   );

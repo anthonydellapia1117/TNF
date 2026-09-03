@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   dashboardPanels,
   isSeasonMode,
-  SALES_PANELS,
+  PRESEASON_PANELS,
+  SEASON_PANELS,
   showsPanel,
   type DashboardPanel,
 } from "@/lib/season-mode";
 import type { PoolConfig } from "@/lib/types";
 
-const OPEN = { hasNextGame: true, openBlocks: 51 };
-const SOLD_OUT = { hasNextGame: true, openBlocks: 0 };
+const WITH_GAME = { hasNextGame: true };
 
 describe("isSeasonMode", () => {
   it("is off by default — nothing changes until it is flipped", () => {
@@ -41,67 +41,87 @@ describe("isSeasonMode", () => {
   });
 });
 
-describe("dashboardPanels — season mode ON", () => {
-  const panels = dashboardPanels(true, OPEN);
+describe("dashboardPanels — nothing administrative is even expressible", () => {
+  // Collection status, blocks committed and the claim CTA are not viewer
+  // panels any more, in either mode. The strongest form of that guarantee is
+  // that DashboardPanel has no name for them, so these strings cannot be
+  // returned by construction — this test pins the intent in case someone
+  // widens the type later.
+  const ADMIN_ONLY = ["collected", "blocks_committed", "claim_cta"];
 
-  it("drops every sales panel, even with 51 blocks open", () => {
-    for (const sales of SALES_PANELS) {
-      expect(showsPanel(panels, sales)).toBe(false);
-    }
-  });
-
-  it("leads with the next game, the grid, then recent winners", () => {
-    expect(panels).toEqual<DashboardPanel[]>([
-      "hero",
-      "next_reveal",
-      "grid_link",
-      "recent_winners",
-      "season_so_far",
-      "hot_digits",
-    ]);
-  });
-
-  it("keeps the season's own story — winners, recap, hot digits", () => {
-    expect(showsPanel(panels, "recent_winners")).toBe(true);
-    expect(showsPanel(panels, "season_so_far")).toBe(true);
-    expect(showsPanel(panels, "hot_digits")).toBe(true);
-    expect(showsPanel(panels, "next_reveal")).toBe(true);
-  });
-
-  it("shows no open count whether blocks are open or not", () => {
-    for (const opts of [OPEN, SOLD_OUT]) {
-      const p = dashboardPanels(true, opts);
-      expect(showsPanel(p, "claim_cta")).toBe(false);
-      expect(showsPanel(p, "blocks_committed")).toBe(false);
+  it("never returns a collection, committed-count or claim panel", () => {
+    for (const mode of [true, false]) {
+      for (const hasNextGame of [true, false]) {
+        const panels: string[] = dashboardPanels(mode, { hasNextGame });
+        for (const forbidden of ADMIN_ONLY) {
+          expect(panels).not.toContain(forbidden);
+        }
+      }
     }
   });
 });
 
-describe("dashboardPanels — season mode OFF (today's page)", () => {
-  const panels = dashboardPanels(false, OPEN);
+describe("dashboardPanels — season mode ON", () => {
+  const panels = dashboardPanels(true, WITH_GAME);
 
-  it("keeps the sales framing intact", () => {
-    for (const sales of SALES_PANELS) {
-      expect(showsPanel(panels, sales)).toBe(true);
-    }
+  it("leads with the next game, its reveal, and the holiday ahead", () => {
+    expect(panels).toEqual<DashboardPanel[]>([
+      "hero",
+      "next_reveal",
+      "holiday_next",
+      "grid_link",
+      "recent_winners",
+      "season_so_far",
+      "hot_digits",
+      "close_calls",
+      "hot_cells",
+    ]);
+  });
+
+  it("drops the pre-season panels and adds the season ones", () => {
+    for (const p of PRESEASON_PANELS) expect(showsPanel(panels, p)).toBe(false);
+    for (const p of SEASON_PANELS) expect(showsPanel(panels, p)).toBe(true);
+  });
+});
+
+describe("dashboardPanels — season mode OFF", () => {
+  const panels = dashboardPanels(false, WITH_GAME);
+
+  it("keeps the claim-by deadline and holds back the grid panel", () => {
+    for (const p of PRESEASON_PANELS) expect(showsPanel(panels, p)).toBe(true);
+    for (const p of SEASON_PANELS) expect(showsPanel(panels, p)).toBe(false);
   });
 
   it("still opens on the next game", () => {
     expect(panels[0]).toBe("hero");
   });
+});
 
-  it("hides the claim CTA when nothing is open, but keeps the rest", () => {
-    const p = dashboardPanels(false, SOLD_OUT);
-    expect(showsPanel(p, "claim_cta")).toBe(false);
-    expect(showsPanel(p, "blocks_committed")).toBe(true);
-    expect(showsPanel(p, "collected")).toBe(true);
+describe("dashboardPanels — the fan panels are unconditional", () => {
+  const FAN: DashboardPanel[] = [
+    "recent_winners",
+    "season_so_far",
+    "hot_digits",
+    "close_calls",
+    "hot_cells",
+    "holiday_next",
+    "next_reveal",
+  ];
+
+  it("shows every fan panel in both modes, game or no game", () => {
+    for (const mode of [true, false]) {
+      for (const hasNextGame of [true, false]) {
+        const panels = dashboardPanels(mode, { hasNextGame });
+        for (const p of FAN) expect(showsPanel(panels, p)).toBe(true);
+      }
+    }
   });
 });
 
 describe("dashboardPanels — shape guarantees", () => {
   it("omits the hero when there is no next game, in both modes", () => {
     for (const mode of [true, false]) {
-      const p = dashboardPanels(mode, { hasNextGame: false, openBlocks: 51 });
+      const p = dashboardPanels(mode, { hasNextGame: false });
       expect(showsPanel(p, "hero")).toBe(false);
       expect(p.length).toBeGreaterThan(0);
     }
@@ -109,23 +129,19 @@ describe("dashboardPanels — shape guarantees", () => {
 
   it("never repeats a panel", () => {
     for (const mode of [true, false]) {
-      for (const opts of [OPEN, SOLD_OUT]) {
-        const p = dashboardPanels(mode, opts);
+      for (const hasNextGame of [true, false]) {
+        const p = dashboardPanels(mode, { hasNextGame });
         expect(new Set(p).size).toBe(p.length);
       }
     }
   });
 
-  it("adds nothing but the grid link, and never a sales panel", () => {
-    // Season mode is a subset of the off-season page plus exactly one new
-    // panel: the grid link. Off-season the hero already carries a "View the
-    // grid" link, so a standalone grid panel only exists once the dashboard
-    // has stopped selling and the grid is the point.
-    const off = new Set(dashboardPanels(false, OPEN));
-    const added = dashboardPanels(true, OPEN).filter((p) => !off.has(p));
-    expect(added).toEqual<DashboardPanel[]>(["grid_link"]);
-    for (const p of added) {
-      expect(SALES_PANELS).not.toContain(p);
-    }
+  it("differs between modes only by the two mode-specific panels", () => {
+    const on = new Set(dashboardPanels(true, WITH_GAME));
+    const off = new Set(dashboardPanels(false, WITH_GAME));
+    const onlyOn = [...on].filter((p) => !off.has(p));
+    const onlyOff = [...off].filter((p) => !on.has(p));
+    expect(onlyOn).toEqual([...SEASON_PANELS]);
+    expect(onlyOff).toEqual([...PRESEASON_PANELS]);
   });
 });

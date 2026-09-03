@@ -13,16 +13,22 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
+// The plain-text list is admin-only — it is a chase tool, not a viewer
+// surface. /admin/list already carries it (and more).
 const NAV = [
   { href: "/", label: "Home" },
   { href: "/grid", label: "Grid" },
   { href: "/blocks", label: "Board" },
   { href: "/players", label: "Players" },
-  { href: "/list", label: "List" },
   { href: "/schedule", label: "Schedule" },
   { href: "/winners", label: "Winners" },
   { href: "/admin", label: "Admin" },
 ] as const;
+
+// Admin renders on its own at the far right of the desktop bar, so the
+// inline list is everything else. Derived, not sliced by index: an added or
+// removed destination used to shift the cut and duplicate a link.
+const VIEWER_NAV = NAV.filter((item) => item.href !== "/admin");
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -48,7 +54,7 @@ export function SiteHeader() {
 
         {/* Desktop: inline nav */}
         <nav className="hidden min-w-0 flex-1 items-center gap-0.5 sm:flex">
-          {NAV.slice(0, 7).map((item) => (
+          {VIEWER_NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}

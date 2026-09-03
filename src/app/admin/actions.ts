@@ -372,7 +372,6 @@ export async function setSeasonMode(on: boolean): Promise<ActionResult> {
   return rpc("admin_set_season_mode", { p_on: on }, [
     ...EVERYTHING,
     "/players",
-    "/list",
     "/api/og",
   ]);
 }

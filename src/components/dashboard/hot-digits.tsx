@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { DigitReport } from "@/lib/fan-stats";
 
-// Which last digits have produced winners. Recharts is heavy, so it stays out
-// of the initial bundle: the module loads dynamically after mount and a
-// same-height skeleton holds the space until it lands.
+// Which last digits have produced winners, and which never have. Recharts is
+// heavy, so it stays out of the initial bundle: the module loads dynamically
+// after mount and a same-height skeleton holds the space until it lands.
 
 type RechartsModule = typeof import("recharts");
 
@@ -16,8 +17,13 @@ const SURFACE_2 = "#1C2024"; // --surface-2
 const BORDER = "#262B31"; // --border
 const FOREGROUND = "#E8EAED"; // --foreground
 
-export function HotDigits({ counts }: { counts: number[] }) {
-  const hasData = counts.some((c) => c > 0);
+function digitList(digits: number[]): string {
+  return digits.join(" · ");
+}
+
+export function HotDigits({ report }: { report: DigitReport }) {
+  const { counts } = report;
+  const hasData = report.totalEvents > 0;
   const [recharts, setRecharts] = useState<RechartsModule | null>(null);
 
   useEffect(() => {
@@ -51,6 +57,7 @@ export function HotDigits({ counts }: { counts: number[] }) {
   const data = counts.map((count, digit) => ({ digit: String(digit), count }));
 
   return (
+    <div className="space-y-2">
     <div className="h-48 w-full" data-numeric>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
@@ -87,6 +94,26 @@ export function HotDigits({ counts }: { counts: number[] }) {
           />
         </BarChart>
       </ResponsiveContainer>
+    </div>
+      {/* The half a bar chart hides: which digits have produced nothing. */}
+      <dl className="space-y-0.5 text-2xs">
+        {report.hottest.length > 0 && (
+          <div className="flex gap-1.5">
+            <dt className="text-muted-foreground">Hottest</dt>
+            <dd className="font-semibold text-pool-accent" data-numeric>
+              {digitList(report.hottest)}
+            </dd>
+          </div>
+        )}
+        <div className="flex gap-1.5">
+          <dt className="shrink-0 text-muted-foreground">Never won</dt>
+          <dd className="min-w-0 text-muted-foreground" data-numeric>
+            {report.neverWon.length === 0
+              ? "every digit has hit"
+              : digitList(report.neverWon)}
+          </dd>
+        </div>
+      </dl>
     </div>
   );
 }

@@ -69,13 +69,10 @@ export function BoardToggle({
   mode,
   counts,
   onChange,
-  showCounts = true,
 }: {
   mode: BoardShowMode;
   counts: BoardCounts;
   onChange: (m: BoardShowMode) => void;
-  /** Season mode keeps the filter and drops the tallies beside it. */
-  showCounts?: boolean;
 }) {
   return (
     <div
@@ -100,11 +97,9 @@ export function BoardToggle({
           )}
         >
           {LABEL[m]}
-          {showCounts && (
-            <span className="tabular-nums opacity-70" data-numeric>
-              {counts[m]}
-            </span>
-          )}
+          <span className="tabular-nums opacity-70" data-numeric>
+            {counts[m]}
+          </span>
         </button>
       ))}
     </div>

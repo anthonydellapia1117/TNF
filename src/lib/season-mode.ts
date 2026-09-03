@@ -1,9 +1,15 @@
-// Season mode: one predicate every public surface asks, so the answer cannot
-// drift between the dashboard, /blocks, /block/[n] and the link preview.
+// What the public home page shows, and in what order.
 //
-// Off (the default) the public side is a sales page: open counts, a claim
-// CTA, a claim-by countdown. On, it is a season in progress — next game,
-// the grid, recent winners — and every sales surface is gone.
+// The viewer side is for a TNF fan, not an administrator. Collection status,
+// blocks committed and the claim CTA are gone from it outright — they live on
+// /admin, which is the only place that needs them. What is left is the
+// season: the next game, the grid, who is winning, and how the digits are
+// falling.
+//
+// season_mode remains an admin toggle for the handful of sales surfaces that
+// are still legitimately pre-season — the claim-by deadline card here, the
+// block-is-open nudge on /block/[n], the "BLOCKS OPEN" headline on the link
+// preview, and two meta descriptions.
 //
 // Pure logic, unit-tested. Components render what these functions say.
 import type { PoolConfig } from "@/lib/types";
@@ -18,69 +24,66 @@ export function isSeasonMode(
 }
 
 /**
- * Every panel the public dashboard can render, in the order it renders.
+ * Every panel the public home page can render, in the order it renders.
  * Naming them lets the ordering rule live in one tested place instead of
  * being implied by the shape of the JSX.
+ *
+ * There is deliberately no panel here for collected money, blocks
+ * committed, or claiming a block. Those are administrative and this type is
+ * the list of things a viewer may see.
  */
 export type DashboardPanel =
   | "hero" // the next game
+  | "next_reveal" // when its digits drop
+  | "holiday_next" // the next holiday game, which pays more
+  | "claim_deadline" // days left to claim — the last pre-season card
   | "grid_link" // straight into the current grid
   | "recent_winners"
   | "season_so_far"
-  | "hot_digits"
-  | "next_reveal"
-  | "blocks_committed" // committed/100 with a progress bar — sellout framing
-  | "collected" // money in
-  | "claim_deadline" // days left to claim
-  | "claim_cta"; // "Get in the pool · N blocks open · Claim a block"
-
-/** The sales surfaces. Every one of these is gone in season mode. */
-export const SALES_PANELS: readonly DashboardPanel[] = [
-  "blocks_committed",
-  "collected",
-  "claim_deadline",
-  "claim_cta",
-] as const;
+  | "hot_digits" // which last digits keep hitting, and which never have
+  | "close_calls" // blocks one point from a win
+  | "hot_cells"; // the score patterns that keep coming up
 
 /**
- * What the public dashboard shows, in order.
- *
- * Season mode leads with the next game, the current grid, and recent
- * winners — in that order — and drops every panel in SALES_PANELS. Off, the
- * layout is what it has always been: hero, the four stat cards, then the
- * claim CTA beside recent winners.
- *
- * The claim CTA also disappears when nothing is open, season mode or not:
- * "0 blocks open · Claim a block" was never a thing to show anyone.
+ * Panels that only make sense while blocks are still being sold. Season mode
+ * drops them. The list is short because the genuinely administrative ones
+ * are not viewer panels at all any more.
+ */
+export const PRESEASON_PANELS: readonly DashboardPanel[] = [
+  "claim_deadline",
+] as const;
+
+/** Panels that exist only once the page has stopped selling. */
+export const SEASON_PANELS: readonly DashboardPanel[] = ["grid_link"] as const;
+
+/**
+ * The home page, in order. One ordering with two conditionals, rather than
+ * two orderings that can drift apart.
  */
 export function dashboardPanels(
   seasonMode: boolean,
-  opts: { hasNextGame: boolean; openBlocks: number },
+  opts: { hasNextGame: boolean },
 ): DashboardPanel[] {
   const panels: DashboardPanel[] = [];
   if (opts.hasNextGame) panels.push("hero");
 
-  if (seasonMode) {
-    // The next game and when its numbers drop are one unit — on a game-day
-    // morning the reveal countdown is the most time-sensitive thing on the
-    // page. Then the grid, then what has already been won.
-    panels.push(
-      "next_reveal",
-      "grid_link",
-      "recent_winners",
-      "season_so_far",
-      "hot_digits",
-    );
-    return panels;
-  }
+  // The next game and when its numbers drop are one unit — on a game-day
+  // morning the reveal countdown is the most time-sensitive thing here.
+  panels.push("next_reveal", "holiday_next");
+  if (!seasonMode) panels.push("claim_deadline");
+  if (seasonMode) panels.push("grid_link");
 
-  panels.push("blocks_committed", "collected", "next_reveal", "claim_deadline");
-  if (opts.openBlocks > 0) panels.push("claim_cta");
-  panels.push("recent_winners", "season_so_far", "hot_digits");
+  panels.push(
+    "recent_winners",
+    "season_so_far",
+    "hot_digits",
+    "close_calls",
+    "hot_cells",
+  );
   return panels;
 }
 
-/** True when this panel is on the dashboard for these settings. */
+/** True when this panel is on the home page for these settings. */
 export function showsPanel(
   panels: DashboardPanel[],
   panel: DashboardPanel,

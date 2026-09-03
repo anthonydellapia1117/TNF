@@ -2,10 +2,10 @@
 --
 -- The important assertions here are the ones about what an ANONYMOUS caller
 -- gets from v_pot. v_pot is a definer view readable by anon, so a value left
--- in it is public whether or not any page renders it. Amounts owed must be
--- absent for anon in both modes; collected money must be absent once season
--- mode is on. Block counts stay visible on purpose — the public board shows
--- free cells one by one, so the count is already derivable.
+-- in it is public whether or not any page renders it. Money in and money
+-- owed are both admin-only, in either mode (migration 16). Block counts stay
+-- visible on purpose — /blocks is the availability board and computes "51
+-- open" from them, and the per-cell statuses are public anyway.
 begin;
 
 -- The local harness stub grants the client roles SELECT only; real Supabase
@@ -63,9 +63,10 @@ begin
     raise exception 'TEST FAILURE: anon can see owed_out_cents (%) with season mode OFF', r.owed_out_cents;
   end if;
 
-  -- Collected is still on the pre-season dashboard, so anon must get it.
-  if r.collected_cents is null then
-    raise exception 'TEST FAILURE: anon lost collected_cents with season mode OFF';
+  -- Money in is admin-only too, since migration 16: the viewer dashboard
+  -- has no Collected card in either mode, so nothing public reads it.
+  if r.collected_cents is not null then
+    raise exception 'TEST FAILURE: anon can see collected_cents (%) with season mode OFF', r.collected_cents;
   end if;
 
   -- Block counts and paid-out history stay public in both modes.

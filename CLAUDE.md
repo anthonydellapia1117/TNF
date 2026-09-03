@@ -57,26 +57,39 @@ who has settled, and nothing else. In particular it does not move blocks.
 - Total payout liability never appears on a public route.
 - The comp flag is admin-only and appears in no public projection.
 - Green means one thing on the public grid: **a winner.**
-- **`season_mode` (config, admin toggle, default off) decides whether the
-  public side is selling or reporting.** On, every sales surface is gone:
-  the blocks-open count wherever it appears (dashboard card, the /blocks
-  counter, the board legend, the OPEN/CLAIMED filter tallies), the claim
-  CTA, the claim-by deadline card, the collected-money card, the
-  block-is-open nudge on /block/[n], and the "BLOCKS OPEN" headline on the
-  og image. The dashboard then leads with the next game, the grid and
-  recent winners. Anthony flips it when the link goes out to the room —
-  "51 blocks open" is a true number that reads as a pool that did not fill.
-  The decision lives in `src/lib/season-mode.ts`; no surface should ask the
-  question itself.
+- **The viewer side is for a TNF fan, not an administrator.** Collection
+  status, the committed-blocks count and the claim CTA are not viewer
+  surfaces at all — they live on `/admin` only. `DashboardPanel` in
+  `src/lib/season-mode.ts` has no name for them, so a public panel for
+  collected money or a headcount cannot be returned by construction.
+  Viewer widgets answer fan questions instead: hot and never-won digits,
+  close calls, score patterns, the next holiday game. Nothing about money
+  owed, payment status, or how many people are in.
+- **The plain-text list is admin-only** (`/admin/list`). There is no public
+  `/list` route and no List item in the public nav — it is a chase tool.
+  `/players` stays public as the roster.
+- **`season_mode` (config, admin toggle, default off)** now governs only the
+  remaining pre-season surfaces: the claim-by deadline card on the home
+  page, the block-is-open nudge on `/block/[n]`, the "BLOCKS OPEN" headline
+  on the og image, and two meta descriptions. On, the home page also leads
+  with a grid panel. The decision lives in `src/lib/season-mode.ts`; no
+  surface should ask the question itself.
+- **`/blocks` is the availability board and keeps its counts in both
+  modes** — the big AVAILABLE figure, the legend tallies and the
+  OPEN/CLAIMED filter counts. Showing what is open is that page's purpose.
+  The same number was removed from the *home* page, where it read as a pool
+  that did not fill. These two are not in conflict; do not "fix" one to
+  match the other.
 - **A number withheld from the public must be withheld from the
   projection, not just the page.** `v_pot` is a definer view readable by
   anon, so anything left in it is public whether or not a page renders it —
   it was serving `due_cents` ($24,000 owed) and `owed_out_cents` to anyone
-  who curled the REST endpoint. Amounts owed are now null for a non-admin
-  caller in both modes; `collected_cents` is null for a non-admin once
-  season mode is on. Block counts stay public on purpose: the board shows
-  free cells one by one, so the count is already derivable and gating it
-  would be theatre.
+  who curled the REST endpoint. Money in and money owed
+  (`collected_cents`, `due_cents`, `owed_out_cents`) are all null for a
+  non-admin caller, in either mode. Money OUT (`paid_out_cents`) stays
+  public — it is the same winner history `/winners` publishes by name.
+  Block counts stay public because `/blocks` computes "51 open" from them
+  and the per-cell statuses are public anyway.
 - **There is no gate on any public route, by design.** No invite code, no
   password, no Vercel deployment protection (password, SSO and trusted-IP
   are all off, verified 2026-09-03). `/admin` is the only gated surface.

@@ -36,10 +36,9 @@ export default async function BlocksPage() {
 
   return (
     <div className="space-y-5">
-      {/* The sales counter — the line Anthony screenshots into the chat
-          while he is still selling. In season mode "51 AVAILABLE" reads as
-          a pool that did not fill, so the whole panel goes. */}
-      {!isSeasonMode(config) && (
+      {/* The availability counter. This page exists to show what is open,
+          so the count stays in both modes — unlike the home page, where the
+          same number was reading as a pool that did not fill. */}
       <section className="rounded-lg border border-border bg-surface px-4 py-6 text-center sm:py-8">
         <p className="flex items-baseline justify-center gap-2 text-pool-accent">
           <span className="text-3xl font-semibold" data-numeric>
@@ -67,18 +66,6 @@ export default async function BlocksPage() {
           </p>
         )}
       </section>
-      )}
-
-      {/* Without the counter the page would open straight onto the board,
-          so season mode gets a plain title instead of a sales panel. */}
-      {isSeasonMode(config) && (
-        <section className="text-center">
-          <h1 className="text-lg font-semibold">The board</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground" data-numeric>
-            All {config.blocks_total} blocks — tap any number for its season.
-          </p>
-        </section>
-      )}
 
       {/* Suspense: the board reads its ?show= filter from the URL. */}
       <Suspense fallback={<Skeleton className="mx-auto aspect-square w-full max-w-3xl" />}>
