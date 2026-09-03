@@ -35,6 +35,22 @@ them cost Anthony two round trips to chase nothing.
 - Break-even is **89 paying blocks**. Comped blocks are excluded from that
   count. This lives on /admin only and is never public.
 
+## The claim deadline
+
+The claim and payment deadline is **Friday September 4, 2026**. It governs
+who has settled, and nothing else. In particular it does not move blocks.
+
+- **Unpaid Reserved blocks are NOT released at the deadline.** They stay
+  Reserved and they get chased. There is no automatic release, expiry, or
+  reassignment on any date, and no scheduled job that performs one.
+- **An unpaid block at kickoff records the score, produces no payout, and
+  raises a review flag.** That is the existing Reserved-versus-Assigned rule
+  operating normally — only an Assigned block receives a payout. It needs no
+  new logic and no new code path. Do not write one.
+- Participants were told before the deadline that only a paid block wins.
+- **Releasing a block stays a deliberate admin action** through
+  `admin_release_block`, taken case by case. Never triggered by a date.
+
 ## Public surfaces
 
 - Never expose email, phone, or amounts owed. Names and block numbers only.
@@ -49,6 +65,13 @@ them cost Anthony two round trips to chase nothing.
   records what was true at the time and is never rewritten.
 - Digits are immutable once written, never assigned when `date_confirmed`
   is false or after kickoff, and never scored before publication.
+- **Digits are assigned to the two axes, not to blocks.** Each axis is a
+  permutation of 0-9, so all 100 cells receive numbers regardless of how many
+  blocks are sold or paid. The claim deadline never gates digit assignment.
+  What the deadline governs is how many cells are *payable*, since only an
+  Assigned block produces a payout. This is a mechanical statement about how
+  digits are assigned — it is not a statement about pool health, and nothing
+  here is a reason to surface one.
 - A specific block number only goes to someone who specifically asked for
   it. A prior season's number is carryover, not a request.
 - A shared email between two participants is worth noting but is never by
