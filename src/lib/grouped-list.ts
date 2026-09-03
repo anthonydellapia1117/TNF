@@ -174,3 +174,55 @@ export function buildGroupedList(year: number, roster: GroupedRoster): string {
   );
   return lines.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// The alphabetical list. Same naming rule as the grouped one.
+// ---------------------------------------------------------------------------
+
+/**
+ * One entry per committed block, ordered by the name that will be READ.
+ *
+ * Both lists get pasted into the group chat, where people scan for the name
+ * that shows on the grid — so a block carrying its own display_name is
+ * listed under that name and sorted under it too. Filing "Slav" under D for
+ * Dan DeSilvio would put it where nobody looks. The person behind the block
+ * lives on /admin/participants, which is the chase tool; these lists are for
+ * the group.
+ *
+ * A committed slot with no number yet has no block to carry a name, so it
+ * falls back to the participant.
+ */
+export function rosterByName(
+  participants: ParticipantRow[],
+  blocks: BlockRow[],
+): { name: string; blockNumber: number | null }[] {
+  const byId = new Map(participants.map((p) => [p.id, p]));
+  const entries: { name: string; blockNumber: number | null }[] = [];
+  const numbered = new Map<string, number>();
+
+  for (const b of blocks) {
+    if (b.status !== "reserved" && b.status !== "assigned") continue;
+    if (!b.participant_id) continue;
+    const p = byId.get(b.participant_id);
+    if (!p) continue;
+    entries.push({
+      name: b.display_name?.trim() || personName(p),
+      blockNumber: b.block_number,
+    });
+    numbered.set(b.participant_id, (numbered.get(b.participant_id) ?? 0) + 1);
+  }
+
+  for (const p of participants) {
+    const missing = Math.max(0, p.blocks_requested - (numbered.get(p.id) ?? 0));
+    for (let i = 0; i < missing; i++) {
+      entries.push({ name: personName(p), blockNumber: null });
+    }
+  }
+
+  return entries.sort(
+    (a, b) =>
+      a.name.localeCompare(b.name) ||
+      (a.blockNumber === null ? 1 : 0) - (b.blockNumber === null ? 1 : 0) ||
+      (a.blockNumber ?? 0) - (b.blockNumber ?? 0),
+  );
+}

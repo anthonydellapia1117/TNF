@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildGroupedList, groupedRoster } from "@/lib/grouped-list";
+import {
+  buildGroupedList,
+  groupedRoster,
+  rosterByName,
+} from "@/lib/grouped-list";
 
 const PRICE = 50000; // $500 in cents — money is stored in cents everywhere
 const TOTAL = 100;
@@ -241,5 +245,80 @@ describe("buildGroupedList — the pasteable text", () => {
       TOTAL,
     );
     expect(buildGroupedList(2026, pending)).toContain("2. Ava; no number yet");
+  });
+});
+
+describe("rosterByName — the alphabetical list, named like the grid", () => {
+  const people = [
+    person({ id: "d", display_alias: "Dan DeSilvio", owner_group: "MAP" }),
+    person({ id: "g", display_alias: "Rob Gambino", owner_group: "AVD", blocks_requested: 2 }),
+    person({ id: "k", display_alias: "Gurt", owner_group: "JPOD" }),
+  ];
+  const blocks = [
+    blk({ block_number: 88, participant_id: "d", display_name: "Slav" }),
+    blk({ block_number: 99, participant_id: "g" }),
+    blk({ block_number: 83, participant_id: "g", display_name: "ROBBIE G" }),
+    blk({ block_number: 51, participant_id: "k" }),
+  ];
+
+  it("lists a block under its own name, not its owner's", () => {
+    const rows = rosterByName(people, blocks);
+    expect(rows).toContainEqual({ name: "Slav", blockNumber: 88 });
+    expect(rows.map((r) => r.name)).not.toContain("Dan DeSilvio");
+  });
+
+  it("sorts by the name that will be read, so a block name is findable", () => {
+    // The whole point: "Slav" sits under S, not under D for Dan DeSilvio.
+    // Ordering is localeCompare, which folds case at the primary level — so
+    // "Rob Gambino" and "ROBBIE G" land together under R regardless of caps,
+    // with the space sorting ahead of the second B.
+    expect(rosterByName(people, blocks).map((r) => r.name)).toEqual([
+      "Gurt",
+      "Rob Gambino",
+      "ROBBIE G",
+      "Slav",
+    ]);
+  });
+
+  it("keeps a block name away from its owner's letter", () => {
+    const names = rosterByName(people, blocks).map((r) => r.name);
+    expect(names.indexOf("Slav")).toBeGreaterThan(names.indexOf("ROBBIE G"));
+    expect(names).not.toContain("Dan DeSilvio");
+  });
+
+  it("splits one person's blocks when they carry different names", () => {
+    const rows = rosterByName(people, blocks);
+    expect(rows.find((r) => r.blockNumber === 83)?.name).toBe("ROBBIE G");
+    expect(rows.find((r) => r.blockNumber === 99)?.name).toBe("Rob Gambino");
+  });
+
+  it("agrees with the grouped view on every block's name", () => {
+    const grouped = groupedRoster(people, blocks, PRICE, TOTAL);
+    const groupedNames = new Map(
+      grouped.owners.flatMap((g) => g.entries).map((e) => [e.blockNumber, e.name]),
+    );
+    for (const row of rosterByName(people, blocks)) {
+      expect(row.name).toBe(groupedNames.get(row.blockNumber));
+    }
+  });
+
+  it("falls back to the participant for a slot with no number", () => {
+    const rows = rosterByName(
+      [person({ id: "a", display_alias: "Ava", blocks_requested: 2 })],
+      [blk({ block_number: 10, participant_id: "a", display_name: "The Block" })],
+    );
+    expect(rows).toEqual([
+      { name: "Ava", blockNumber: null },
+      { name: "The Block", blockNumber: 10 },
+    ]);
+  });
+
+  it("ignores blocks nobody holds", () => {
+    expect(
+      rosterByName(
+        [person({ id: "a", display_alias: "Ava", blocks_requested: 0 })],
+        [blk({ block_number: 1, participant_id: null, status: "available" })],
+      ),
+    ).toEqual([]);
   });
 });

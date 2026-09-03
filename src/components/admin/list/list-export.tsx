@@ -5,7 +5,11 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { buildListExport } from "@/lib/pool";
-import { buildGroupedList, groupedRoster } from "@/lib/grouped-list";
+import {
+  buildGroupedList,
+  groupedRoster,
+  rosterByName,
+} from "@/lib/grouped-list";
 import { Button } from "@/components/ui/button";
 import type { AdminBlock, PoolConfig } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
@@ -32,29 +36,12 @@ export function ListExport({
 }) {
   const [view, setView] = useState<View>("name");
 
-  const byName = useMemo(() => {
-    // One entry per committed block per participant, alphabetical by the
-    // display name (stable). Numbered blocks first (ascending), then
-    // unnumbered slots for any remaining requested blocks.
-    const byName = [...participants].sort((a, b) =>
-      (a.display_alias ?? a.full_name).localeCompare(
-        b.display_alias ?? b.full_name,
-      ),
-    );
-    const entries: { name: string; blockNumber: number | null }[] = [];
-    for (const p of byName) {
-      const name = p.display_alias ?? p.full_name;
-      const numbered = blocks
-        .filter((b) => b.participant_id === p.id)
-        .map((b) => b.block_number)
-        .sort((a, b) => a - b);
-      for (const n of numbered) entries.push({ name, blockNumber: n });
-      for (let i = numbered.length; i < p.blocks_requested; i++) {
-        entries.push({ name, blockNumber: null });
-      }
-    }
-    return buildListExport(2026, entries);
-  }, [participants, blocks]);
+  // One entry per committed block, named and sorted by what shows on the
+  // grid — the same rule the grouped view uses, so the two agree.
+  const byName = useMemo(
+    () => buildListExport(2026, rosterByName(participants, blocks)),
+    [participants, blocks],
+  );
 
   // Grouped by owner code: who collects what, and how much of it.
   const byOwner = useMemo(
