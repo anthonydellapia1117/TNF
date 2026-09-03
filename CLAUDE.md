@@ -72,8 +72,14 @@ who has settled, and nothing else. In particular it does not move blocks.
   Assigned block produces a payout. This is a mechanical statement about how
   digits are assigned — it is not a statement about pool health, and nothing
   here is a reason to surface one.
+- **A prior season is a source of identity, never of state.** Alias and
+  email carry forward; owner group, block number, block count and payment
+  status never do — each needs a 2026 source. A prior-season value can go in
+  notes as context, never into a state field on its own authority. Full rule
+  and precedents in `docs/PARTICIPANT_DATA_RULES.md`.
 - A specific block number only goes to someone who specifically asked for
-  it. A prior season's number is carryover, not a request.
+  it. A prior season's number is carryover, not a request — the block-number
+  instance of the rule above.
 - A shared email between two participants is worth noting but is never by
   itself a duplicate signal.
 - Never invent a full name. If it is unknown, mirror the alias and flag it

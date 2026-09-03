@@ -7,7 +7,9 @@ future assignment work in this pool.
 1. **Carryover from a prior season is not a request.** Nobody keeps last
    year's number automatically. Anyone who wants a specific block this year
    has to ask this year. (Applied 2026-08-24: the four 2025 carryover
-   numbers 8, 17, 27, 47 were released and their holders redrawn.)
+   numbers 8, 17, 27, 47 were released and their holders redrawn.) This is
+   one instance of the general rule that prior-season data is a source of
+   identity, never of state — see `PARTICIPANT_DATA_RULES.md`.
 
 2. **New participants get a randomly assigned block by default**, method
    `random`. Random draws are deterministic and auditable: a published seed
