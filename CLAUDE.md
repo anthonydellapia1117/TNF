@@ -46,36 +46,42 @@ held by JPOD, and block 51 promoted to assigned.
 
 ### When someone pays Anthony instead of their own owner
 
-**The participant follows the money — but only once Anthony has confirmed it
-with that owner.** If someone recruited by another owner pays Anthony
-directly, the cash and the book have come apart: the owner's headcount says
-he is holding $500 he never touched. Moving the participant to AVD puts them
-back together.
+**Money that reaches Anthony moves the participant to AVD. Automatically, in
+the same transaction as the payment, with no confirmation step.** The owner
+code records who collects and holds the $500. If Anthony collected it, the
+block is in Anthony's book, and AVD is what that means. The money and the
+book are never apart, so there is never a gap to flag.
 
-The order is not negotiable:
+- Recording a payment that came into Anthony's Venmo for a participant who
+  is not already AVD: **move them, in the same operation. Audit both.**
+  Do not ask first. Tell Anthony it was done.
+- Because the two never separate, there is **no reconciliation flag** for
+  this case any more. Don't write one, and don't re-raise a cleared one.
+- The losing owner is not short. His headcount drops by exactly the block
+  that left, at the same moment. Recruiting is not collecting.
 
-1. Anthony talks to the owner whose book the participant is leaving.
-2. Anthony tells the agent to move them.
-3. Only then does the code change to AVD.
+**The exception: cash held by another owner does not move anyone.** When an
+owner collects and holds his own participant's $500, that owner is doing the
+collecting and keeps the code — Konnor McGrorty stays JPOD because Julian is
+holding his money. Only money that actually reached Anthony moves anyone.
 
-**Never move anyone on the strength of the payment alone.** A Venmo receipt
-in Anthony's inbox proves where the money went; it does not prove the two
-owners have settled how to count it. That conversation is Anthony's to have,
-and the agent's job is to surface the mismatch and wait. Surfacing a
-candidate is right and useful. Moving one is not.
+**Read the exception by who SENT it, not by whose name is in the memo.** A
+$500 Venmo from the participant is Anthony collecting. A $500 Venmo from
+another *owner*, forwarding what he already collected, is that owner
+collecting and does not move the participant — it is the Konnor case
+arriving by Venmo instead of by hand. If the sender is an owner rather than
+the participant, ask Anthony rather than moving anyone.
 
-Once the move is made the mismatch is gone, so **clear the reconciliation
-flag** rather than leaving it to be re-read as an open item — the flag
-described a gap that no longer exists. Record the move in the notes: which
-code it left, that Anthony confirmed with that owner, and the transaction
-that prompted it.
+Supersedes the confirm-with-the-owner-first version of this rule, set
+2026-09-03 and replaced the same evening. Anthony's reasoning for the
+change: the code means collection responsibility, so if he collected it, it
+is his; asking the other owner first was ceremony, not control.
 
-Precedent (2026-09-03): Vincent Angiolillo (RM) and Joe Longo (JPOD) both
-paid Anthony's Venmo directly. Both were first recorded in place with a
-reconciliation flag naming the gap — correctly, because Anthony had not yet
-spoken to Ronnie or Julian. He then confirmed with both owners and moved the
-two participants to AVD, and the flags were cleared. RM went 23 to 22, JPOD
-2 to 1. Recruiting is not collecting; the code records only who collects.
+Precedent (2026-09-03): four participants moved to AVD for this reason.
+Vincent Angiolillo (RM) and Joe Longo (JPOD) were moved under the older
+confirm-first version, after Anthony spoke to Ronnie and Julian. Eric
+Nardini (RM) and Dan DeSilvio (MAP) were moved under this one, on the
+payments alone. RM went 23 to 21, JPOD 2 to 1, MAP 10 to 9, AVD 20 to 24.
 
 ## Payment sweeps
 
