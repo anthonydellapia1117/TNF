@@ -3,6 +3,47 @@
 Standing rules for anyone (human or agent) working on this pool. These are
 Anthony's calls, not inferences. Do not relax one without him saying so.
 
+## Owner codes and how money is actually collected
+
+**The seven owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD — are collection
+responsibility, not provenance.** They do not record who introduced someone
+or who they emailed. They record *which owner collects that participant's
+$500 and holds it*.
+
+How the pool actually runs:
+
+- Each owner collects from his own participants and **holds that cash**.
+- Each owner **pays his own winners out of what he is holding**, first.
+- If an owner runs dry, the other owners cover it between them.
+- At season end it reconciles per owner: participants × $500 against what
+  that owner paid out.
+
+Three things follow, and getting them wrong is expensive:
+
+1. **An owner's word IS the payment record for his own book.** When JPOD
+   says he has Konnor's money, Konnor is paid — the money is in the pool,
+   JPOD is holding it, and if block 51 hits, JPOD pays it. No other owner is
+   exposed. This is an honour system among the seven and has always worked
+   that way. Record it: method `cash`, `source_ref` naming the owner.
+2. **`collected_cents` means collected by the pool, not cash in Anthony's
+   hand.** Money held by RM or JPOD is collected. Do not reason about the
+   house position as though only Anthony's own receipts count.
+3. **An owner code is not evidence of how someone joined.** Asking "did this
+   person come to Anthony directly?" is a different question from "who
+   collects from them", and the code answers only the second.
+
+**This does not weaken the rule against inventing data.** A relaying *owner*
+confirming his *own* participant paid is a source. A guess is not, and
+neither is a third party's word about someone else's book. The line is
+whether the person confirming is the owner responsible for collecting that
+participant's money.
+
+Precedent (2026-09-03): Julian Podagrosi (JPOD) told Anthony he was holding
+Konnor McGrorty's $500. It was first refused as an unverified claim, on the
+assumption that owner codes were provenance and only Anthony's own receipts
+counted as collected. Both assumptions were wrong. It was recorded as cash
+held by JPOD, and block 51 promoted to assigned.
+
 ## Payment sweeps
 
 **A TNF block costs $500 flat. Only a $500 amount is a candidate block
@@ -23,6 +64,10 @@ them cost Anthony two round trips to chase nothing.
 - Sweep by fetching threads in full (`get_thread`), never from search
   previews — previews show only the ~5 oldest messages of a thread and have
   hidden real commitments before.
+- **A sweep only sees money that reached Anthony.** Cash held by another
+  owner never appears in his Venmo or his mail, and its absence from a
+  sweep is not evidence that a participant is unpaid. See *Owner codes and
+  how money is actually collected* above.
 
 ## Money
 
@@ -128,6 +173,8 @@ who has settled, and nothing else. In particular it does not move blocks.
     for review in between. Each reveal is scheduled for **8:00 AM ET on that
     game's own date** — never one shared instant for a week.
 - **Owner groups are AVD, MAP, RM, JPOD, EJD, NL and GD.** Nothing else.
+  What the code *means* — collection responsibility, not provenance — is in
+  *Owner codes and how money is actually collected* above.
   `DIRECT` was retired 2026-08-28 (migration 13) and its seventeen
   participants folded into AVD — it was Anthony's own book under a generic
   name, and AVD is the same book under his code. The value is now rejected
