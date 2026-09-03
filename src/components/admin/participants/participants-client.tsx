@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
@@ -151,7 +151,10 @@ export function ParticipantsClient({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  // Quick-add row
+  // Quick-add row. The name field deliberately does NOT submit on Enter —
+  // see the form below.
+  const qaAliasRef = useRef<HTMLInputElement>(null);
+  const qaBlocksRef = useRef<HTMLInputElement>(null);
   const [qaName, setQaName] = useState("");
   const [qaAlias, setQaAlias] = useState("");
   const [qaGroup, setQaGroup] = useState<OwnerGroup>("AVD");
@@ -247,23 +250,71 @@ export function ParticipantsClient({
         </p>
       </div>
 
-      {/* Quick-add: one-thumb flow */}
+      {/* Search comes FIRST. Twice now a name typed into the quick-add box —
+          previously the first input on the page — has been submitted by
+          Enter and written a stray participant ("mark" 9/1, "dan" 9/3).
+          The box you reach for first is now the one that filters. */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              // Filtering is live on every keystroke; Enter has nothing left
+              // to do here and must never reach a form.
+              if (e.key === "Enter") e.preventDefault();
+            }}
+            placeholder="Search name or alias"
+            aria-label="Search participants"
+            className="h-12 pl-8 sm:h-8"
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => openEdit(null)}
+          className="h-12 shrink-0 sm:h-8"
+        >
+          <UserPlus data-icon="inline-start" />
+          New
+        </Button>
+      </div>
+
+      {/* Quick-add: one-thumb flow. Enter walks the fields rather than
+          submitting, so a half-typed name cannot become a participant. Only
+          Enter on the last field, or the Add button, writes. */}
       <form
         onSubmit={quickAdd}
         className="rounded-lg border border-border bg-surface p-3"
       >
+        <p className="mb-2 text-2xs font-semibold tracking-widest text-muted-foreground uppercase">
+          Add a participant
+        </p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Input
             value={qaName}
             onChange={(e) => setQaName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                qaAliasRef.current?.focus();
+              }
+            }}
             placeholder="Full name"
             autoComplete="off"
             className="h-12 sm:h-8 sm:flex-1"
           />
           <div className="flex items-center gap-2">
             <Input
+              ref={qaAliasRef}
               value={qaAlias}
               onChange={(e) => setQaAlias(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  qaBlocksRef.current?.focus();
+                }
+              }}
               placeholder="Alias"
               autoComplete="off"
               className="h-12 min-w-0 flex-1 sm:h-8 sm:w-28 sm:flex-none"
@@ -284,6 +335,7 @@ export function ParticipantsClient({
               </SelectContent>
             </Select>
             <Input
+              ref={qaBlocksRef}
               type="number"
               min={0}
               inputMode="numeric"
@@ -304,27 +356,6 @@ export function ParticipantsClient({
           </div>
         </div>
       </form>
-
-      {/* Search + full-form add */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search name or alias"
-            className="h-12 pl-8 sm:h-8"
-          />
-        </div>
-        <Button
-          variant="outline"
-          onClick={() => openEdit(null)}
-          className="h-12 shrink-0 sm:h-8"
-        >
-          <UserPlus data-icon="inline-start" />
-          New
-        </Button>
-      </div>
 
       {sorted.length === 0 ? (
         <div className="rounded-lg border border-border bg-surface px-4 py-6 text-center text-sm text-muted-foreground">
