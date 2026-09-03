@@ -362,6 +362,21 @@ export async function recordPasswordChange(
 // Public display settings
 // ---------------------------------------------------------------------------
 
+/**
+ * Flip season mode. This changes every public surface at once — the
+ * dashboard layout, the /blocks counter, the /block/[n] nudge, the link
+ * preview image and two meta descriptions — plus what v_pot will hand an
+ * anonymous caller, so it revalidates the whole public side.
+ */
+export async function setSeasonMode(on: boolean): Promise<ActionResult> {
+  return rpc("admin_set_season_mode", { p_on: on }, [
+    ...EVERYTHING,
+    "/players",
+    "/list",
+    "/api/og",
+  ]);
+}
+
 /** Flip the public /players detail level — FULL or LEAN, no deploy. */
 export async function setPlayersDetail(
   mode: "full" | "lean",

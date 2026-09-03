@@ -114,7 +114,10 @@ export function housePosition(
       ? Math.ceil(seasonPayoutCents / pricePerBlockCents)
       : 0;
   return {
-    positionCents: pot.collected_cents - seasonPayoutCents,
+    // collected_cents is null only when v_pot withheld it from a
+    // non-admin caller — which cannot happen on an admin surface, and
+    // reads as $0 rather than NaN if it ever did.
+    positionCents: (pot.collected_cents ?? 0) - seasonPayoutCents,
     payingBlocksNeeded,
     payingBlocksSold,
     blocksToBreakEven: Math.max(0, payingBlocksNeeded - payingBlocksSold),

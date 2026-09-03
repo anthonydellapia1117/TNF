@@ -24,13 +24,20 @@ import {
   payoutCents,
   placedBlocks,
 } from "@/lib/pool";
+import { dashboardPanels, isSeasonMode } from "@/lib/season-mode";
 import type { PoolConfig, PublicGame } from "@/lib/types";
 
-export const metadata: Metadata = {
-  title: "Dashboard",
-  description:
-    "The 2026 pool at a glance — next game, blocks, money, and winners.",
-};
+// Season mode reaches the link preview too: the description is what shows
+// under the URL in a group chat, so it cannot still be selling blocks.
+export async function generateMetadata(): Promise<Metadata> {
+  const config = await getConfig();
+  return {
+    title: "Dashboard",
+    description: isSeasonMode(config)
+      ? "The 2026 season — next game, the grid, and who is winning."
+      : "The 2026 pool at a glance — next game, blocks, money, and winners.",
+  };
+}
 
 export const revalidate = 30;
 
@@ -173,6 +180,42 @@ function Panel({
   );
 }
 
+/**
+ * Season mode's second panel: straight into the grid. Off-season the hero
+ * already carries a "View the grid" link, so this only appears when the
+ * dashboard has stopped selling and the grid is the point.
+ */
+function GridLink({ game }: { game: PublicGame | null }) {
+  return (
+    <Link
+      href="/grid"
+      className="group flex flex-col justify-between gap-4 rounded-lg border border-pool-accent/60 bg-surface p-5 transition-colors duration-150 hover:border-pool-accent"
+    >
+      <div>
+        <p className="text-2xs font-semibold tracking-widest text-pool-accent uppercase">
+          <LayoutGrid className="mr-1.5 inline size-3" aria-hidden />
+          The grid
+        </p>
+        <p className="mt-2 text-lg font-semibold">
+          {game
+            ? `Your numbers for ${gameCode(game.game_no)}`
+            : "All 100 blocks, every game"}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Find your block, see the digits, watch it live.
+        </p>
+      </div>
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-pool-accent">
+        Open the grid
+        <ArrowRight
+          className="size-4 transition-transform duration-150 group-hover:translate-x-0.5"
+          aria-hidden
+        />
+      </span>
+    </Link>
+  );
+}
+
 export default async function DashboardPage() {
   const [games, payouts, config, pot, blocks] = await Promise.all([
     getPublicGames(),
@@ -197,13 +240,30 @@ export default async function DashboardPage() {
   const deadlineDays = daysUntil(config.claim_deadline);
   const recent = payouts.slice(0, 5);
 
+  // What this page shows, and in what order, is decided in one tested place.
+  const seasonMode = isSeasonMode(config);
+  const panels = dashboardPanels(seasonMode, {
+    hasNextGame: next !== null,
+    openBlocks: open,
+  });
+  const shows = (p: (typeof panels)[number]) => panels.includes(p);
+
   return (
     <div className="space-y-4">
       {next && <Hero game={next} config={config} />}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      {/* The stat row is sales framing except for the reveal countdown, so
+          in season mode it collapses to that one card. */}
+      <div
+        className={
+          seasonMode
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4"
+            : "grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4"
+        }
+      >
         {/* Clickable: the committed count opens the public Players roster.
             Whole card is the tap target; chevron + hover ring on desktop. */}
+        {shows("blocks_committed") && (
         <Link
           href="/players"
           className="group rounded-lg border border-border bg-surface p-4 transition-colors duration-150 hover:border-pool-accent/60"
@@ -232,40 +292,49 @@ export default async function DashboardPage() {
             {placed} placed · {open} open
           </p>
         </Link>
+        )}
 
-        <StatCard
-          label="Collected"
-          icon={<Wallet className="size-3" aria-hidden />}
-        >
-          <p className="mt-2 text-2xl font-semibold" data-numeric>
-            {fmtUsd(pot.collected_cents)}
-          </p>
-          <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
-            {fmtUsd(config.price_per_block_cents)} per block
-          </p>
-        </StatCard>
+        {/* collected_cents is null once season mode withholds it, which is
+            the same condition that removes this card — belt and braces. */}
+        {shows("collected") && pot.collected_cents !== null && (
+          <StatCard
+            label="Collected"
+            icon={<Wallet className="size-3" aria-hidden />}
+          >
+            <p className="mt-2 text-2xl font-semibold" data-numeric>
+              {fmtUsd(pot.collected_cents)}
+            </p>
+            <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
+              {fmtUsd(config.price_per_block_cents)} per block
+            </p>
+          </StatCard>
+        )}
 
         <NextRevealCard games={games} payouts={payouts} blocks={blocks} />
 
-        <StatCard
-          label="Next deadline"
-          icon={<CalendarDays className="size-3" aria-hidden />}
-        >
-          <p className="mt-2 text-2xl font-semibold" data-numeric>
-            {deadlineDays}
-            <span className="text-sm font-normal text-muted-foreground">
-              {" "}
-              {deadlineDays === 1 ? "day" : "days"}
-            </span>
-          </p>
-          <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
-            Claim by {fmtDateOnly(config.claim_deadline)}
-          </p>
-        </StatCard>
+        {shows("claim_deadline") && (
+          <StatCard
+            label="Next deadline"
+            icon={<CalendarDays className="size-3" aria-hidden />}
+          >
+            <p className="mt-2 text-2xl font-semibold" data-numeric>
+              {deadlineDays}
+              <span className="text-sm font-normal text-muted-foreground">
+                {" "}
+                {deadlineDays === 1 ? "day" : "days"}
+              </span>
+            </p>
+            <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
+              Claim by {fmtDateOnly(config.claim_deadline)}
+            </p>
+          </StatCard>
+        )}
+
+        {shows("grid_link") && <GridLink game={next} />}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        {open > 0 && (
+        {shows("claim_cta") && (
           <Link
             href="/blocks"
             className="flex flex-col justify-between gap-4 rounded-lg border border-pool-accent/60 bg-surface p-5 transition-colors duration-150 hover:border-pool-accent"

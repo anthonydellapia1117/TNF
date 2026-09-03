@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { BlockNames } from "@/components/admin/block-names";
 import { ContactGaps } from "@/components/admin/contact-gaps";
 import { PlayersDetailToggle } from "@/components/admin/players-detail-toggle";
+import { SeasonModeToggle } from "@/components/admin/season-mode-toggle";
 import { fmtUsd } from "@/lib/format";
 import {
   committedBlocks,
@@ -119,11 +120,11 @@ export default async function AdminOverview() {
         <Stat
           label="Blocks"
           value={`${committedBlocks(pot)} committed`}
-          sub={`${placedBlocks(pot)} placed · ${fmtUsd(pot.due_cents)} due`}
+          sub={`${placedBlocks(pot)} placed · ${fmtUsd(pot.due_cents ?? 0)} due`}
         />
-        <Stat label="Collected" value={fmtUsd(pot.collected_cents)} sub={`of ${fmtUsd(pot.due_cents)} due`} />
+        <Stat label="Collected" value={fmtUsd(pot.collected_cents ?? 0)} sub={`of ${fmtUsd(pot.due_cents ?? 0)} due`} />
         <Stat label="Outstanding" value={fmtUsd(outstanding)} sub={`${unpaid.length} participant${unpaid.length === 1 ? "" : "s"} owe`} />
-        <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents)} owed to winners`} />
+        <Stat label="Paid out" value={fmtUsd(pot.paid_out_cents)} sub={`${fmtUsd(pot.owed_out_cents ?? 0)} owed to winners`} />
       </div>
 
       {/* The number the owner manages to: collected against the FIXED
@@ -140,6 +141,8 @@ export default async function AdminOverview() {
 
       <BlockNames named={named} candidates={nameCandidates} />
 
+      <SeasonModeToggle current={config.season_mode === true} />
+
       <PlayersDetailToggle current={config.players_detail ?? "full"} />
 
       {/* The full liability picture lives here and only here — the public
@@ -147,7 +150,7 @@ export default async function AdminOverview() {
       <SeasonPayoutProgress
         seasonTotal={seasonPayoutTotalCents(games, config)}
         paid={pot.paid_out_cents}
-        owed={pot.owed_out_cents}
+        owed={pot.owed_out_cents ?? 0}
         gameCount={games.length}
       />
     </div>
@@ -191,7 +194,7 @@ function HousePosition({
           {fmtUsd(Math.abs(h.positionCents))}
         </p>
         <p className="text-sm text-muted-foreground" data-numeric>
-          {fmtUsd(pot.collected_cents)} collected − {fmtUsd(seasonTotal)} fixed
+          {fmtUsd(pot.collected_cents ?? 0)} collected − {fmtUsd(seasonTotal)} fixed
           payout
         </p>
       </div>

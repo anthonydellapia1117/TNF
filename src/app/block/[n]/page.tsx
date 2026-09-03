@@ -11,6 +11,7 @@ import {
 } from "@/lib/data/public";
 import { fmtDateET, fmtUsd } from "@/lib/format";
 import { blockPosition } from "@/lib/pool";
+import { isSeasonMode } from "@/lib/season-mode";
 import { cn } from "@/lib/utils";
 import { getAdminSession } from "@/lib/auth";
 import { getBlockHistory } from "@/lib/data/admin";
@@ -139,8 +140,9 @@ export default async function BlockPage({
         </div>
       </header>
 
-      {/* The sales nudge — only while the block is still open. */}
-      {status === "available" && (
+      {/* The sales nudge — only while the block is still open, and never
+          once the season is running. */}
+      {status === "available" && !isSeasonMode(config) && (
         <section className="rounded-lg border border-dashed border-pool-accent/60 bg-pool-accent/[0.04] px-4 py-4 text-center">
           <p className="text-sm font-medium">
             This block is open.{" "}

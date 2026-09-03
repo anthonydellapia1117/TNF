@@ -29,6 +29,7 @@ const CONFIG: PoolConfig = {
   timezone: "America/New_York",
   season_status: "open",
   players_detail: "full",
+  season_mode: false,
 };
 
 describe("winningBlock", () => {

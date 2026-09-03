@@ -4,15 +4,20 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "@/lib/env";
 import { fmtKickoffET } from "@/lib/format";
 import { teamInfo } from "@/lib/nfl";
 import { committedBlocks, gameCode } from "@/lib/pool";
+import { isSeasonMode } from "@/lib/season-mode";
 import { currentGame } from "@/lib/data/public";
 import type { PoolConfig, PublicGame } from "@/lib/types";
 
 export const revalidate = 300;
 
-// 1200x630 site-wide link preview, generated from live state. Shows the
-// sales pressure — blocks open out of 100 — and the next matchup in team
-// colors. Never the pool total, never money owed: it reads only the same
-// public projections the dashboard does.
+// 1200x630 site-wide link preview, generated from live state.
+//
+// Off-season it shows the sales pressure — blocks open out of 100 — beside
+// the next matchup. In season mode the big number becomes the game itself:
+// this image is what 133 people see attached to the link on a game-day
+// morning, and "51 BLOCKS OPEN" at 160px is the last thing that should
+// greet them. Never the pool total, never money owed: it reads only the
+// same public projections the dashboard does.
 
 const C = {
   bg: "#0B0D0F",
@@ -70,18 +75,32 @@ export async function GET() {
           </span>
         </div>
 
-        {/* The sales pressure */}
-        <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
-          <span style={{ fontSize: 160, fontWeight: 800, lineHeight: 1 }}>
-            {open}
-          </span>
-          <span style={{ display: "flex", flexDirection: "column" }}>
-            <span style={{ fontSize: 52, fontWeight: 700 }}>BLOCKS OPEN</span>
-            <span style={{ fontSize: 32, color: C.muted }}>
-              of {cfg.blocks_total}
+        {/* The headline: the game in season mode, blocks open before it. */}
+        {isSeasonMode(cfg) ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <span style={{ fontSize: 44, fontWeight: 700, color: C.muted }}>
+              {next ? `${gameCode(next.game_no)} · THIS WEEK` : "2026 SEASON"}
             </span>
-          </span>
-        </div>
+            <span style={{ fontSize: 96, fontWeight: 800, lineHeight: 1 }}>
+              {next ? "GAME DAY" : "23 GAMES"}
+            </span>
+            <span style={{ fontSize: 32, color: C.muted }}>
+              100 blocks · fixed payouts · check the grid
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "baseline", gap: 18 }}>
+            <span style={{ fontSize: 160, fontWeight: 800, lineHeight: 1 }}>
+              {open}
+            </span>
+            <span style={{ display: "flex", flexDirection: "column" }}>
+              <span style={{ fontSize: 52, fontWeight: 700 }}>BLOCKS OPEN</span>
+              <span style={{ fontSize: 32, color: C.muted }}>
+                of {cfg.blocks_total}
+              </span>
+            </span>
+          </div>
+        )}
 
         {/* Next game in team colors */}
         {next && away && home ? (

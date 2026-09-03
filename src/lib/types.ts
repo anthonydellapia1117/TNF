@@ -93,6 +93,11 @@ export interface PoolConfig {
   season_status: string;
   /** Public /players detail level — flipped from admin, no deploy needed. */
   players_detail: "full" | "lean";
+  /**
+   * When true the public side reads as a season in progress, not a pool
+   * being sold. Admin-toggled, defaults false. See src/lib/season-mode.ts.
+   */
+  season_mode: boolean;
 }
 
 export interface Pot {
@@ -100,10 +105,13 @@ export interface Pot {
   reserved: number;
   assigned: number;
   held: number;
-  collected_cents: number;
-  due_cents: number;
+  // v_pot withholds money from a non-admin caller: amounts owed always,
+  // collected once season mode is on. NULL means "not yours to see", not
+  // zero — read these with ?? 0 on admin surfaces only.
+  collected_cents: number | null;
+  due_cents: number | null;
   paid_out_cents: number;
-  owed_out_cents: number;
+  owed_out_cents: number | null;
   /** A real COUNT of committed blocks, never money divided by price. */
   committed_blocks: number;
 }

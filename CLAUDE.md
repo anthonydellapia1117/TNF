@@ -57,6 +57,30 @@ who has settled, and nothing else. In particular it does not move blocks.
 - Total payout liability never appears on a public route.
 - The comp flag is admin-only and appears in no public projection.
 - Green means one thing on the public grid: **a winner.**
+- **`season_mode` (config, admin toggle, default off) decides whether the
+  public side is selling or reporting.** On, every sales surface is gone:
+  the blocks-open count wherever it appears (dashboard card, the /blocks
+  counter, the board legend, the OPEN/CLAIMED filter tallies), the claim
+  CTA, the claim-by deadline card, the collected-money card, the
+  block-is-open nudge on /block/[n], and the "BLOCKS OPEN" headline on the
+  og image. The dashboard then leads with the next game, the grid and
+  recent winners. Anthony flips it when the link goes out to the room —
+  "51 blocks open" is a true number that reads as a pool that did not fill.
+  The decision lives in `src/lib/season-mode.ts`; no surface should ask the
+  question itself.
+- **A number withheld from the public must be withheld from the
+  projection, not just the page.** `v_pot` is a definer view readable by
+  anon, so anything left in it is public whether or not a page renders it —
+  it was serving `due_cents` ($24,000 owed) and `owed_out_cents` to anyone
+  who curled the REST endpoint. Amounts owed are now null for a non-admin
+  caller in both modes; `collected_cents` is null for a non-admin once
+  season mode is on. Block counts stay public on purpose: the board shows
+  free cells one by one, so the count is already derivable and gating it
+  would be theatre.
+- **There is no gate on any public route, by design.** No invite code, no
+  password, no Vercel deployment protection (password, SSO and trusted-IP
+  are all off, verified 2026-09-03). `/admin` is the only gated surface.
+  If anyone reports being asked for a code, it is not this app.
 
 ## Data
 
