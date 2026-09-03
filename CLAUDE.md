@@ -72,6 +72,15 @@ who has settled, and nothing else. In particular it does not move blocks.
   Assigned block produces a payout. This is a mechanical statement about how
   digits are assigned — it is not a statement about pool health, and nothing
   here is a reason to surface one.
+- **Owner groups are AVD, MAP, RM, JPOD, EJD, NL and GD.** Nothing else.
+  `DIRECT` was retired 2026-08-28 (migration 13) and its seventeen
+  participants folded into AVD — it was Anthony's own book under a generic
+  name, and AVD is the same book under his code. The value is now rejected
+  on insert and on update, the column default is `AVD`, and
+  `admin_upsert_participant` falls back to `AVD` on a blank group. History
+  was deliberately not rewritten: audit rows still carry `DIRECT` in their
+  `before` payloads, which is correct — the ledger records what was true at
+  the time, and the constraint has never reached into jsonb.
 - **A prior season is a source of identity, never of state.** Alias and
   email carry forward; owner group, block number, block count and payment
   status never do — each needs a 2026 source. A prior-season value can go in
