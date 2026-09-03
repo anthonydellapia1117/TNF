@@ -44,6 +44,39 @@ assumption that owner codes were provenance and only Anthony's own receipts
 counted as collected. Both assumptions were wrong. It was recorded as cash
 held by JPOD, and block 51 promoted to assigned.
 
+### When someone pays Anthony instead of their own owner
+
+**The participant follows the money — but only once Anthony has confirmed it
+with that owner.** If someone recruited by another owner pays Anthony
+directly, the cash and the book have come apart: the owner's headcount says
+he is holding $500 he never touched. Moving the participant to AVD puts them
+back together.
+
+The order is not negotiable:
+
+1. Anthony talks to the owner whose book the participant is leaving.
+2. Anthony tells the agent to move them.
+3. Only then does the code change to AVD.
+
+**Never move anyone on the strength of the payment alone.** A Venmo receipt
+in Anthony's inbox proves where the money went; it does not prove the two
+owners have settled how to count it. That conversation is Anthony's to have,
+and the agent's job is to surface the mismatch and wait. Surfacing a
+candidate is right and useful. Moving one is not.
+
+Once the move is made the mismatch is gone, so **clear the reconciliation
+flag** rather than leaving it to be re-read as an open item — the flag
+described a gap that no longer exists. Record the move in the notes: which
+code it left, that Anthony confirmed with that owner, and the transaction
+that prompted it.
+
+Precedent (2026-09-03): Vincent Angiolillo (RM) and Joe Longo (JPOD) both
+paid Anthony's Venmo directly. Both were first recorded in place with a
+reconciliation flag naming the gap — correctly, because Anthony had not yet
+spoken to Ronnie or Julian. He then confirmed with both owners and moved the
+two participants to AVD, and the flags were cleared. RM went 23 to 22, JPOD
+2 to 1. Recruiting is not collecting; the code records only who collects.
+
 ## Payment sweeps
 
 **A TNF block costs $500 flat. Only a $500 amount is a candidate block
