@@ -72,6 +72,24 @@ who has settled, and nothing else. In particular it does not move blocks.
   Assigned block produces a payout. This is a mechanical statement about how
   digits are assigned — it is not a statement about pool health, and nothing
   here is a reason to surface one.
+- **Digits are drawn one week at a time, the week they are needed.** This is
+  a rule about the data, not a convenience of the screen. Digits that exist
+  months early are digits someone could see or alter; under this model they
+  do not exist until their week comes up. Anthony considered pre-generating
+  the whole season on 2026-09-03 and decided against it for that reason.
+  - A game more than **7 days** from kickoff cannot be drawn, from any
+    surface. The gate lives in `src/lib/week-digits.ts` and is re-checked in
+    the server action against games read from the database, so a stale page
+    cannot get past it. Both `/admin/digits` surfaces ask the same question.
+  - A week is drawn as a unit, so the *furthest* game it would draw sets the
+    gate. A game the draw would skip anyway — void, unconfirmed date, past
+    kickoff, already drawn — never holds a week back.
+  - Every game is its own independent draw: a separate `admin_assign_digits`
+    call, a separate permutation of each axis, no shared seed and no
+    relationship to any prior game or week. Never batch them into one draw.
+  - Drawing and publishing stay two deliberate clicks, with the numbers shown
+    for review in between. Each reveal is scheduled for **8:00 AM ET on that
+    game's own date** — never one shared instant for a week.
 - **Owner groups are AVD, MAP, RM, JPOD, EJD, NL and GD.** Nothing else.
   `DIRECT` was retired 2026-08-28 (migration 13) and its seventeen
   participants folded into AVD — it was Anthony's own book under a generic

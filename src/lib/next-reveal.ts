@@ -1,7 +1,7 @@
 // The one dashboard card that always shows the most relevant thing right
 // now: reveal countdown → kickoff countdown → live game → last winner →
 // season summary. Pure logic, unit-tested; the component only renders.
-import { etDateOf, nineAmETUtcISO } from "@/lib/format";
+import { etDateOf, revealSlotUtcISO } from "@/lib/format";
 import { winningBlock } from "@/lib/pool";
 import type { PublicGame, PublicPayout } from "@/lib/types";
 
@@ -18,12 +18,12 @@ function revealed(g: PublicGame): boolean {
 
 /**
  * When the numbers drop for a game: the announced reveal time if one
- * exists, otherwise the pool's standing default of 9:00 AM ET on game day.
+ * exists, otherwise the pool's standing slot of 8:00 AM ET on game day.
  */
 export function revealTimeISO(g: PublicGame): string | null {
   if (g.digits_reveal_at) return g.digits_reveal_at;
   if (!g.kickoff_at) return null;
-  return nineAmETUtcISO(etDateOf(g.kickoff_at));
+  return revealSlotUtcISO(etDateOf(g.kickoff_at));
 }
 
 export function revealCardState(

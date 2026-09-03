@@ -8,8 +8,10 @@ import {
   etDateOf,
   etWallClockToUtcISO,
   fmtKickoffET,
+  REVEAL_TIME_ET,
 } from "@/lib/format";
 import { gameCode } from "@/lib/pool";
+import { ASSIGN_WINDOW_DAYS, windowRefusal } from "@/lib/week-digits";
 import { matchupLabel } from "@/lib/nfl";
 import { assignDigits, publishDigits } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
@@ -80,20 +82,20 @@ export function DigitsClient({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null);
   const [publishMode, setPublishMode] = useState<PublishMode>("now");
   const [schedDate, setSchedDate] = useState("");
-  const [schedTime, setSchedTime] = useState("09:00");
+  const [schedTime, setSchedTime] = useState(REVEAL_TIME_ET);
   const [pending, startTransition] = useTransition();
 
   const preview = games.find((g) => g.game_no === previewNo) ?? null;
 
-  /** Open the publish dialog. Scheduled default: 9:00 AM ET on game date. */
+  /** Open the publish dialog. Scheduled default: the standing slot on game date. */
   const openPublish = (game: AdminGame, mode: PublishMode) => {
     if (isScheduled(game) && game.digits_published_at) {
       const p = etParts(game.digits_published_at);
       setSchedDate(p.date);
-      setSchedTime(mode === "schedule" ? p.time : "09:00");
+      setSchedTime(mode === "schedule" ? p.time : REVEAL_TIME_ET);
     } else {
       setSchedDate(game.kickoff_at ? etDateOf(game.kickoff_at) : "");
-      setSchedTime("09:00");
+      setSchedTime(REVEAL_TIME_ET);
     }
     setPublishMode(mode);
     setConfirm({ kind: "publish", game });
@@ -132,23 +134,30 @@ export function DigitsClient({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl">Digits</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Assign randomizes both axes — every digit exactly once, immutable
-          forever. Publishing shows them to the players: immediately, or at a
-          scheduled reveal time. Until the reveal, the public grid keeps
+        <h2 className="text-lg">Every game</h2>
+        <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
+          The whole season, for one-off work: reschedule a reveal, publish one
+          early, check a state. Assigning still randomizes both axes — every
+          digit exactly once, immutable forever — and still obeys the one-week
+          rule, so a game more than {ASSIGN_WINDOW_DAYS} days out cannot be
+          drawn from here either. Until the reveal, the public grid keeps
           showing ? on both axes.
         </p>
       </div>
 
       <div className="space-y-2">
         {games.map((g) => {
+          // The one-week rule is a rule, not a screen: the per-game draw asks
+          // the same question the weekly screen does, so there is no way in
+          // here to draw a game that is still months out.
+          const tooEarly = windowRefusal(g, Date.now());
           const canAssign =
             !g.digits_assigned_at &&
             g.date_confirmed &&
             g.kickoff_at !== null &&
             new Date(g.kickoff_at) > new Date() &&
-            g.status !== "void";
+            g.status !== "void" &&
+            tooEarly === null;
           const blockReason = !g.date_confirmed
             ? "date unconfirmed"
             : !g.kickoff_at
@@ -157,7 +166,9 @@ export function DigitsClient({
                 ? "past kickoff"
                 : g.status === "void"
                   ? "void"
-                  : null;
+                  : tooEarly
+                    ? `outside the ${ASSIGN_WINDOW_DAYS}-day window`
+                    : null;
           const revealed = isRevealed(g);
           const scheduled = isScheduled(g);
           return (

@@ -64,12 +64,12 @@ describe("revealCardState — one card, four states", () => {
     const s = revealCardState([game({})], NOW);
     expect(s.kind).toBe("next_reveal");
     if (s.kind === "next_reveal") {
-      // Default: 9:00 AM ET on game day (Sep 9 ET for the Sep 10 UTC kickoff).
-      expect(s.revealAtISO).toBe("2026-09-09T13:00:00.000Z");
+      // Default: 8:00 AM ET on game day (Sep 9 ET for the Sep 10 UTC kickoff).
+      expect(s.revealAtISO).toBe("2026-09-09T12:00:00.000Z");
     }
   });
 
-  it("an explicitly scheduled reveal time wins over the 9 AM default", () => {
+  it("an explicitly scheduled reveal time wins over the standing slot", () => {
     const g = game({ digits_reveal_at: "2026-09-09T16:00:00Z" });
     expect(revealTimeISO(g)).toBe("2026-09-09T16:00:00Z");
   });

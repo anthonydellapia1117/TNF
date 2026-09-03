@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAdminSession } from "@/lib/auth";
+import { getAdminGames } from "@/lib/data/admin";
+import { gameCode } from "@/lib/pool";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { weekPlan } from "@/lib/week-digits";
 
 export interface ActionResult<T = unknown> {
   ok: boolean;
@@ -252,6 +255,92 @@ export async function publishDigits(
     { p_game_id: gameId, p_publish_at: publishAt ?? null },
     EVERYTHING,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Digits, a week at a time
+//
+// Digits are drawn for the games of one week, the week they are needed —
+// never for the season in advance. The window is re-checked HERE against
+// games read from the database, not just in the screen: the client sends a
+// week number and nothing else, so a stale page or a hand-made request
+// cannot draw a game that is still months out.
+// ---------------------------------------------------------------------------
+
+/**
+ * Draw digits for every undrawn game in one week. Each game gets its own
+ * RPC call, so each gets its own independent permutation of both axes —
+ * no shared seed, and no relationship to any other game or week.
+ */
+export async function assignWeekDigits(
+  week: number,
+): Promise<ActionResult<{ assigned: number[] }>> {
+  const session = await getAdminSession();
+  if (!session) return { ok: false, error: "Not signed in as the admin." };
+
+  const games = await getAdminGames();
+  const plan = weekPlan(
+    week,
+    games.filter((g) => g.week === week),
+    Date.now(),
+  );
+  if (!plan.assign.ok) return { ok: false, error: plan.assign.reason };
+
+  const supabase = await createSupabaseServerClient();
+  const assigned: number[] = [];
+  for (const g of plan.toAssign) {
+    const { error } = await supabase.rpc("admin_assign_digits", {
+      p_game_id: g.id,
+      p_actor: session.actor,
+    });
+    if (error) {
+      // Digits are immutable, so a half-finished batch cannot be undone.
+      // Say exactly which games were written before naming the failure.
+      const done = assigned.length
+        ? ` ${assigned.map(gameCode).join(", ")} already drawn — those stand.`
+        : "";
+      return { ok: false, error: `${gameCode(g.game_no)}: ${error.message}.${done}` };
+    }
+    assigned.push(g.game_no);
+  }
+  for (const p of EVERYTHING) revalidatePath(p);
+  return { ok: true, data: { assigned } };
+}
+
+/**
+ * Schedule the reveal for every drawn-but-unpublished game in one week, each
+ * at 8:00 AM ET on ITS OWN date — never one shared instant. A game whose
+ * 8:00 AM has already passed publishes immediately instead.
+ */
+export async function scheduleWeekReveals(
+  week: number,
+): Promise<ActionResult<{ scheduled: { gameNo: number; atISO: string | null }[] }>> {
+  const session = await getAdminSession();
+  if (!session) return { ok: false, error: "Not signed in as the admin." };
+
+  const games = await getAdminGames();
+  const plan = weekPlan(
+    week,
+    games.filter((g) => g.week === week),
+    Date.now(),
+  );
+  if (plan.toSchedule.length === 0)
+    return { ok: false, error: `Nothing to publish in week ${week}.` };
+
+  const supabase = await createSupabaseServerClient();
+  const scheduled: { gameNo: number; atISO: string | null }[] = [];
+  for (const r of plan.toSchedule) {
+    const { error } = await supabase.rpc("admin_publish_digits", {
+      p_game_id: r.game.id,
+      p_publish_at: r.revealAtISO,
+      p_actor: session.actor,
+    });
+    if (error)
+      return { ok: false, error: `${gameCode(r.game.game_no)}: ${error.message}` };
+    scheduled.push({ gameNo: r.game.game_no, atISO: r.revealAtISO });
+  }
+  for (const p of EVERYTHING) revalidatePath(p);
+  return { ok: true, data: { scheduled } };
 }
 
 // ---------------------------------------------------------------------------

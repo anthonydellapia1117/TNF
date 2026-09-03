@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { etDateOf, etWallClockToUtcISO, nineAmETUtcISO } from "@/lib/format";
+import { etDateOf, etWallClockToUtcISO, revealSlotUtcISO } from "@/lib/format";
 
 describe("ET wall-clock → UTC (scheduled reveal default)", () => {
-  it("9 AM ET is 13:00Z during daylight time (season opener)", () => {
-    expect(nineAmETUtcISO("2026-09-09")).toBe("2026-09-09T13:00:00.000Z");
+  it("the 8 AM ET reveal slot is 12:00Z during daylight time (season opener)", () => {
+    expect(revealSlotUtcISO("2026-09-09")).toBe("2026-09-09T12:00:00.000Z");
   });
 
-  it("9 AM ET is 14:00Z during standard time (Thanksgiving)", () => {
-    expect(nineAmETUtcISO("2026-11-26")).toBe("2026-11-26T14:00:00.000Z");
+  it("the 8 AM ET reveal slot is 13:00Z during standard time (Thanksgiving)", () => {
+    expect(revealSlotUtcISO("2026-11-26")).toBe("2026-11-26T13:00:00.000Z");
   });
 
   it("handles the DST boundary week on both sides (DST ends Nov 1 2026)", () => {
-    expect(nineAmETUtcISO("2026-10-31")).toBe("2026-10-31T13:00:00.000Z");
-    expect(nineAmETUtcISO("2026-11-01")).toBe("2026-11-01T14:00:00.000Z");
+    expect(revealSlotUtcISO("2026-10-31")).toBe("2026-10-31T12:00:00.000Z");
+    expect(revealSlotUtcISO("2026-11-01")).toBe("2026-11-01T13:00:00.000Z");
   });
 
   it("converts arbitrary wall-clock times", () => {

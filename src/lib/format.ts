@@ -74,9 +74,16 @@ export function etWallClockToUtcISO(ymd: string, hm: string): string {
   return new Date(`${ymd}T${hm}:00-05:00`).toISOString();
 }
 
-/** 9:00 AM ET on the given ET date, as a UTC ISO instant (reveal default). */
-export function nineAmETUtcISO(ymd: string): string {
-  return etWallClockToUtcISO(ymd, "09:00");
+/**
+ * The pool's standing reveal slot. One value, used everywhere: the weekly
+ * draw schedules it, the per-game dialog defaults to it, and the public
+ * countdown promises it. Changing it here changes all three together.
+ */
+export const REVEAL_TIME_ET = "08:00";
+
+/** The reveal slot on the given ET date, as a UTC ISO instant. */
+export function revealSlotUtcISO(ymd: string): string {
+  return etWallClockToUtcISO(ymd, REVEAL_TIME_ET);
 }
 
 /** "Sep 4, 2026" for dates stored as YYYY-MM-DD. */

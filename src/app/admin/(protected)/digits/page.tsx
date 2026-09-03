@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getConfig, getPublicBlocks } from "@/lib/data/public";
 import { getAdminGames } from "@/lib/data/admin";
+import { WeekDigitsClient } from "@/components/admin/digits/week-digits-client";
 import { DigitsClient } from "@/components/admin/digits/digits-client";
 
 export const metadata: Metadata = { title: "Digits" };
@@ -12,5 +13,10 @@ export default async function DigitsPage() {
     getPublicBlocks(),
     getConfig(),
   ]);
-  return <DigitsClient games={games} blocks={blocks} config={config} />;
+  return (
+    <div className="space-y-10">
+      <WeekDigitsClient games={games} blocks={blocks} config={config} />
+      <DigitsClient games={games} blocks={blocks} config={config} />
+    </div>
+  );
 }
