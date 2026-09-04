@@ -77,11 +77,16 @@ Supersedes the confirm-with-the-owner-first version of this rule, set
 change: the code means collection responsibility, so if he collected it, it
 is his; asking the other owner first was ceremony, not control.
 
-Precedent (2026-09-03): four participants moved to AVD for this reason.
+Precedent (2026-09-03): five participants moved to AVD for this reason.
 Vincent Angiolillo (RM) and Joe Longo (JPOD) were moved under the older
 confirm-first version, after Anthony spoke to Ronnie and Julian. Eric
-Nardini (RM) and Dan DeSilvio (MAP) were moved under this one, on the
-payments alone. RM went 23 to 21, JPOD 2 to 1, MAP 10 to 9, AVD 20 to 24.
+Nardini (RM), Dan DeSilvio (MAP) and Anthony Astorga (MAP, two blocks) were
+moved under this one, on the payments alone. Astorga is the worked example
+of the whole rule: he had been moved AVD -> MAP that same day on Anthony's
+call, explicitly because the ledger showed no money from him in Anthony's
+book — and when his $1,000 arrived hours later, the condition that made MAP
+right had flipped, so the code followed the cash back. RM went 23 to 21,
+JPOD 2 to 1, MAP 10 to 7, AVD 20 to 26.
 
 ## Payment sweeps
 
@@ -290,6 +295,25 @@ money rules are actually enforced.
 - Schema changes are new numbered migrations in `supabase/migrations/`,
   applied to production only after the local SQL suites pass. A
   `create or replace view` can only APPEND columns — new columns go last.
+- **A migration that changes a column an assertion reads means that
+  assertion must be RE-VERIFIED, not just re-run.** A green suite is not
+  evidence the assertion still tests anything. Break the thing on purpose and
+  confirm the test fails; if it still passes, the assertion is dead.
+  - Gating a column on `is_admin()` is the case that already bit us.
+    Migrations 15 and 16 wrapped `v_pot.collected_cents`, `due_cents` and
+    `owed_out_cents` in `case when is_admin()`. Three SQL suites read those
+    columns with no role and no `request.jwt.claims`, so every value came
+    back NULL, every `if money <> expected` compared against NULL, and the
+    IF never fired. `npm run test:db` reported 14/14 PASS while
+    `collected_cents` was asserted to be $9,999,999.99 and a $2,000 swing in
+    `due_cents` went unnoticed.
+  - **NULL is the danger, because in SQL it passes silently.** Any assertion
+    reading a nullable or conditionally-visible column needs an explicit
+    `is null` guard that raises, so losing visibility fails loudly instead of
+    turning the test into a no-op. The three fixed suites each carry one.
+  - This is the same discipline as the mutation testing already required
+    below for money and winner logic; a migration is just another way to
+    silently delete a test.
 - A `security_invoker` view nested inside a `security definer` view still
   evaluates RLS as the session user. `v_pot` therefore inlines all of its
   computation from base tables; do not refactor that into nested views.
