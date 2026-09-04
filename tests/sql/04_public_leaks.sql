@@ -32,6 +32,15 @@ select set_config('test.expected_due',
 select set_config('test.expected_collected',
   (select coalesce(sum(amount_cents), 0)::text from payments), true);
 
+-- How many blocks actually carry an owner code. Captured HERE, before the
+-- drop to anon: as anon, RLS hides participants entirely, so counting from
+-- the base tables down there returns 0 and would make the leak assertion
+-- below pass vacuously. (It did, on the first run — the guard caught it.)
+select set_config('test.expected_owned_blocks',
+  (select count(*)::text from blocks b
+     join participants p on p.id = b.participant_id
+    where b.status in ('reserved','assigned') and p.owner_group is not null), true);
+
 -- Behavioral: as anon, raw tables yield zero rows and the finance view is
 -- not selectable at all.
 set local role anon;
@@ -58,6 +67,32 @@ begin
   -- The public projections DO serve anon.
   select count(*) into n from v_public_blocks;
   if n <> 100 then raise exception 'v_public_blocks should serve 100 rows to anon'; end if;
+
+  -- owner_group is ADMIN-ONLY (migration 18). Owner codes are collection
+  -- responsibility — which co-runner chases whose $500 — and answer "who is
+  -- in whose book", which no participant needs answered.
+  --
+  -- ANTI-VACUITY: the seed must actually hold claimed blocks with an owner,
+  -- or "no rows leak an owner_group" is trivially true and this whole check
+  -- is a no-op. Read the count captured before the role drop, since anon
+  -- cannot see participants.
+  n := coalesce(current_setting('test.expected_owned_blocks', true)::int, 0);
+  if n = 0 then
+    raise exception 'no owned blocks in the seed — the owner_group leak check '
+      'below would pass vacuously';
+  end if;
+
+  select count(*) into n from v_public_blocks where owner_group is not null;
+  if n <> 0 then
+    raise exception 'anon can read owner_group on % block(s)', n;
+  end if;
+
+  -- What anon KEEPS on the same view: the grid and /players are built from
+  -- these, so gating must not take them too.
+  select count(*) into n from v_public_blocks where display_name is not null;
+  if n = 0 then raise exception 'anon lost display_name on v_public_blocks'; end if;
+  select count(*) into n from v_public_blocks where status = 'available';
+  if n = 0 then raise exception 'anon lost block statuses on v_public_blocks'; end if;
   -- Assignment policy: requested-vs-random is public per block.
   if not exists (
     select 1 from information_schema.columns
@@ -132,6 +167,25 @@ begin
   if pot.collected_cents::text <> current_setting('test.expected_collected', true) then
     raise exception 'v_pot.collected_cents % != ledger %',
       pot.collected_cents, current_setting('test.expected_collected', true);
+  end if;
+end $$;
+
+-- The admin still sees owner_group: migration 18 gates it, it does not
+-- delete it. /admin/participants, the grouped chase list and the blocks CSV
+-- export all depend on this being visible to the real caller.
+do $$
+declare n_admin int; n_base int;
+begin
+  select count(*) into n_admin from v_public_blocks where owner_group is not null;
+  select count(*) into n_base from blocks b
+    join participants p on p.id = b.participant_id
+   where b.status in ('reserved','assigned') and p.owner_group is not null;
+  if n_admin <> n_base then
+    raise exception 'admin sees owner_group on % block(s), base tables say %',
+      n_admin, n_base;
+  end if;
+  if n_admin = 0 then
+    raise exception 'admin cannot see owner_group at all — gating became deleting';
   end if;
 end $$;
 

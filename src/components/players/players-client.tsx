@@ -1,8 +1,12 @@
 "use client";
 
 // The public Players roster: read-only, one row per claimed block. Search,
-// sort by any column (state in the URL), group filter for the co-runners.
-// FULL mode adds group and method; LEAN is #, player, block only.
+// sort by any column (state in the URL).
+// FULL mode adds the assignment method; LEAN is #, player, block only.
+//
+// No owner group here. Owner codes are collection responsibility and are
+// admin-only since migration 18 — v_public_blocks serves NULL for them to a
+// non-admin caller, so a group column, filter or sort would render blank.
 // Method speaks a two-word vocabulary — REQUESTED (green) or RANDOMIZED
 // (orange) — and status never appears here: reserved-vs-assigned is a
 // payment distinction that lives on /admin. Rows link to the block's
@@ -21,7 +25,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { MethodChip, methodLabel } from "@/components/players/method-chip";
 
-const FULL_SORT_KEYS = ["player", "group", "block", "method"] as const;
+const FULL_SORT_KEYS = ["player", "block", "method"] as const;
 const LEAN_SORT_KEYS = ["player", "block"] as const;
 type SortKey = (typeof FULL_SORT_KEYS)[number];
 
@@ -35,16 +39,9 @@ export function PlayersClient({
   const full = mode === "full";
   const keys = full ? FULL_SORT_KEYS : LEAN_SORT_KEYS;
   const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<string>("all");
   const [sort, toggleSort] = useTableSort<SortKey>(
     keys as readonly SortKey[],
     { key: "player", dir: "asc" },
-  );
-
-  const groups = useMemo(
-    () =>
-      [...new Set(blocks.map((b) => b.owner_group).filter(Boolean))].sort() as string[],
-    [blocks],
   );
 
   const q = query.trim().toLowerCase();
@@ -52,8 +49,6 @@ export function PlayersClient({
     switch (sort.key) {
       case "player":
         return (b.display_name ?? "").toLowerCase();
-      case "group":
-        return b.owner_group ?? "";
       case "block":
         return b.block_number;
       case "method":
@@ -66,12 +61,10 @@ export function PlayersClient({
       blocks
         .filter(
           (b) =>
-            (group === "all" || b.owner_group === group) &&
             (!q ||
               [
                 b.display_name ?? "",
                 String(b.block_number),
-                full ? (b.owner_group ?? "") : "",
                 full ? methodLabel(b.assignment_method) : "",
               ]
                 .join(" ")
@@ -88,7 +81,7 @@ export function PlayersClient({
             a.block_number - b.block_number,
         ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [blocks, q, group, sort, full],
+    [blocks, q, sort, full],
   );
 
   return (
@@ -111,39 +104,13 @@ export function PlayersClient({
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={full ? "Search player, block, group…" : "Search player or block…"}
+        placeholder={full ? "Search player, block or method…" : "Search player or block…"}
         autoComplete="off"
         aria-label="Search players"
         className="h-12 sm:h-8"
       />
 
-      {full && groups.length > 1 && (
-        <div
-          role="radiogroup"
-          aria-label="Filter by owner group"
-          className="flex items-center gap-0.5 overflow-x-auto rounded-lg border border-border bg-surface p-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {["all", ...groups].map((g) => (
-            <button
-              key={g}
-              type="button"
-              role="radio"
-              aria-checked={group === g}
-              onClick={() => setGroup(g)}
-              className={cn(
-                "flex h-9 shrink-0 items-center rounded-md px-3 text-xs font-semibold tracking-wide whitespace-nowrap uppercase transition-colors duration-150",
-                group === g
-                  ? "bg-surface-2 text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {g === "all" ? "All groups" : g}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Column header — five columns fit a 390px phone with no folding. */}
+      {/* Column header — four columns fit a 390px phone with no folding. */}
       <div className="flex items-center gap-2 px-3 text-2xs tracking-widest text-muted-foreground uppercase">
         <span className="w-6" data-numeric>
           #
@@ -153,7 +120,6 @@ export function PlayersClient({
         </span>
         {full && (
           <span className="w-12">
-            <Head label="Group" k="group" sort={sort} onSort={toggleSort} />
           </span>
         )}
         <span className="w-10 text-right">
@@ -184,11 +150,6 @@ export function PlayersClient({
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
                 {b.display_name ?? "—"}
               </span>
-              {full && (
-                <span className="w-12 shrink-0 text-2xs text-muted-foreground">
-                  {b.owner_group ?? ""}
-                </span>
-              )}
               <span
                 className="w-10 shrink-0 text-right text-sm font-semibold"
                 data-numeric
