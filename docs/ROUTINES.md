@@ -1,0 +1,191 @@
+# Routines
+
+The recurring jobs this pool needs beyond the hourly TNF Gmail Sweep. Each
+one is a Claude Code Routine: a fresh session per firing, read-only against
+the pool, reporting either a NEEDS ANTHONY list or the words NO ACTION.
+
+The hourly sweep (`TNF Gmail Sweep`, stored cron `43 7-23 * * *` UTC) is not
+defined here. It was created in the Routines UI and is the only routine that
+writes anything.
+
+## Standing rules, every routine
+
+- Step 0 is always `TZ=America/New_York date`. The output is the clock.
+- CLAUDE.md outranks the prompt. The prompt restates a rule only so the
+  session knows where to look.
+- Read-only. Live state comes from the public projections through the anon
+  key in `src/lib/env.ts`, which is RLS-bounded by design. No routine
+  writes to the database, marks anything Paid, resolves an identity, moves
+  or releases a block, draws or publishes digits, sends mail, or moves money.
+- Gmail is the only connector, and it is read-only in every prompt.
+- The Survivor pool is never read, referenced or mentioned.
+- The report is a NEEDS ANTHONY section, one line per item with the admin
+  route where he acts, or the two words NO ACTION. Nothing else.
+
+## The set
+
+| # | Name | When (America/New_York) | Stored cron (UTC) | Trigger ID | Job |
+|---|------|-------------------------|-------------------|------------|-----|
+| 1 | TNF Chase List | Daily 9:07 AM EDT, 8:07 AM EST | `7 13 * * *` | `trig_016ZLMsWxbcejrQK2XdJkTza` | Reserved blocks with no payment recorded, plus any dated commitment found in mail |
+| 2 | TNF Draw Window | Saturday 9:37 AM EDT, 8:37 AM EST | `37 13 * * 6` | `trig_01TmmBwcxWv5FdJGspjunhn9` | The coming week is inside the 7-day draw window and not drawn, not published, or date-unconfirmed |
+| 3 | TNF Game Day Digits | Wed, Thu, Fri 9:20 AM EDT, 8:20 AM EST | `20 13 * * 3-5` | `trig_01EptwvxHH2mdctyMzsaH9XC` | Digits live for today's game after the 8:00 AM reveal, reveal scheduled for tomorrow's |
+| 4 | TNF Post-Game Check | Thu, Fri, Sat 11:07 AM EDT, 10:07 AM EST | `7 15 * * 4-6` | `trig_01HJ81a3TUtwMozA32vaqMLN` | Unscored games, winners recomputed, non-assigned winners flagged, payout rows present, Venmo receipt to each winner |
+
+## Clock change
+
+Stored crons are UTC, so on Sunday November 1, 2026 every routine starts
+firing one hour earlier in ET. The times were chosen so both readings work:
+every run lands after the 8:00 AM ET reveal, and the post-game run is late
+enough that a final entered the night before or first thing is already in.
+Do not "fix" the crons in November.
+
+## How they were created, and the one gap
+
+- Created 2026-09-04 from a Claude Code session with `create_trigger`: fresh
+  session per firing, push notification on, the calling environment. That
+  path cannot attach a repo source or a connector (the org rejects the
+  `connectors` parameter), so each prompt clones the public repo itself.
+- **Gap: Gmail is not attached.** Routines 2 and 3 do not read mail and are
+  complete. Routines 1 and 4 need it for one step each and say so: until it
+  is added their first NEEDS ANTHONY line reads "Gmail connector missing on
+  this routine". Add it at claude.ai/code > Routines > (name) > Connectors >
+  Gmail. If the UI cannot add a connector to an existing routine, create a
+  new one from this file (same name, stored cron and prompt, source repo
+  anthonydellapia1117/TNF, connector Gmail, tools Bash Read Glob Grep
+  WebFetch) and delete the ID above.
+- Change a prompt or cron with `update_trigger` on the ID. Never delete and
+  recreate for a prompt change, that loses the run history.
+
+## 1. TNF Chase List
+
+- **When:** daily, 9:07 AM EDT, 8:07 AM EST.
+- **Stored cron (UTC):** `7 13 * * *`
+- **Trigger:** `trig_016ZLMsWxbcejrQK2XdJkTza`
+- **Why:** the claim deadline was September 4. Reserved blocks are not
+  released at the deadline; they stay Reserved and get chased. This is the
+  roll-up. The hourly sweep does the matching, this job never touches a
+  payment. Block status is public; the owner code is admin-only since
+  migration 18, so lines are by block and name and Anthony maps them to the
+  collecting owner at `/admin/list`. Runs daily because the money should be
+  in before the Wednesday September 9 kickoff; goes quiet on its own once
+  nothing is Reserved.
+
+Prompt:
+
+```
+You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md is the only rulebook and it outranks this prompt. Read it first, every run. Hyphens only.
+
+0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
+0a. If the repo anthonydellapia1117/TNF is not already checked out in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. Live state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views for this job: v_public_blocks, v_public_games. Anon reads only, bounded by RLS. Never write to the database, never look for another key. If the clone or a read fails, the report is a single NEEDS ANTHONY line naming the failed step. Do not guess state.
+0b. Hard limits: never mark anything Paid, never record or stage a payment, never resolve an identity conflict, never release, move or assign a block, never send or reply to email, never move money. Gmail is read-only here. The Survivor pool is a separate system: never read its mail or labels, never mention it.
+
+1. GET v_public_blocks?status=eq.reserved&order=block_number. A Reserved block is a hold with no full payment recorded by the pool. Per CLAUDE.md, Reserved blocks stay Reserved after the September 4 deadline and get chased. There is no release by date, and releasing is Anthony's call only.
+2. For each Reserved block, search Gmail read-only for threads from the last 7 days that mention the holder's display name or "block <number>". Fetch every match in full with get_thread, never trust a search preview. Note a dated commitment ("will pay Friday"), a statement that another owner is holding the cash, or a request to release. Quote it with the date. Do not act on it. If the display name is an alias with no clear match, write "no mail match" and do not guess who it is. If Gmail tools are not available in this session, skip this step and make the first NEEDS ANTHONY line: "Gmail connector missing on this routine, mail not checked. Add it at claude.ai/code > Routines > TNF Chase List."
+3. Money rules per CLAUDE.md: a Reserved block is not evidence the person is unpaid in another owner's book, and no Venmo in Anthony's mail is not evidence either. Say "no payment recorded by the pool", never "unpaid". Payment matching belongs to the hourly TNF Gmail Sweep, not here.
+4. GET v_public_games. If any game kicks off today or tomorrow, add one line: "Kickoff <day> <time> ET: a Reserved block that hits pays nothing and raises a review flag."
+5. Report. If there is at least one Reserved block, the report is a section titled NEEDS ANTHONY with the heading "Reserved, no payment recorded (<count>)" and one line per block: block number, display name, any quoted commitment with its date or "no mail match", and "chase or confirm with the collecting owner at /admin/list". Then the kickoff line from step 4 if it applies. Nothing else. If there are zero Reserved blocks, the entire report is the words NO ACTION.
+```
+
+## 2. TNF Draw Window
+
+- **When:** Saturday, 9:37 AM EDT, 8:37 AM EST.
+- **Stored cron (UTC):** `37 13 * * 6`
+- **Trigger:** `trig_01TmmBwcxWv5FdJGspjunhn9`
+- **Why Saturday:** a Thursday kickoff opens the following week's 7-day
+  window on Thursday night. Christmas week is the exception: its furthest
+  game is Friday December 25, so that window opens Friday December 18 at
+  night, and a Friday-morning run would miss it. Saturday is the first
+  morning every week of the season is open, with five days to draw and
+  publish. Week 1 (Wednesday September 9) is caught by the September 5 run.
+  Draw and publish stay Anthony's two clicks; this only says when.
+
+Prompt:
+
+```
+You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md is the only rulebook and it outranks this prompt. Read it first, every run. Hyphens only.
+
+0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
+0a. If the repo anthonydellapia1117/TNF is not already checked out in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. Live state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". View for this job: v_public_games?order=game_no. Anon reads only, bounded by RLS. Never write to the database, never look for another key. If the clone or the read fails, the report is a single NEEDS ANTHONY line naming the failed step. Do not guess state.
+0b. Hard limits: never draw, publish, schedule or alter digits, never confirm a date, never mark anything Paid, never resolve an identity conflict, never send or reply to email, never move money. The two clicks at /admin/digits (draw, then publish) are Anthony's. Gmail is not needed for this job; do not read mail. The Survivor pool is a separate system: never read its mail or labels, never mention it.
+
+1. Rules from CLAUDE.md and src/lib/week-digits.ts: digits are drawn one week at a time, a game is drawable only when its kickoff is within 7 days (168 hours), a week is drawn as a unit so the furthest game in it sets the gate, a game cannot be drawn while date_confirmed is false or after kickoff, and the reveal is 8:00 AM ET on each game's own date.
+2. For every game with status not final and not void, compute hours to kickoff. Group by week.
+3. For each week with at least one game inside the 7-day window, one NEEDS ANTHONY line per problem:
+   - digits_assigned false: "Week <n>: draw G<xx> <away> at <home>, kicks off <day> <time> ET, at /admin/digits, then publish. Reveal is 8:00 AM ET on <date>."
+   - digits_assigned true and digits_reveal_at null: "Week <n>: G<xx> is drawn but not published. Publish at /admin/digits."
+   - digits_reveal_at set and later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
+   - date_confirmed false: "G<xx> date unconfirmed, cannot be drawn. Confirm at /admin/games." (G19 on December 24 and G23 on December 31 shipped unconfirmed.)
+4. Look ahead: any game 7 to 14 days out with date_confirmed false gets the same confirm line, so it is confirmed before its window opens.
+5. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. Otherwise the entire report is the words NO ACTION.
+```
+
+## 3. TNF Game Day Digits
+
+- **When:** Wednesday, Thursday, Friday, 9:20 AM EDT, 8:20 AM EST.
+- **Stored cron (UTC):** `20 13 * * 3-5`
+- **Trigger:** `trig_01EptwvxHH2mdctyMzsaH9XC`
+- **Why these days:** Wednesday covers G01 on September 9, Thursday covers
+  every regular week and Thanksgiving, Friday covers Christmas Day. Every
+  other date is NO ACTION. Today's game must have live digits (the public
+  projection shows them once the 8:00 AM reveal has passed); tomorrow's must
+  have a reveal scheduled before kickoff. This is the same red alert
+  `/admin` shows, delivered to a phone.
+
+Prompt:
+
+```
+You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md is the only rulebook and it outranks this prompt. Read it first, every run. Hyphens only.
+
+0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
+0a. If the repo anthonydellapia1117/TNF is not already checked out in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. Live state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". View for this job: v_public_games?order=game_no. Anon reads only, bounded by RLS. Never write to the database, never look for another key. If the clone or the read fails, the report is a single NEEDS ANTHONY line naming the failed step. Do not guess state.
+0b. Hard limits: never draw, publish, schedule or alter digits, never mark anything Paid, never resolve an identity conflict, never send or reply to email, never move money. Publishing is Anthony's click at /admin/digits. Gmail is not needed for this job; do not read mail. The Survivor pool is a separate system: never read its mail or labels, never mention it.
+
+1. Today's games are the ones whose kickoff_at, converted to America/New_York, falls on today's date. Tomorrow's likewise. Ignore void games.
+2. For each game today, the reveal at 8:00 AM ET has already passed, so row_digits and col_digits must both be non-null in the projection. One NEEDS ANTHONY line per failure:
+   - digits null and digits_assigned false: "G<xx> <away> at <home> kicks off tonight <time> ET and digits are not drawn. Draw and publish now at /admin/digits."
+   - digits null and digits_assigned true: "G<xx> kicks off tonight <time> ET and digits are not live. Publish now at /admin/digits, it goes out immediately."
+3. For each game tomorrow:
+   - digits_reveal_at null: "G<xx> kicks off tomorrow <time> ET and no reveal is scheduled. Draw and publish at /admin/digits today."
+   - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
+4. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. If there is no game today or tomorrow, or every check passes, the entire report is the words NO ACTION.
+```
+
+## 4. TNF Post-Game Check
+
+- **When:** Thursday, Friday, Saturday, 11:07 AM EDT, 10:07 AM EST.
+- **Stored cron (UTC):** `7 15 * * 4-6`
+- **Trigger:** `trig_01HJ81a3TUtwMozA32vaqMLN`
+- **Why these days:** the morning after every game date. G01 on Wednesday
+  is checked Thursday, every Thursday game is checked Friday, Christmas Day
+  is checked Saturday. Paid versus owed is admin-only and invisible here, so
+  the payout line is a reminder that repeats once, not a finding. A winning
+  block that is not Assigned produces no payout by rule; the line names it
+  so the review flag is not missed.
+
+Prompt:
+
+```
+You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md is the only rulebook and it outranks this prompt. Read it first, every run. Hyphens only.
+
+0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
+0a. If the repo anthonydellapia1117/TNF is not already checked out in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. Live state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views for this job: v_public_games, v_public_blocks, v_public_payouts. Anon reads only, bounded by RLS. Never write to the database, never look for another key. If the clone or a read fails, the report is a single NEEDS ANTHONY line naming the failed step. Do not guess state.
+0b. Hard limits: never enter or correct a score, never create, void or mark a payout Paid, never resolve an identity conflict, never release, move or assign a block, never send or reply to email, never move money. Gmail is read-only here. The Survivor pool is a separate system: never read its mail or labels, never mention it.
+
+1. Unscored games. Every game whose kickoff is in the past and whose status is not final and not void gets a line: "G<xx> <away> at <home> kicked off <day> <time> ET and is not final. Enter halftime and final at /admin/score, echo-confirm away at home." Include it whether the game was last night or a week ago.
+2. Recent finals. For every game with final_scored_at in the last 26 hours:
+   a. Recompute both winners from the projection, per the CLAUDE.md grid orientation: row = position of the AWAY score's last digit in row_digits, col = position of the HOME score's last digit in col_digits, block = row * 10 + col + 1. Do it for the halftime score and the final score. If your result differs from halftime_block or final_block, one line: "G<xx> <halftime or final>: computed block <b>, projection says <b2>. Review at /admin/score." Do not guess which is right.
+   b. Look up each winning block in v_public_blocks. If its status is not assigned, one line: "G<xx> <halftime or final> hit block <b> (<display_name>, <status>). No payout by rule, review flag at /admin/payouts." Only an Assigned block receives a payout.
+   c. If a winning block is assigned, v_public_payouts must hold a row for that game_id and payout_type. Missing: "G<xx> is final with no <type> payout recorded. Review at /admin/payouts."
+   d. For each payout row present, search Gmail read-only for a Venmo receipt from Anthony to that winner, subject or body "You paid", for exactly that amount ($750, $1,000 or $1,500) dated after final_scored_at. Fetch matches in full with get_thread. Found: "G<xx> <type> block <b> <display_name> $<amount>: Venmo receipt <date>. Mark paid at /admin/payouts if not already." Not found: "G<xx> <type> block <b> <display_name> $<amount>: no Venmo receipt in mail. If paid by cash or elsewhere, mark paid at /admin/payouts." Paid versus owed is admin-only and invisible here, so this line is a reminder, not a finding. If Gmail tools are not available in this session, skip the receipt search and make the first NEEDS ANTHONY line: "Gmail connector missing on this routine, receipts not checked. Add it at claude.ai/code > Routines > TNF Post-Game Check."
+3. Older finals. For every game final more than 26 hours ago, run only check 2c. Missing payout rows for an assigned winner stay reported until fixed.
+4. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. Otherwise the entire report is the words NO ACTION.
+```
+
+## Not routines
+
+- **season_mode.** One admin toggle before the September 9 kickoff. A click,
+  not a job.
+- **NEEDS ANTHONY has no tracker.** A fired session's report lives in that
+  session and its push. If an item goes unanswered, nothing re-raises it
+  except the next run of the same job. Known gap, left open on purpose
+  until it costs something.
