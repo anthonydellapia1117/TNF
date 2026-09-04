@@ -9,8 +9,8 @@ describe("board filter counts (spec B1)", () => {
     ...Array.from({ length: 2 }, () => ({ status: "assigned" as const })),
   ];
 
-  it("returns the live counts for open / claimed / all", () => {
-    expect(boardCounts(blocks)).toEqual({ open: 71, claimed: 29, all: 100 });
+  it("returns the live counts for open / taken / all", () => {
+    expect(boardCounts(blocks)).toEqual({ open: 71, taken: 29, all: 100 });
   });
 
   it("counts held blocks only toward ALL", () => {
@@ -20,13 +20,16 @@ describe("board filter counts (spec B1)", () => {
       ...Array.from({ length: 2 }, () => ({ status: "assigned" as const })),
       { status: "held" as const },
     ];
-    expect(boardCounts(withHeld)).toEqual({ open: 70, claimed: 29, all: 100 });
+    expect(boardCounts(withHeld)).toEqual({ open: 70, taken: 29, all: 100 });
   });
 
   it("validates the show modes", () => {
     expect(isBoardShowMode("open")).toBe(true);
-    expect(isBoardShowMode("claimed")).toBe(true);
+    expect(isBoardShowMode("taken")).toBe(true);
     expect(isBoardShowMode("all")).toBe(true);
+    // The pre-2026-09-04 value. A remembered choice from an old visit falls
+    // back to ALL instead of resurrecting the collection word.
+    expect(isBoardShowMode("claimed")).toBe(false);
     expect(isBoardShowMode("everything")).toBe(false);
     expect(isBoardShowMode(null)).toBe(false);
   });

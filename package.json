@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:db": "scripts/db/test-db.sh tests/sql/*.sql"
+    "test:db": "scripts/db/test-db.sh tests/sql/*.sql",
+    "game-day": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/game-day-pack.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
@@ -37,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.23",
+    "playwright-core": "^1.62.1",
     "server-only": "^0.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",

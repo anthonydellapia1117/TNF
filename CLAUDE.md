@@ -171,7 +171,10 @@ who has settled, and nothing else. In particular it does not move blocks.
 - Green means one thing on the public grid: **a winner.**
 - **The viewer side is for a TNF fan, not an administrator.** Collection
   status, the committed-blocks count and the claim CTA are not viewer
-  surfaces at all — they live on `/admin` only. `DashboardPanel` in
+  surfaces at all — they live on `/admin` only. So do the price line, the
+  claim-by date and the claimed/unclaimed split that `/blocks` carried until
+  2026-09-04: claimed versus unclaimed is Anthony's paid-versus-unpaid
+  tracker, and `/blocks` is not where he keeps it. `DashboardPanel` in
   `src/lib/season-mode.ts` has no name for them, so a public panel for
   collected money or a headcount cannot be returned by construction.
   Viewer widgets answer fan questions instead: hot and never-won digits,
@@ -188,10 +191,17 @@ who has settled, and nothing else. In particular it does not move blocks.
   surface should ask the question itself.
 - **`/blocks` is the availability board and keeps its counts in both
   modes** — the big AVAILABLE figure, the legend tallies and the
-  OPEN/CLAIMED filter counts. Showing what is open is that page's purpose.
+  Open/Taken filter counts. Showing what is open is that page's purpose.
   The same number was removed from the *home* page, where it read as a pool
   that did not fill. These two are not in conflict; do not "fix" one to
   match the other.
+- **`/blocks` shows placement, never collection.** Open and Taken are the
+  only status words on the public board: no price, no claim-by date, no call
+  to action, and the word "claim" appears nowhere in its public DOM. An open
+  tile is a number with no name. The board filter's mode value is `taken`,
+  not `claimed`, so a remembered `claimed` from an older visit falls back to
+  ALL. Set 2026-09-04; before that the page carried "$500 each - claim by
+  Sep 4" and an OPEN/CLAIMED toggle, which read as a payment tracker.
 - **A number withheld from the public must be withheld from the
   projection, not just the page.** `v_pot` is a definer view readable by
   anon, so anything left in it is public whether or not a page renders it —
