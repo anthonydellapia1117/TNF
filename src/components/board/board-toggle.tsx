@@ -1,6 +1,6 @@
 "use client";
 
-// The persistent OPEN / CLAIMED / ALL segmented toggle (spec B1). Selection
+// The persistent Open / Taken / All segmented toggle (spec B1). Selection
 // lives in the URL (?show=) so views are shareable, and in localStorage so
 // the choice survives navigation and reload. ALL is the first-visit
 // default — the board is the sales tool, and the whole point is seeing
@@ -59,10 +59,12 @@ export function useBoardShowMode(): [BoardShowMode, (m: BoardShowMode) => void] 
   return [mode, setMode];
 }
 
+// Neutral placement labels, no call to action. Claimed versus unclaimed is
+// the admin's paid-versus-unpaid tracker and lives on /admin only.
 const LABEL: Record<BoardShowMode, string> = {
-  open: "OPEN",
-  claimed: "CLAIMED",
-  all: "ALL",
+  open: "Open",
+  taken: "Taken",
+  all: "All",
 };
 
 export function BoardToggle({
@@ -77,10 +79,10 @@ export function BoardToggle({
   return (
     <div
       role="radiogroup"
-      aria-label="Show open, claimed, or all blocks"
+      aria-label="Show open, taken, or all blocks"
       className="inline-flex rounded-lg border border-border bg-surface p-0.5"
     >
-      {(["open", "claimed", "all"] as BoardShowMode[]).map((m) => (
+      {(["open", "taken", "all"] as BoardShowMode[]).map((m) => (
         <button
           key={m}
           type="button"

@@ -3,29 +3,21 @@
 import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fmtUsd } from "@/lib/format";
 import {
   BoardToggle,
   boardCounts,
   useBoardShowMode,
   type BoardShowMode,
 } from "@/components/board/board-toggle";
-import {
-  type PoolConfig,
-  type PublicBlock,
-} from "@/lib/types";
+import { type PublicBlock } from "@/lib/types";
 
-export function BoardGrid({
-  blocks,
-  config,
-}: {
-  blocks: PublicBlock[];
-  config: PoolConfig;
-}) {
+// The public board shows placement only: which numbers are open and which
+// are taken, by name. No price, no deadline, no call to action. Those are
+// collection language and live on /admin (CLAUDE.md, Public surfaces).
+export function BoardGrid({ blocks }: { blocks: PublicBlock[] }) {
   const [show, setShow] = useBoardShowMode();
 
   const byNumber = new Map(blocks.map((b) => [b.block_number, b]));
-  const price = fmtUsd(config.price_per_block_cents);
 
   let open = 0;
   let taken = 0;
@@ -45,7 +37,7 @@ export function BoardGrid({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        {/* OPEN / CLAIMED / ALL — views filter, data persists (spec B1) */}
+        {/* Open / Taken / All - views filter, data persists (spec B1) */}
         <BoardToggle mode={show} counts={counts} onChange={setShow} />
       </div>
 
@@ -59,7 +51,6 @@ export function BoardGrid({
             n={i + 1}
             block={byNumber.get(i + 1)}
             show={show}
-            price={price}
           />
         ))}
       </div>
@@ -100,12 +91,10 @@ function BoardCell({
   n,
   block,
   show,
-  price,
 }: {
   n: number;
   block: PublicBlock | undefined;
   show: BoardShowMode;
-  price: string;
 }) {
   const status = block?.status ?? "available";
   const name = block?.display_name ?? null;
@@ -115,9 +104,10 @@ function BoardCell({
     show === "all" ||
     (show === "open" ? isOpen : status === "reserved" || status === "assigned");
 
+  // An open tile is a number and nothing else: no name, no price.
   const label = isOpen
-    ? `Block ${n} — open, ${price}`
-    : `Block ${n} — ${name ?? (isHeld ? "held" : "taken")}`;
+    ? `Block ${n} - open`
+    : `Block ${n} - ${name ?? (isHeld ? "held" : "taken")}`;
 
   return (
     <Link
