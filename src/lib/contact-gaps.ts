@@ -25,11 +25,16 @@ export interface ContactGapGroup {
 
 const blank = (s: string | null | undefined) => (s ?? "").trim() === "";
 
-/** No email AND no phone. One channel is enough to reach a winner. */
+/**
+ * No email, no cc_email AND no phone. One channel is enough to reach a
+ * winner, and on a shared block the cc is often the reachable half — Ray
+ * Vassallo answers for block 1 whether or not Raychel does. Ignoring it here
+ * would put a reachable participant on the chase list.
+ */
 export function hasNoContact(
-  p: Pick<Participant, "email" | "phone">,
+  p: Pick<Participant, "email" | "cc_email" | "phone">,
 ): boolean {
-  return blank(p.email) && blank(p.phone);
+  return blank(p.email) && blank(p.cc_email) && blank(p.phone);
 }
 
 /**
@@ -40,7 +45,13 @@ export function hasNoContact(
 export function contactGaps(
   participants: Pick<
     Participant,
-    "id" | "full_name" | "display_alias" | "email" | "phone" | "owner_group"
+    | "id"
+    | "full_name"
+    | "display_alias"
+    | "email"
+    | "cc_email"
+    | "phone"
+    | "owner_group"
   >[],
   blocks: { block_number: number; participant_id: string | null }[],
 ): ContactGapGroup[] {

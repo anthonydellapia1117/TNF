@@ -73,8 +73,11 @@ begin
   if r.available is null or r.committed_blocks is null then
     raise exception 'TEST FAILURE: anon lost the public block counts';
   end if;
-  if r.paid_out_cents is null then
-    raise exception 'TEST FAILURE: anon lost paid_out_cents (public winner history)';
+  -- paid_out_cents joined the admin-only set in migration 21: with the
+  -- public payout rows still visible, anon could subtract it to recover the
+  -- owed liability.
+  if r.paid_out_cents is not null then
+    raise exception 'TEST FAILURE: anon can see paid_out_cents (%)', r.paid_out_cents;
   end if;
 end $$;
 reset role;

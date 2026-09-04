@@ -36,6 +36,8 @@ select set_config('test.expected_collected',
 -- drop to anon: as anon, RLS hides participants entirely, so counting from
 -- the base tables down there returns 0 and would make the leak assertion
 -- below pass vacuously. (It did, on the first run — the guard caught it.)
+select set_config('test.expected_payout_rows',
+  (select count(*)::text from payouts where status <> 'void'), true);
 select set_config('test.expected_owned_blocks',
   (select count(*)::text from blocks b
      join participants p on p.id = b.participant_id
@@ -129,13 +131,34 @@ begin
   if pot.owed_out_cents is not null then
     raise exception 'anon can see owed_out_cents (%)', pot.owed_out_cents;
   end if;
-  -- What anon KEEPS: the block counts /blocks computes "51 open" from, and
-  -- paid-out history, which is the same winner list /winners publishes.
+  -- What anon KEEPS: the block counts /blocks computes "51 open" from. The
+  -- winner history stays public too, but as ROWS on v_public_payouts rather
+  -- than as a total here — see the row-count check below.
   if pot.available is null or pot.committed_blocks is null then
     raise exception 'anon lost the public block counts';
   end if;
-  if pot.paid_out_cents is null then
-    raise exception 'anon lost paid_out_cents (public winner history)';
+  -- paid_out_cents is ADMIN-ONLY as of migration 21. Not because the total
+  -- is secret on its own, but because anon can sum v_public_payouts (which
+  -- serves paid AND owed rows, with no status column) and subtract it to
+  -- recover owed_out_cents, which IS secret.
+  if pot.paid_out_cents is not null then
+    raise exception 'anon can see paid_out_cents (%) — owed is now derivable',
+      pot.paid_out_cents;
+  end if;
+end $$;
+
+-- ANTI-VACUITY: the payout rows anon CAN see must actually be there, or
+-- "the subtraction does not work" is true for the wrong reason.
+do $$
+declare n_public int; n_base int;
+begin
+  select count(*) into n_public from v_public_payouts;
+  n_base := coalesce(current_setting('test.expected_payout_rows', true)::int, -1);
+  if n_base < 0 then
+    raise exception 'expected_payout_rows was never captured';
+  end if;
+  if n_public <> n_base then
+    raise exception 'anon sees % payout rows, base tables say %', n_public, n_base;
   end if;
 end $$;
 
@@ -156,6 +179,9 @@ begin
   if pot.due_cents is null or pot.collected_cents is null then
     raise exception 'admin cannot see v_pot money — the checks below would be '
       'vacuous rather than passing';
+  end if;
+  if pot.paid_out_cents is null or pot.owed_out_cents is null then
+    raise exception 'admin lost paid_out_cents/owed_out_cents — /admin renders both';
   end if;
   if pot.due_cents::text <> current_setting('test.expected_due', true) then
     raise exception 'v_pot.due_cents % != true due %',

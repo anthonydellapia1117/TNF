@@ -125,6 +125,8 @@ export interface Participant {
   full_name: string;
   display_alias: string | null;
   email: string | null;
+  /** Optional second contact for a shared block. Never public. */
+  cc_email: string | null;
   phone: string | null;
   owner_group: OwnerGroup;
   shared_group_id: string | null;

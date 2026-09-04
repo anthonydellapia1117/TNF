@@ -206,6 +206,7 @@ export function ParticipantsClient({
         full_name: name,
         display_alias: qaAlias.trim(),
         email: "",
+        cc_email: "",
         phone: "",
         owner_group: qaGroup,
         shared_group_id: "",

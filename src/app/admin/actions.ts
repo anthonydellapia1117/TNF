@@ -45,6 +45,7 @@ export async function upsertParticipant(input: {
   full_name: string;
   display_alias: string;
   email: string;
+  cc_email: string;
   phone: string;
   owner_group: string;
   shared_group_id: string;
@@ -61,6 +62,7 @@ export async function upsertParticipant(input: {
       p_full_name: input.full_name,
       p_display_alias: input.display_alias,
       p_email: input.email,
+      p_cc_email: input.cc_email,
       p_phone: input.phone,
       p_owner_group: input.owner_group,
       p_shared_group_id: input.shared_group_id,

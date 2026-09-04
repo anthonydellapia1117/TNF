@@ -56,6 +56,7 @@ interface FormState {
   full_name: string;
   display_alias: string;
   email: string;
+  cc_email: string;
   phone: string;
   owner_group: OwnerGroup;
   shared_group_id: string;
@@ -69,6 +70,7 @@ const BLANK: FormState = {
   full_name: "",
   display_alias: "",
   email: "",
+  cc_email: "",
   phone: "",
   owner_group: "AVD",
   shared_group_id: "",
@@ -103,6 +105,7 @@ export function ParticipantDialog({
             full_name: participant.full_name,
             display_alias: participant.display_alias ?? "",
             email: participant.email ?? "",
+            cc_email: participant.cc_email ?? "",
             phone: participant.phone ?? "",
             owner_group: participant.owner_group,
             shared_group_id: participant.shared_group_id ?? "",
@@ -148,6 +151,7 @@ export function ParticipantDialog({
         full_name: form.full_name.trim(),
         display_alias: form.display_alias.trim(),
         email: form.email.trim(),
+        cc_email: form.cc_email.trim(),
         phone: form.phone.trim(),
         owner_group: form.owner_group,
         shared_group_id: form.shared_group_id.trim(),
@@ -244,6 +248,22 @@ export function ParticipantDialog({
                 get pool emails.
               </p>
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="p-cc-email">Second contact (optional)</Label>
+            <Input
+              id="p-cc-email"
+              type="email"
+              value={form.cc_email}
+              onChange={(e) => set("cc_email", e.target.value)}
+              autoComplete="off"
+              placeholder="For a block two people share"
+            />
+            <p className="text-2xs text-muted-foreground">
+              A second address for the same block — not a second participant.
+              No extra block, no extra $500.
+            </p>
           </div>
 
           <div className="space-y-1.5">
