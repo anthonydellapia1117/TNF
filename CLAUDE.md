@@ -5,8 +5,8 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
 
 ## Owner codes and how money is actually collected
 
-**The seven owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD — are collection
-responsibility, not provenance.** They do not record who introduced someone
+**The eight owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD, BG — are
+collection responsibility, not provenance.** They do not record who introduced someone
 or who they emailed. They record *which owner collects that participant's
 $500 and holds it*.
 
@@ -23,7 +23,7 @@ Three things follow, and getting them wrong is expensive:
 1. **An owner's word IS the payment record for his own book.** When JPOD
    says he has Konnor's money, Konnor is paid — the money is in the pool,
    JPOD is holding it, and if block 51 hits, JPOD pays it. No other owner is
-   exposed. This is an honour system among the seven and has always worked
+   exposed. This is an honour system among the owners and has always worked
    that way. Record it: method `cash`, `source_ref` naming the owner.
 2. **`collected_cents` means collected by the pool, not cash in Anthony's
    hand.** Money held by RM or JPOD is collected. Do not reason about the
@@ -262,7 +262,12 @@ who has settled, and nothing else. In particular it does not move blocks.
   - Drawing and publishing stay two deliberate clicks, with the numbers shown
     for review in between. Each reveal is scheduled for **8:00 AM ET on that
     game's own date** — never one shared instant for a week.
-- **Owner groups are AVD, MAP, RM, JPOD, EJD, NL and GD.** Nothing else.
+- **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD and BG.** Nothing else.
+  `BG` is Billy Guyon, added 2026-09-04 (migration 19). He is an owner on the
+  same footing as the rest: he collects from his own participants and holds
+  that cash. Before this existed his people had to be filed under someone
+  else's code, which attributed his money to an owner who never touched it —
+  wrong in two books at once, and invisible until season-end reconciliation.
   What the code *means* — collection responsibility, not provenance — is in
   *Owner codes and how money is actually collected* above.
   `DIRECT` was retired 2026-08-28 (migration 13) and its seventeen

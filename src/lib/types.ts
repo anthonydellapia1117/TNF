@@ -18,7 +18,8 @@ export type OwnerGroup =
   | "JPOD"
   | "EJD"
   | "NL"
-  | "GD";
+  | "GD"
+  | "BG";
 export const OWNER_GROUPS: OwnerGroup[] = [
   "AVD",
   "MAP",
@@ -27,6 +28,7 @@ export const OWNER_GROUPS: OwnerGroup[] = [
   "EJD",
   "NL",
   "GD",
+  "BG",
 ];
 
 export interface PublicGame {

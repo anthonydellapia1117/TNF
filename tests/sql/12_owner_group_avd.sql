@@ -34,6 +34,40 @@ begin
   end;
 end $$;
 
+-- BG is a real owner code (migration 19). Billy Guyon collects and holds like
+-- any other owner, so the constraint must ACCEPT it. Asserted positively —
+-- if BG is ever dropped from the constraint this raises rather than going
+-- quiet, because a rejected insert is a check_violation, not a no-op.
+do $$
+declare v_id uuid; v_grp text;
+begin
+  insert into participants (full_name, owner_group)
+  values ('BG Probe', 'BG') returning id into v_id;
+  select owner_group into v_grp from participants where id = v_id;
+  if v_grp <> 'BG' then
+    raise exception 'TEST FAILURE: BG did not persist, got %', coalesce(v_grp,'null');
+  end if;
+  -- And it must survive an UPDATE onto an existing row, which is the path a
+  -- reassignment actually takes.
+  update participants set owner_group = 'BG' where full_name = 'Default Group Probe';
+  if (select owner_group from participants where full_name = 'Default Group Probe') <> 'BG' then
+    raise exception 'TEST FAILURE: could not reassign an existing participant to BG';
+  end if;
+  update participants set owner_group = 'AVD' where full_name = 'Default Group Probe';
+end $$;
+
+-- The list is still closed. An unknown code is rejected exactly as before —
+-- adding BG must not have loosened the constraint into accepting anything.
+do $$
+begin
+  begin
+    insert into participants (full_name, owner_group) values ('Bad Code Probe', 'ZZZ');
+    raise exception 'TEST FAILURE: an unknown owner code was accepted';
+  exception
+    when check_violation then null; -- correct
+  end;
+end $$;
+
 -- A blank group falls back to AVD, not to the retired value.
 do $$
 declare
