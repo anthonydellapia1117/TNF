@@ -90,19 +90,42 @@ JPOD 2 to 1, MAP 10 to 7, AVD 20 to 26.
 
 ## Payment sweeps
 
-**A TNF block costs $500 flat. Only a $500 amount is a candidate block
-payment.** Anything that is not $500 is not a block payment, and must not
-be surfaced, flagged, or recorded as a partial one — unless Anthony says
-otherwise for a specific transaction.
+**A block costs $500 flat, so the candidate amount for a participant is
+$500 x the blocks he actually owes for.** One block is $500, two is $1,000,
+Ed D's three is $1,500. A comped block owes $0 and is excluded from that
+count — the expected amount is his `due_cents`, not his headcount.
 
-This rule exists because it was learned the hard way: two sweeps surfaced a
-$30 and a $150 Venmo from people who *are* participants, and both turned
-out to be unrelated (a Survivor entry fee and personal money). Reporting
-them cost Anthony two round trips to chase nothing.
+For the forty-odd single-block holders this is exactly the old
+$500-only rule and nothing about them changes. It exists to stop the pool
+losing a real payment: Anthony Astorga settled both his blocks with one
+$1,000 Venmo on 2026-09-03, a full and unambiguous payment that a
+$500-only sweep is instructed to ignore. Anthony had to point it out by
+hand.
 
-- Match on **amount first**. $500 in, from a person, is worth checking.
-- A participant's name on a non-$500 transaction is **not** a signal.
-- There are no partial payments. A block is paid or it is not.
+Three outcomes, and only three:
+
+1. **Matches a participant's expected amount** — a real candidate. Verify
+   the receipt and record it.
+2. **Matches no participant's expected amount, but is a clean multiple of
+   $500** — surface it as **"non-matching multiple, needs review"** and
+   stop. Do not record it and do not guess who it belongs to. This is
+   someone paying for a friend, or a two-block holder sending $500 for one
+   of them. It needs Anthony, not a decision.
+3. **Not a multiple of $500** — not a block payment. Invisible. Do not
+   surface it, flag it, or record it as a partial one, whatever name is on
+   it, unless Anthony says otherwise for that specific transaction.
+
+Rule 3 is the one learned the hard way: two sweeps surfaced a $30 and a
+$150 Venmo from people who *are* participants, and both turned out to be
+unrelated (a Survivor entry fee and personal money). Reporting them cost
+Anthony two round trips to chase nothing. Neither is a multiple of $500, so
+both stay invisible under the amounts rule above — widening it to block
+count reopens nothing.
+
+- Match on **amount first**. A name on a non-multiple transaction is still
+  not a signal.
+- There are no partial payments. A block is paid or it is not — a part
+  payment lands in outcome 2 and goes to Anthony as a question.
 - Resolved false positives are recorded in the participant's notes with the
   transaction ID and "do not re-flag." Honour those notes.
 - Sweep by fetching threads in full (`get_thread`), never from search
