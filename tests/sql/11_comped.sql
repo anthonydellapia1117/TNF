@@ -157,7 +157,9 @@ begin
   -- Promote block 36 to assigned so a payout can attach, then score the
   -- game so that block 36 is the final winner.
   update blocks set status = 'assigned' where block_number = 36;
-  res := admin_score_game(g, 'final', cols_d[6], rows_d[4], 'test');
+  -- Block 36 = row 3, col 5. AWAY on the row axis, HOME on the column
+  -- axis: away = rows_d[4], home = cols_d[6]. (away, home) arg order.
+  res := admin_score_game(g, 'final', rows_d[4], cols_d[6], 'test');
 
   if (res ->> 'block')::int <> 36 then
     raise exception 'TEST FAILURE: fixture did not land on block 36, got %', res ->> 'block';

@@ -2,8 +2,8 @@
 // the field: scores, digits, and who held the block that hit. Nothing about
 // money owed, payment status, or how many people are in the pool.
 //
-// The grid orientation these all depend on: rows are the HOME team's last
-// digit, columns are the AWAY team's, and block = rowIndex * 10 + colIndex + 1
+// The grid orientation these all depend on: rows are the AWAY team's last
+// digit, columns are the HOME team's, and block = rowIndex * 10 + colIndex + 1
 // (see winningBlock in src/lib/pool.ts). Digits are redrawn independently for
 // every game, so a cell means nothing across games — only a digit PAIR does.
 //

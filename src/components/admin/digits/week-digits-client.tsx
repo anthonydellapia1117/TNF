@@ -258,7 +258,7 @@ export function WeekDigitsClient({
                       </span>
                     </div>
                     <p className="mt-1.5 text-muted-foreground" data-numeric>
-                      Home rows: {g.row_digits?.join(" ")} · Away cols:{" "}
+                      Away rows: {g.row_digits?.join(" ")} · Home cols:{" "}
                       {g.col_digits?.join(" ")}
                     </p>
                   </div>

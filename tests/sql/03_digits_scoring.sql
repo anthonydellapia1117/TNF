@@ -100,9 +100,9 @@ begin
   end if;
 
   -- An unassigned winning block produces NO payout and raises a review flag.
-  -- Force block 1 (available): home last digit = row_digits[1], away = col_digits[1].
-  v_home := g.row_digits[1];
-  v_away := g.col_digits[1];
+  -- Force block 1 (available): away last digit = row_digits[1], home = col_digits[1].
+  v_away := g.row_digits[1];
+  v_home := g.col_digits[1];
   v_res := admin_score_game(g2, 'halftime', v_away, v_home, 'test');
   if (v_res ->> 'block')::int <> 1 or (v_res ->> 'payout_created')::boolean
      or not (v_res ->> 'review')::boolean then
@@ -120,9 +120,9 @@ begin
   end if;
 
   -- An Assigned winning block pays. Force block 15 (Nicco Esgro, assigned):
-  -- row index 1 → row_digits[2], col index 4 → col_digits[5].
-  v_home := g.row_digits[2];
-  v_away := g.col_digits[5];
+  -- row index 1 → row_digits[2] (away), col index 4 → col_digits[5] (home).
+  v_away := g.row_digits[2];
+  v_home := g.col_digits[5];
   v_res := admin_score_game(g2, 'final', v_away, v_home, 'test');
   if (v_res ->> 'block')::int <> 15 or not (v_res ->> 'payout_created')::boolean then
     raise exception 'assigned winner mishandled: %', v_res;
@@ -139,9 +139,9 @@ begin
 
   -- Reserved is never treated as Assigned for payout (section 7 row 4):
   -- block 34 (Stephen Tomiselli) is reserved. Force block 34: row index 3 →
-  -- row_digits[4], col index 3 → col_digits[4]. Re-score of the owed final.
-  v_home := g.row_digits[4];
-  v_away := g.col_digits[4];
+  -- row_digits[4] (away), col index 3 → col_digits[4] (home). Re-score of the owed final.
+  v_away := g.row_digits[4];
+  v_home := g.col_digits[4];
   v_res := admin_score_game(g2, 'final', v_away, v_home, 'test');
   if (v_res ->> 'block')::int <> 34 or (v_res ->> 'payout_created')::boolean then
     raise exception 'reserved block was paid: %', v_res;
@@ -163,9 +163,10 @@ begin
        where p.full_name = 'Jr/Diz' and b.status = 'assigned') <> 2 then
     raise exception 'Jr/Diz promotion did not assign both blocks';
   end if;
-  -- Block 36 = row index 3, col index 5.
-  v_home := g.row_digits[4];
-  v_away := g.col_digits[6];
+  -- Block 36 = row index 3, col index 5. AWAY on the row axis, HOME on the
+  -- column axis: away = row_digits[4], home = col_digits[6].
+  v_away := g.row_digits[4];
+  v_home := g.col_digits[6];
   v_res := admin_score_game(g2, 'final', v_away, v_home, 'test');
   if (v_res ->> 'block')::int <> 36 or not (v_res ->> 'payout_created')::boolean then
     raise exception 'corrected score did not recompute: %', v_res;

@@ -17,8 +17,18 @@ export function lastDigit(score: number): number {
 }
 
 /**
- * The winning block: row index of the HOME last digit, column index of the
- * AWAY last digit (0-based), block = row*10 + col + 1.
+ * The winning block: row index of the AWAY last digit, column index of the
+ * HOME last digit (0-based), block = row*10 + col + 1.
+ *
+ * AWAY down the side, HOME across the top. That is the orientation of the
+ * hand-built 2025 grid and every one before it, and 47 people read it that
+ * way without looking at the labels. The app shipped transposed and was
+ * corrected on 2026-09-04, before any digits were drawn — see migration 17
+ * and the note in CLAUDE.md. Do not "fix" this back from an older spec.
+ *
+ * `rowDigits` and `colDigits` are named for the AXIS they sit on, not the
+ * team: rowDigits is the vertical axis (away), colDigits the horizontal
+ * (home). The database columns mean the same thing.
  */
 export function winningBlock(
   rowDigits: number[],
@@ -26,12 +36,38 @@ export function winningBlock(
   home: number,
   away: number,
 ): number {
-  const rowIdx = rowDigits.indexOf(lastDigit(home));
-  const colIdx = colDigits.indexOf(lastDigit(away));
+  const rowIdx = rowDigits.indexOf(lastDigit(away));
+  const colIdx = colDigits.indexOf(lastDigit(home));
   if (rowIdx < 0 || colIdx < 0) {
     throw new Error("digits are not a full permutation");
   }
   return rowIdx * 10 + colIdx + 1;
+}
+
+/**
+ * Which team sits on which axis of the rendered grid.
+ *
+ * This exists so the RENDER is testable. winningBlock decides who gets paid;
+ * this decides what the screen says, and the two failing to agree is the
+ * dangerous case — the payout would be right while every player read the
+ * wrong digit pair off the grid. Mutating the labels inside the component
+ * broke no test until this was pulled out here.
+ *
+ * AWAY is the vertical axis, HOME the horizontal one. Keep in step with
+ * winningBlock above.
+ */
+export function gridAxes<T>(game: { home_team: T; away_team: T }): {
+  rowLabel: "home" | "away";
+  rowTeam: T;
+  colLabel: "home" | "away";
+  colTeam: T;
+} {
+  return {
+    rowLabel: "away",
+    rowTeam: game.away_team,
+    colLabel: "home",
+    colTeam: game.home_team,
+  };
 }
 
 /** Block n (1-100) → 0-based grid position. Row-major: block 1 is (0,0). */
@@ -39,7 +75,10 @@ export function blockPosition(n: number): { row: number; col: number } {
   return { row: Math.floor((n - 1) / 10), col: (n - 1) % 10 };
 }
 
-/** A block's digits for one game, or null before the digits publish. */
+/**
+ * A block's digits for one game, or null before the digits publish.
+ * Away is the row axis, home the column axis — see winningBlock.
+ */
 export function blockDigits(
   n: number,
   rowDigits: number[] | null,
@@ -47,7 +86,7 @@ export function blockDigits(
 ): { home: number; away: number } | null {
   if (!isPermutation(rowDigits) || !isPermutation(colDigits)) return null;
   const { row, col } = blockPosition(n);
-  return { home: rowDigits[row], away: colDigits[col] };
+  return { away: rowDigits[row], home: colDigits[col] };
 }
 
 export function payoutCents(

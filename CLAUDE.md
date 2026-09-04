@@ -214,6 +214,29 @@ who has settled, and nothing else. In particular it does not move blocks.
   records what was true at the time and is never rewritten.
 - Digits are immutable once written, never assigned when `date_confirmed`
   is false or after kickoff, and never scored before publication.
+- **Grid orientation: HOME across the top, AWAY down the left side.** The
+  AWAY last digit selects the row, the HOME last digit selects the column,
+  and `block = row*10 + col + 1` numbering left to right then top to bottom
+  (so block 11 is row 2, column 1).
+  - **The reason is the 2025 grid.** Anthony built it by hand, every prior
+    season looked the same, and 47 people read it from habit without
+    checking the axis labels. Neither orientation is more correct
+    arithmetically; the app was simply the newcomer and it shipped
+    transposed. Reversed 2026-09-04 by migration 17, with 0 of 23 games
+    drawn, 0 published, 0 scored and 0 payouts — there was no history to
+    invalidate, and there will be after the first draw.
+  - **Do not flip it back reasoning from an older spec or an older comment.**
+    The pre-reversal formula was `row_index(home) * 10 + col_index(away) + 1`
+    and its worked example returned block 13; that example now returns 89.
+    If you find a copy still saying 13, it predates the reversal.
+  - `row_digits` and `col_digits` are named for the AXIS, not the team:
+    `row_digits` is the vertical axis (away), `col_digits` the horizontal
+    (home). Same for the `rowDigits`/`colDigits` arguments in `src/lib/pool.ts`.
+  - The rendered labels come from `gridAxes()` in `src/lib/pool.ts`, which is
+    unit-tested against `winningBlock`. Hardcoding home/away in the grid
+    component is how the screen and the payout drift apart: the money would
+    still be right while every player read the wrong digit pair. Swapping the
+    labels inside the component broke no test until `gridAxes` existed.
 - **Digits are assigned to the two axes, not to blocks.** Each axis is a
   permutation of 0-9, so all 100 cells receive numbers regardless of how many
   blocks are sold or paid. The claim deadline never gates digit assignment.

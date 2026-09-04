@@ -12,6 +12,7 @@ import {
   isPermutation,
   payoutCents,
   winningBlock,
+  gridAxes,
 } from "@/lib/pool";
 import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
 import {
@@ -65,8 +66,12 @@ export function BlocksGrid({
   const nearMiss = new Set(finalBlock ? adjacentBlocks(finalBlock) : []);
 
   const blockMap = new Map(blocks.map((b) => [b.block_number, b]));
-  const away = teamPalette(game.away_team);
-  const home = teamPalette(game.home_team);
+  // Which team is on which axis comes from gridAxes, which is unit-tested
+  // against winningBlock. Do not hardcode home/away here — labels drifting
+  // from the payout math is the failure this indirection exists to stop.
+  const axes = gridAxes(game);
+  const rowAxis = { team: axes.rowTeam, label: axes.rowLabel, ...teamPalette(axes.rowTeam) };
+  const colAxis = { team: axes.colTeam, label: axes.colLabel, ...teamPalette(axes.colTeam) };
   const halfAmount = payoutCents(game.game_type, "halftime", config);
   const finalAmount = payoutCents(game.game_type, "final", config);
 
@@ -93,18 +98,19 @@ export function BlocksGrid({
         comfortable ? "mx-auto w-fit max-w-full" : "mx-auto w-full max-w-2xl",
       )}
     >
-      {/* Home axis: a solid vertical rail in the team's color, name rotated,
-          pinned outside the scroll area (spec A3). */}
+      {/* Away axis: a solid vertical rail in the team's color, name rotated,
+          pinned outside the scroll area (spec A3). AWAY is the vertical axis
+          — see winningBlock in src/lib/pool.ts. */}
       <div className="flex shrink-0 items-stretch">
         <div
           className="flex w-5 items-center justify-center overflow-hidden rounded-md sm:w-6"
-          style={{ backgroundColor: home.bar.bg }}
+          style={{ backgroundColor: rowAxis.bar.bg }}
         >
           <p
             className="rotate-180 text-2xs font-bold tracking-widest whitespace-nowrap uppercase [writing-mode:vertical-rl]"
-            style={{ color: home.bar.fg }}
+            style={{ color: rowAxis.bar.fg }}
           >
-            home · {game.home_team}
+            {rowAxis.label} · {rowAxis.team}
           </p>
         </div>
       </div>
@@ -124,23 +130,30 @@ export function BlocksGrid({
                 : "1.125rem repeat(10, minmax(0, 1fr))",
             }}
           >
-            {/* Away axis: a full-width solid bar in the team's color with the
-                digit cells sitting inside it (spec A3). */}
+            {/* Home axis: a full-width solid bar in the team's color with the
+                digit cells sitting inside it (spec A3). HOME is the
+                horizontal axis — see winningBlock in src/lib/pool.ts.
+                The corner above the away rail carries the week number, where
+                the hand-built grid has always put it. */}
             <div
               className={cn(
-                "sticky left-0 z-10 bg-background",
+                "sticky left-0 z-10 flex items-center justify-center bg-background",
                 !comfortable && "static",
               )}
-            />
+            >
+              <span className="text-2xs font-bold tracking-widest text-muted-foreground uppercase">
+                W{game.week}
+              </span>
+            </div>
             <div
               className="flex h-6 items-center justify-center rounded-t-md text-2xs font-bold tracking-widest uppercase"
               style={{
                 gridColumn: "2 / -1",
-                backgroundColor: away.bar.bg,
-                color: away.bar.fg,
+                backgroundColor: colAxis.bar.bg,
+                color: colAxis.bar.fg,
               }}
             >
-              away · {game.away_team}
+              {colAxis.label} · {colAxis.team}
             </div>
 
             <div
@@ -157,8 +170,8 @@ export function BlocksGrid({
                   !published && "opacity-70",
                 )}
                 style={{
-                  backgroundColor: away.bar.bg,
-                  color: away.bar.fg,
+                  backgroundColor: colAxis.bar.bg,
+                  color: colAxis.bar.fg,
                   ["--digit-i" as string]: c,
                 }}
                 data-numeric
@@ -172,7 +185,7 @@ export function BlocksGrid({
                 key={`r-${r}`}
                 r={r}
                 rows={rows}
-                homeBar={home.bar}
+                rowBar={rowAxis.bar}
                 published={published}
                 comfortable={comfortable}
                 cellFor={cellFor}
@@ -191,7 +204,7 @@ export function BlocksGrid({
 function RowCells({
   r,
   rows,
-  homeBar,
+  rowBar,
   published,
   comfortable,
   cellFor,
@@ -201,7 +214,7 @@ function RowCells({
 }: {
   r: number;
   rows: number[] | null;
-  homeBar: { bg: string; fg: string };
+  rowBar: { bg: string; fg: string };
   published: boolean;
   comfortable: boolean;
   cellFor: (r: number, c: number) => CellState;
@@ -211,7 +224,7 @@ function RowCells({
 }) {
   return (
     <>
-      {/* Home digit cell: sits inside the home team's colored rail. */}
+      {/* Away digit cell: sits inside the away team's colored rail. */}
       <div
         className={cn(
           "digit-in flex items-center justify-center rounded-[4px] text-sm font-semibold tabular-nums",
@@ -219,8 +232,8 @@ function RowCells({
           comfortable && "sticky left-0 z-10",
         )}
         style={{
-          backgroundColor: homeBar.bg,
-          color: homeBar.fg,
+          backgroundColor: rowBar.bg,
+          color: rowBar.fg,
           ["--digit-i" as string]: 10 + r,
         }}
         data-numeric

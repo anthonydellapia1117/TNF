@@ -95,8 +95,11 @@ describe("revealCardState — one card, four states", () => {
     });
     const s = revealCardState([g], NOW);
     expect(s.kind).toBe("live_now");
-    // Worked example from the spec: home 27, away 14 → block 13.
-    if (s.kind === "live_now") expect(s.leaderBlock).toBe(13);
+    // Worked example from the spec: home 27, away 14 → block 89.
+    // AWAY 4 picks the row, HOME 7 picks the column. The pre-2026-09-04
+    // orientation gave 13 here; if that ever comes back, the live card is
+    // naming the wrong person on screen during the game.
+    if (s.kind === "live_now") expect(s.leaderBlock).toBe(89);
   });
 
   it("past kickoff with revealed digits counts as live even without scores", () => {

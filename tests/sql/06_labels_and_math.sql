@@ -28,7 +28,9 @@ begin
   end if;
 
   -- The H2 worked example returns block 13 (acceptance 7).
-  if winning_block(array[3,7,1,9,0,5,2,8,4,6], array[8,2,4,0,6,1,9,3,7,5], 27, 14) <> 13 then
+  -- AWAY 4 selects the row (index 8), HOME 7 selects the column (index 8).
+  -- The old orientation gave 13; see migration 17.
+  if winning_block(array[3,7,1,9,0,5,2,8,4,6], array[8,2,4,0,6,1,9,3,7,5], 27, 14) <> 89 then
     raise exception 'worked example failed';
   end if;
 

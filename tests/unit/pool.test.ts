@@ -7,6 +7,7 @@ import {
   buildListExport,
   echoConfirm,
   gameCode,
+  gridAxes,
   isPermutation,
   lastDigit,
   payoutCents,
@@ -33,25 +34,106 @@ const CONFIG: PoolConfig = {
 };
 
 describe("winningBlock", () => {
-  it("returns block 13 for the H2 worked example", () => {
-    // rows 3,7,1,9,0,5,2,8,4,6; cols 8,2,4,0,6,1,9,3,7,5; home 27, away 14.
-    expect(
-      winningBlock([3, 7, 1, 9, 0, 5, 2, 8, 4, 6], [8, 2, 4, 0, 6, 1, 9, 3, 7, 5], 27, 14),
-    ).toBe(13);
+  // AWAY selects the row, HOME selects the column — the orientation of the
+  // hand-built 2025 grid. Reversed 2026-09-04; see src/lib/pool.ts.
+  const ROWS = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6]; // away axis, down the side
+  const COLS = [8, 2, 4, 0, 6, 1, 9, 3, 7, 5]; // home axis, across the top
+
+  it("returns block 89 for the worked example", () => {
+    // home 27 -> digit 7, away 14 -> digit 4.
+    // row = position of AWAY 4 in rows = 8; col = position of HOME 7 in cols = 8.
+    expect(winningBlock(ROWS, COLS, 27, 14)).toBe(8 * 10 + 8 + 1);
+    expect(winningBlock(ROWS, COLS, 27, 14)).toBe(89);
+  });
+
+  it("is NOT the transposed reading — 89, never 13", () => {
+    // This is the whole point of the 2026-09-04 reversal. Under the old
+    // orientation (home selects the row) these same inputs gave 13. If this
+    // ever returns 13 again someone has flipped the axes back and every
+    // payout is going to the wrong person.
+    expect(winningBlock(ROWS, COLS, 27, 14)).not.toBe(13);
+  });
+
+  it("is asymmetric in home and away, so the axes cannot be swapped silently", () => {
+    // With two DIFFERENT permutations, swapping the scores must change the
+    // answer. A test using one array for both axes passes under either
+    // orientation and proves nothing about which team is on which axis.
+    expect(winningBlock(ROWS, COLS, 27, 14)).not.toBe(
+      winningBlock(ROWS, COLS, 14, 27),
+    );
+  });
+
+  it("puts the away digit on the row and the home digit on the column", () => {
+    // Stated directly rather than through a worked example, so the intent
+    // survives even if the example numbers are ever edited.
+    for (const [home, away] of [
+      [3, 8],
+      [27, 14],
+      [10, 25],
+      [46, 46],
+    ]) {
+      const expectedRow = ROWS.indexOf(away % 10);
+      const expectedCol = COLS.indexOf(home % 10);
+      expect(winningBlock(ROWS, COLS, home, away)).toBe(
+        expectedRow * 10 + expectedCol + 1,
+      );
+    }
   });
 
   it("covers the corners", () => {
     const identity = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     expect(winningBlock(identity, identity, 0, 0)).toBe(1);
     expect(winningBlock(identity, identity, 9, 9)).toBe(100);
-    expect(winningBlock(identity, identity, 30, 7)).toBe(8);
+    // Orientation-sensitive even on the identity permutation: away 7 is the
+    // row, home 0 the column. The old orientation gave 8.
+    expect(winningBlock(identity, identity, 30, 7)).toBe(71);
   });
 
   it("uses only the last digit", () => {
+    // Orientation-neutral by design: this asserts the mod-10 reduction, not
+    // which axis is which. The tests above carry the orientation.
     const identity = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
     expect(winningBlock(identity, identity, 27, 14)).toBe(
       winningBlock(identity, identity, 7, 4),
     );
+  });
+});
+
+describe("gridAxes — what the screen says must match what pays", () => {
+  const GAME = { home_team: "Seattle Seahawks", away_team: "New England Patriots" };
+
+  it("puts AWAY on the row axis and HOME on the column axis", () => {
+    expect(gridAxes(GAME)).toEqual({
+      rowLabel: "away",
+      rowTeam: "New England Patriots",
+      colLabel: "home",
+      colTeam: "Seattle Seahawks",
+    });
+  });
+
+  it("never labels both axes the same team", () => {
+    const a = gridAxes(GAME);
+    expect(a.rowLabel).not.toBe(a.colLabel);
+    expect(a.rowTeam).not.toBe(a.colTeam);
+  });
+
+  it("agrees with winningBlock about which score drives the row", () => {
+    // The real invariant: the digit array drawn down the SIDE must be the one
+    // winningBlock indexes with the row-axis team's score. Build a score where
+    // the two teams' last digits differ, and check the block winningBlock
+    // returns sits at the row the axis labelling predicts.
+    const rows = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6];
+    const cols = [8, 2, 4, 0, 6, 1, 9, 3, 7, 5];
+    const scores = { home: 27, away: 14 };
+    const axes = gridAxes(GAME);
+
+    const rowScore = axes.rowLabel === "away" ? scores.away : scores.home;
+    const colScore = axes.colLabel === "home" ? scores.home : scores.away;
+
+    const block = winningBlock(rows, cols, scores.home, scores.away);
+    const { row, col } = blockPosition(block);
+    expect(rows[row]).toBe(rowScore % 10);
+    expect(cols[col]).toBe(colScore % 10);
   });
 });
 
@@ -77,11 +159,24 @@ describe("block geometry", () => {
   });
 
   it("derives a block's digits for a game", () => {
+    const rows = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6]; // away axis
+    const cols = [8, 2, 4, 0, 6, 1, 9, 3, 7, 5]; // home axis
+    // Block 13 = row 1, col 2 → away digit rows[1]=7, home digit cols[2]=4.
+    // Transposed from the pre-2026-09-04 reading, which had home 7 / away 4.
+    expect(blockDigits(13, rows, cols)).toEqual({ away: 7, home: 4 });
+    expect(blockDigits(13, null, cols)).toBeNull();
+  });
+
+  it("agrees with winningBlock: a block's own digits win it", () => {
+    // The two functions are inverses. If one is flipped and the other is
+    // not, this fails — which is the failure mode that would pay the wrong
+    // person while every screen still looked coherent.
     const rows = [3, 7, 1, 9, 0, 5, 2, 8, 4, 6];
     const cols = [8, 2, 4, 0, 6, 1, 9, 3, 7, 5];
-    // Block 13 = row 1, col 2 → home digit 7, away digit 4.
-    expect(blockDigits(13, rows, cols)).toEqual({ home: 7, away: 4 });
-    expect(blockDigits(13, null, cols)).toBeNull();
+    for (const n of [1, 13, 47, 89, 100]) {
+      const d = blockDigits(n, rows, cols)!;
+      expect(winningBlock(rows, cols, d.home, d.away)).toBe(n);
+    }
   });
 
   it("finds the eight neighbors and clips at edges", () => {

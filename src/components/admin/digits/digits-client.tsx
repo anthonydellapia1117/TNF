@@ -275,7 +275,7 @@ export function DigitsClient({
             )}
           </p>
           <p className="text-xs text-muted-foreground" data-numeric>
-            Home rows: {preview.row_digits.join(" ")} · Away cols:{" "}
+            Away rows: {preview.row_digits.join(" ")} · Home cols:{" "}
             {preview.col_digits?.join(" ")}
           </p>
           <BlocksGrid

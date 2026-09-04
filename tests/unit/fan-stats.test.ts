@@ -134,16 +134,19 @@ describe("digitReport", () => {
 });
 
 describe("closeCalls", () => {
-  // Final 24-17 → home digit 4, away digit 7 → block 4*10+7+1 = 48.
+  // AWAY is the row axis, HOME the column axis (see winningBlock). With both
+  // permutations the identity, block = awayDigit*10 + homeDigit + 1.
+  // Final 24-17 → away digit 7, home digit 4 → 7*10+4+1 = 75. The old
+  // orientation put this at 48.
   const G = game({ game_no: 1, final_home: 24, final_away: 17 });
 
   it("finds the four one-point-away blocks", () => {
-    expect(winningBlock(ROWS, COLS, 24, 17)).toBe(48);
-    // home 25 → 58, home 23 → 38, away 18 → 49, away 16 → 47
-    const owned = [58, 38, 49, 47].map((n) => block(n, `Owner ${n}`));
-    const calls = closeCalls([G], [...owned, block(48, "Winner")]);
+    expect(winningBlock(ROWS, COLS, 24, 17)).toBe(75);
+    // home 25 → 76, home 23 → 74, away 18 → 85, away 16 → 65
+    const owned = [76, 74, 85, 65].map((n) => block(n, `Owner ${n}`));
+    const calls = closeCalls([G], [...owned, block(75, "Winner")]);
     expect(calls.map((c) => c.blockNumber).sort((a, b) => a - b)).toEqual([
-      38, 47, 49, 58,
+      65, 74, 76, 85,
     ]);
   });
 
@@ -167,12 +170,13 @@ describe("closeCalls", () => {
   });
 
   it("skips unowned blocks — an open number missing out is not a story", () => {
-    const calls = closeCalls([G], [block(58, null), block(38, "Rob")]);
-    expect(calls.map((c) => c.blockNumber)).toEqual([38]);
+    const calls = closeCalls([G], [block(76, null), block(74, "Rob")]);
+    expect(calls.map((c) => c.blockNumber)).toEqual([74]);
   });
 
   it("names the team and the direction the score had to move", () => {
-    const calls = closeCalls([G], [block(58, "Rob")]);
+    // Block 76 is the home-plus-one variation: home 25, away 17.
+    const calls = closeCalls([G], [block(76, "Rob")]);
     expect(calls[0].team).toBe("Seattle Seahawks"); // home
     expect(calls[0].delta).toBe(1); // 24 → 25
     expect(calls[0].actual).toEqual({ home: 24, away: 17 });
@@ -181,15 +185,15 @@ describe("closeCalls", () => {
   it("does not invent a negative score", () => {
     // Away 0: there is no away −1, so only three variations exist.
     const g = game({ game_no: 1, final_home: 24, final_away: 0 });
-    const winner = winningBlock(ROWS, COLS, 24, 0); // 41
+    const winner = winningBlock(ROWS, COLS, 24, 0); // 5
     const owned = Array.from({ length: 100 }, (_, i) =>
       block(i + 1, `Owner ${i + 1}`),
     );
     const calls = closeCalls([g], owned, 99);
     expect(calls.map((c) => c.blockNumber)).not.toContain(winner);
-    // home 25 → 51, home 23 → 31, away 1 → 42. Three, not four.
+    // home 25 → 6, home 23 → 4, away 1 → 15. Three, not four.
     expect(calls.map((c) => c.blockNumber).sort((a, b) => a - b)).toEqual([
-      31, 42, 51,
+      4, 6, 15,
     ]);
   });
 

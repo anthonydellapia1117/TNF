@@ -225,8 +225,9 @@ Public reads: `games`, `v_public_blocks`, `payouts` (winner and amount only), `c
 | Payment verification | Never marked paid from a claim. A Venmo transaction ID, or Anthony's explicit cash/check entry. Ledger append-only, corrections are new rows |
 | Digits | Row and column are each a permutation of 0-9 with every digit exactly once. **Immutable once written.** Re-randomized fresh for every game |
 | Digit gates | Never assign when `date_confirmed = false`. Never assign after kickoff. Never score before `digits_published_at` is set |
-| Winning block | `row_index_of(home_last_digit) * 10 + col_index_of(away_last_digit) + 1` |
-| Worked example | rows `3,7,1,9,0,5,2,8,4,6`; cols `8,2,4,0,6,1,9,3,7,5`; home 27, away 14 → **block 13.** This is a unit test |
+| Winning block | `row_index_of(away_last_digit) * 10 + col_index_of(home_last_digit) + 1` |
+| Grid orientation | **HOME across the top (columns), AWAY down the left side (rows).** This matches the hand-built 2025 grid and every one before it. Reversed 2026-09-04 by migration 17, before any digits were drawn — the app had shipped transposed. Do not flip it back from an older copy of this spec |
+| Worked example | rows `3,7,1,9,0,5,2,8,4,6`; cols `8,2,4,0,6,1,9,3,7,5`; home 27, away 14 → away digit 4 is at row index 8, home digit 7 is at col index 8 → **block 89.** This is a unit test. Under the pre-2026-09-04 orientation the same inputs gave 13 |
 | Score entry | Admin only. Echo-confirm in away-at-home order before processing: `Confirm G01 final: Patriots 14 at Seahawks 27?` |
 | Invalid winner | If the winning block is Available, Reserved, or Held: record the score, create **no payout**, raise a review flag. Never pay an unassigned block |
 | Payout settlement | Rows start `owed`. Only Anthony marks `paid`. **The app never moves money** |
@@ -500,7 +501,7 @@ Each of these is a real failure from the system this replaces. Write a test for 
 | Names normalized on write | `display_alias` and `full_name` round-trip verbatim, case preserved |
 | Block count drifted from 100 | `available + reserved + assigned + held = 100` after every mutation |
 | Contact data leaked to public | A public read of every public route returns no email, phone, or payment amount |
-| The H2 worked example | rows `3,7,1,9,0,5,2,8,4,6`, cols `8,2,4,0,6,1,9,3,7,5`, home 27, away 14 → block 13 |
+| The H2 worked example | rows `3,7,1,9,0,5,2,8,4,6`, cols `8,2,4,0,6,1,9,3,7,5`, home 27, away 14 → block 89 (was 13 before the 2026-09-04 axis reversal) |
 
 ---
 
@@ -525,7 +526,7 @@ Each of these is a real failure from the system this replaces. Write a test for 
 4. A scored game lights the winning row and column, converging on the winner, with the amount visible without scrolling on mobile
 5. Halftime and final winners are distinguishable at a glance, including when they are the same cell
 6. Pre-publish, digits render `?` and no player can learn their numbers early
-7. The H2 worked example returns block 13
+7. The H2 worked example returns block 89 — never 13, which is the transposed reading
 8. Assigning digits to a game with `date_confirmed = false` is refused by the database
 9. Scoring before publish is refused by the database
 10. A winning block that is not `assigned` creates no payout and raises a review

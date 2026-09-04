@@ -17,7 +17,13 @@ begin
   perform admin_assign_digits(g2, 'test');
   perform admin_publish_digits(g2, 'test');
   select * into g from games where id = g2;
-  v_res := admin_score_game(g2, 'final', g.col_digits[5], g.row_digits[2], 'test');
+  -- Block 15 = row 1, col 4. AWAY is the row axis, HOME the column axis:
+  -- away = row_digits[2], home = col_digits[5]. (away, home) arg order.
+  v_res := admin_score_game(g2, 'final', g.row_digits[2], g.col_digits[5], 'test');
+  if (v_res ->> 'block')::int <> 15 then
+    raise exception 'TEST FAILURE: fixture did not land on block 15, got %',
+      v_res ->> 'block';
+  end if;
   select id into v_payout from payouts where game_id = g2 and payout_type = 'final';
 
   -- A payout starts owed.
