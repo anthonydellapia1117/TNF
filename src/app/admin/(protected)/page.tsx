@@ -72,6 +72,13 @@ export default async function AdminOverview() {
             Export .xlsx
           </a>
           <a
+            href="/api/export/blocks.csv"
+            title="All 100 blocks as plain CSV — block_number, display_name, owner_group, status — for an external grid renderer"
+            className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
+          >
+            Blocks .csv
+          </a>
+          <a
             href="/api/export/backup.sql"
             title="Full data backup — one runnable SQL file that restores everything"
             className="rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors duration-150 hover:text-foreground"
