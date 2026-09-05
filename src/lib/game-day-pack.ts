@@ -221,9 +221,19 @@ export function packTemplateFields(
   };
 }
 
-/** "$750", "$1,000", "$1,500": whole dollars from cents, for the payout module only. */
-function usd(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+/**
+ * "$750", "$1,000", "$1,500", and "$750.50" only when cents are present.
+ * Mirrors fmtUsd in src/lib/format.ts; duplicated, not imported, so this
+ * file stays import-free for Node's type stripping. Keep the two in step.
+ */
+export function usd(cents: number): string {
+  const hasCents = cents % 100 !== 0;
+  return (cents / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: hasCents ? 2 : 0,
+    maximumFractionDigits: hasCents ? 2 : 0,
+  });
 }
 
 /**

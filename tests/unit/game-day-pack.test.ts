@@ -13,6 +13,7 @@ import {
   packSubject,
   packTemplateFields,
   publicObjectUrl,
+  usd,
   type PackGame,
   type PackParticipant,
 } from "@/lib/game-day-pack";
@@ -187,6 +188,16 @@ describe("body", () => {
     expect(pack.body).not.toMatch(/[\u2013\u2014]/);
     expect(pack.subject).toContain("New England Patriots - road");
     expect(hyphenate("a \u2014 b \u2013 c")).toBe("a - b - c");
+  });
+});
+
+describe("payout money", () => {
+  it("formats cents exactly like fmtUsd: whole dollars, cents only when present", () => {
+    expect(usd(75000)).toBe("$750");
+    expect(usd(100000)).toBe("$1,000");
+    expect(usd(150000)).toBe("$1,500");
+    expect(usd(75050)).toBe("$750.50");
+    expect(usd(4425000)).toBe("$44,250");
   });
 });
 

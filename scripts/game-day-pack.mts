@@ -105,17 +105,22 @@ async function fetchGame(gameNo: number): Promise<PackGame> {
 }
 
 // The payout table is public config (money OUT is public, CLAUDE.md). The
-// holiday row applies when the game is a holiday game.
-async function fetchPayouts(game: PackGame): Promise<PackPayouts | null> {
+// holiday row applies when the game is a holiday game. Payouts are a
+// template module, so an unreadable config is a failure, not an omission:
+// the command never writes a manifest with the module silently missing.
+async function fetchPayouts(game: PackGame): Promise<PackPayouts> {
   const select =
     "regular_halftime_cents,regular_final_cents,holiday_halftime_cents,holiday_final_cents";
   const res = await fetch(`${SUPABASE_URL}/rest/v1/config?id=eq.1&select=${select}`, {
     headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
   });
-  if (!res.ok) return null;
+  if (!res.ok) fail(`config ${res.status}: payout amounts unavailable`);
   const rows = (await res.json()) as Record<string, number>[];
   const c = rows[0];
-  if (!c) return null;
+  if (!c) fail("config row missing: payout amounts unavailable");
+  for (const k of select.split(",")) {
+    if (!Number.isInteger(c[k])) fail(`config.${k} is not an integer number of cents`);
+  }
   const holiday = game.game_type === "holiday";
   return {
     halftimeCents: holiday ? c.holiday_halftime_cents : c.regular_halftime_cents,
@@ -202,10 +207,15 @@ async function render(url: string, pngPath: string, pdfPath: string, scale: numb
 // ---------------------------------------------------------------------------
 // Storage upload. The admin signs in through Supabase Auth with the anon key
 // plus ADMIN_EMAIL and ADMIN_PASSWORD (password grant), and the resulting
-// access token authorizes two PUTs into the public bucket game-day. The
-// bucket's insert and update policies re-check is_admin() on that token, the
-// same gate every admin_* RPC uses (migration 22). Neither the password nor
-// the token is ever printed.
+// access token authorizes two POSTs with x-upsert into the public bucket
+// game-day, one per file. The bucket's insert and update policies re-check
+// is_admin() on that token, the same gate every admin_* RPC uses (migration
+// 22). Neither the password nor the token is ever printed.
+//
+// The object name is the game's date and number, so a re-render replaces the
+// file under the same URL. Cache-Control is therefore no-cache: a browser or
+// intermediary revalidates each time instead of serving a stale grid for an
+// hour after a replacement. The URL in the email never changes.
 
 async function adminAccessToken(): Promise<string> {
   const password = process.env.ADMIN_PASSWORD;
@@ -235,7 +245,7 @@ async function uploadPublic(
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${token}`,
       "Content-Type": mimeType,
-      "Cache-Control": "3600",
+      "Cache-Control": "no-cache",
       "x-upsert": "true",
     },
     body: new Uint8Array(readFileSync(path)),
