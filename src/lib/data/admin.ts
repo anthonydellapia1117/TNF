@@ -7,6 +7,7 @@ import type {
   ParticipantFinance,
   Payment,
   Payout,
+  PendingAction,
 } from "@/lib/types";
 
 // Admin reads. These run as the signed-in admin session — RLS admin
@@ -145,6 +146,35 @@ export async function getBlockHistory(
       .includes(String(n)),
   );
   return { block: (block as AdminBlock | null) ?? null, audit: rows };
+}
+
+export interface PendingQueue {
+  /** Open items, oldest first. */
+  items: PendingAction[];
+  /**
+   * Set when the queue table is not there yet (migration 23 not applied).
+   * The page says so instead of crashing the admin nav.
+   */
+  unavailable: string | null;
+}
+
+/** The NEEDS ANTHONY queue: every staged item not yet approved or dismissed. */
+export async function getPendingActions(): Promise<PendingQueue> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("pending_actions")
+    .select("*")
+    .is("resolved_at", null)
+    .order("staged_at");
+  if (error) {
+    // PGRST205: PostgREST has no such table in its schema cache. 42P01: the
+    // relation does not exist. Both mean the migration has not landed.
+    if (error.code === "PGRST205" || error.code === "42P01") {
+      return { items: [], unavailable: error.message };
+    }
+    throw new Error(`pending_actions: ${error.message}`);
+  }
+  return { items: (data ?? []) as PendingAction[], unavailable: null };
 }
 
 export {

@@ -36,9 +36,8 @@ export function fmtDateLongET(iso: string | null): string {
   });
 }
 
-/** "Thu Nov 26, 4:30 PM ET" */
-export function fmtKickoffET(iso: string | null): string {
-  if (!iso) return "Date TBD";
+/** "Thu Nov 26, 4:30 PM ET" for any instant. */
+export function fmtDateTimeET(iso: string): string {
   const d = new Date(iso);
   const date = d.toLocaleDateString("en-US", {
     timeZone: ET,
@@ -52,6 +51,12 @@ export function fmtKickoffET(iso: string | null): string {
     minute: "2-digit",
   });
   return `${date}, ${time} ET`;
+}
+
+/** "Thu Nov 26, 4:30 PM ET", or "Date TBD" for an unscheduled game. */
+export function fmtKickoffET(iso: string | null): string {
+  if (!iso) return "Date TBD";
+  return fmtDateTimeET(iso);
 }
 
 /** The ET calendar date (YYYY-MM-DD) an instant falls on. */

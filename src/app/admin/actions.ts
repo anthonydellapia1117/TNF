@@ -468,6 +468,43 @@ export async function reopenPayout(
 }
 
 // ---------------------------------------------------------------------------
+// NEEDS ANTHONY queue. The sweep stages; Anthony resolves. Approve applies an
+// item only through the existing admin_* RPC its kind maps to, inside
+// admin_approve_pending, so it can touch anything those RPCs touch and is
+// revalidated like them. Dismiss changes nothing but the queue.
+// ---------------------------------------------------------------------------
+
+export interface ApprovePendingResult {
+  applied: boolean;
+  dispatched_to: string | null;
+  result: unknown;
+}
+
+export async function approvePending(
+  id: string,
+  note: string,
+): Promise<ActionResult<ApprovePendingResult>> {
+  if (!id) return { ok: false, error: "Nothing selected." };
+  return rpc(
+    "admin_approve_pending",
+    { p_id: id, p_note: note },
+    [...EVERYTHING, "/admin/queue"],
+  );
+}
+
+export async function dismissPending(
+  id: string,
+  note: string,
+): Promise<ActionResult> {
+  if (!id) return { ok: false, error: "Nothing selected." };
+  return rpc(
+    "admin_dismiss_pending",
+    { p_id: id, p_note: note },
+    ["/admin/queue", "/admin"],
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Session
 // ---------------------------------------------------------------------------
 
