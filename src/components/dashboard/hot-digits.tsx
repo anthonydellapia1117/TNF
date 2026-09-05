@@ -10,7 +10,7 @@ import type { DigitReport } from "@/lib/fan-stats";
 type RechartsModule = typeof import("recharts");
 
 // Chart internals draw into SVG attributes, where CSS variables don't
-// resolve — these mirror the globals.css dark tokens.
+// resolve - these mirror the globals.css dark tokens.
 const ACCENT = "#4F7CFF"; // --pool-accent
 const MUTED = "#8A9099"; // --muted-foreground
 const SURFACE_2 = "#1C2024"; // --surface-2
@@ -34,7 +34,7 @@ export function HotDigits({ report }: { report: DigitReport }) {
         if (!cancelled) setRecharts(mod);
       })
       .catch(() => {
-        // Chunk failed to load — the skeleton stays, nothing breaks.
+        // Chunk failed to load - the skeleton stays, nothing breaks.
       });
     return () => {
       cancelled = true;

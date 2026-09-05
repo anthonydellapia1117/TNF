@@ -41,8 +41,8 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "Dashboard",
     description: isSeasonMode(config)
-      ? "The 2026 season — next game, the grid, and who is winning."
-      : "The 2026 pool at a glance — next game, blocks, money, and winners.",
+      ? "The 2026 season - next game, the grid, and who is winning."
+      : "The 2026 pool at a glance - next game, blocks, money, and winners.",
   };
 }
 
@@ -284,7 +284,7 @@ export default async function DashboardPage() {
         >
           {recent.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No winners yet — the season kicks off Sep 9.
+              No winners yet - the season kicks off Sep 9.
             </p>
           ) : (
             <ul className="space-y-2">
@@ -300,7 +300,7 @@ export default async function DashboardPage() {
                         className="w-9 shrink-0 text-xs font-semibold text-muted-foreground"
                         data-numeric
                       >
-                        {game ? gameCode(game.game_no) : "—"}
+                        {game ? gameCode(game.game_no) : "-"}
                       </span>
                       <span
                         className="text-sm font-semibold whitespace-nowrap"

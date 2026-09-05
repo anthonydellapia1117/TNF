@@ -22,7 +22,7 @@ function ShareCardButton({ cardUrl }: { cardUrl: string }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard images aren't supported everywhere — open the card instead.
+      // Clipboard images aren't supported everywhere - open the card instead.
       window.open(cardUrl, "_blank", "noopener");
     }
   };

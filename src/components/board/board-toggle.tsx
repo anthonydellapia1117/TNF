@@ -3,7 +3,7 @@
 // The persistent Open / Taken / All segmented toggle (spec B1). Selection
 // lives in the URL (?show=) so views are shareable, and in localStorage so
 // the choice survives navigation and reload. ALL is the first-visit
-// default — the board is the sales tool, and the whole point is seeing
+// default - the board is the sales tool, and the whole point is seeing
 // what is available against what is gone. Same pattern as the sibling
 // pool app's segmented toggle: two apps, one visual language.
 
@@ -32,7 +32,7 @@ export function useBoardShowMode(): [BoardShowMode, (m: BoardShowMode) => void] 
       try {
         localStorage.setItem(BOARD_SHOW_KEY, m);
       } catch {
-        /* storage unavailable — URL still carries the choice */
+        /* storage unavailable - URL still carries the choice */
       }
       const next = new URLSearchParams(params.toString());
       if (m === "all") next.delete("show");

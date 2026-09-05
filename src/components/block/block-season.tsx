@@ -153,7 +153,7 @@ export function BlockSeason({
     return (
       <section className="rounded-lg border border-border bg-surface px-4 py-8 text-center">
         <p className="text-sm text-muted-foreground">
-          The schedule isn&apos;t posted yet — 23 Thursday nights are coming.
+          The schedule isn&apos;t posted yet - 23 Thursday nights are coming.
         </p>
       </section>
     );

@@ -173,7 +173,7 @@ export default async function WinnersPage() {
                       className="w-9 shrink-0 text-sm font-semibold"
                       data-numeric
                     >
-                      {game ? gameCode(game.game_no) : "—"}
+                      {game ? gameCode(game.game_no) : "-"}
                     </span>
                     <span className="hidden w-24 shrink-0 truncate text-xs text-muted-foreground sm:inline">
                       {game

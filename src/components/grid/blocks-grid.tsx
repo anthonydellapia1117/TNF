@@ -67,7 +67,7 @@ export function BlocksGrid({
 
   const blockMap = new Map(blocks.map((b) => [b.block_number, b]));
   // Which team is on which axis comes from gridAxes, which is unit-tested
-  // against winningBlock. Do not hardcode home/away here — labels drifting
+  // against winningBlock. Do not hardcode home/away here - labels drifting
   // from the payout math is the failure this indirection exists to stop.
   const axes = gridAxes(game);
   const rowAxis = { team: axes.rowTeam, label: axes.rowLabel, ...teamPalette(axes.rowTeam) };
@@ -100,7 +100,7 @@ export function BlocksGrid({
     >
       {/* Away axis: a solid vertical rail in the team's color, name rotated,
           pinned outside the scroll area (spec A3). AWAY is the vertical axis
-          — see winningBlock in src/lib/pool.ts. */}
+          - see winningBlock in src/lib/pool.ts. */}
       <div className="flex shrink-0 items-stretch">
         <div
           className="flex w-5 items-center justify-center overflow-hidden rounded-md sm:w-6"
@@ -132,7 +132,7 @@ export function BlocksGrid({
           >
             {/* Home axis: a full-width solid bar in the team's color with the
                 digit cells sitting inside it (spec A3). HOME is the
-                horizontal axis — see winningBlock in src/lib/pool.ts.
+                horizontal axis - see winningBlock in src/lib/pool.ts.
                 The corner above the away rail carries the week number, where
                 the hand-built grid has always put it. */}
             <div
@@ -254,7 +254,7 @@ function RowCells({
   );
 }
 
-/** Floating prize pill — a stat callout, not a casino graphic. */
+/** Floating prize pill - a stat callout, not a casino graphic. */
 function PrizeBadge({
   amount,
   filled,
@@ -300,7 +300,7 @@ function GridCell({
   const taken = status === "reserved" || status === "assigned";
   const open = status === "available";
   const both = cell.isHalf && cell.isFinal;
-  // E2: a winning block that is not Assigned is a review flag — red
+  // E2: a winning block that is not Assigned is a review flag - red
   // overrides every other state, and no amount is shown because no payout
   // exists.
   const review = (cell.isHalf || cell.isFinal) && status !== "assigned";
@@ -309,9 +309,9 @@ function GridCell({
 
   const label = [
     `Block ${cell.n}`,
-    name ? `— ${name}` : "— open",
+    name ? `- ${name}` : "- open",
     review
-      ? `· winning block is ${status} — under review, no payout`
+      ? `· winning block is ${status} - under review, no payout`
       : [
           cell.isFinal ? `· final winner ${fmtUsd(finalAmount)}` : "",
           cell.isHalf ? `· halftime winner ${fmtUsd(halfAmount)}` : "",
@@ -390,7 +390,7 @@ function GridCell({
         />
       )}
 
-      {/* Floating prize badges — stacked when one box takes both. */}
+      {/* Floating prize badges - stacked when one box takes both. */}
       {!review && cell.isFinal && (
         <PrizeBadge amount={finalAmount} filled offset={0} />
       )}

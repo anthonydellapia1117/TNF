@@ -5,12 +5,12 @@
 // FULL mode adds the assignment method; LEAN is #, player, block only.
 //
 // No owner group here. Owner codes are collection responsibility and are
-// admin-only since migration 18 — v_public_blocks serves NULL for them to a
+// admin-only since migration 18 - v_public_blocks serves NULL for them to a
 // non-admin caller, so a group column, filter or sort would render blank.
-// Method speaks a two-word vocabulary — REQUESTED (green) or RANDOMIZED
-// (orange) — and status never appears here: reserved-vs-assigned is a
+// Method speaks a two-word vocabulary - REQUESTED (green) or RANDOMIZED
+// (orange) - and status never appears here: reserved-vs-assigned is a
 // payment distinction that lives on /admin. Rows link to the block's
-// read-only detail page — no edit controls exist.
+// read-only detail page - no edit controls exist.
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -75,7 +75,7 @@ export function PlayersClient({
           (a, b) =>
             (sort.dir === "asc" ? 1 : -1) *
               compareValues(sortValue(a), sortValue(b)) ||
-            // Stable tie-break: alias, then block number — Jr/Diz's two rows
+            // Stable tie-break: alias, then block number - Jr/Diz's two rows
             // always sit together in block order.
             (a.display_name ?? "").localeCompare(b.display_name ?? "") ||
             a.block_number - b.block_number,
@@ -89,7 +89,7 @@ export function PlayersClient({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl">Players</h1>
-          {/* No roster size. How many people are in is administrative — the
+          {/* No roster size. How many people are in is administrative - the
               board at /blocks is where availability belongs. A search shows
               how many rows matched, which says nothing about the total. */}
           <p className="mt-0.5 text-sm text-muted-foreground" data-numeric>
@@ -110,7 +110,7 @@ export function PlayersClient({
         className="h-12 sm:h-8"
       />
 
-      {/* Column header — four columns fit a 390px phone with no folding. */}
+      {/* Column header - four columns fit a 390px phone with no folding. */}
       <div className="flex items-center gap-2 px-3 text-2xs tracking-widest text-muted-foreground uppercase">
         <span className="w-6" data-numeric>
           #
@@ -148,7 +148,7 @@ export function PlayersClient({
                 {i + 1}
               </span>
               <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                {b.display_name ?? "—"}
+                {b.display_name ?? "-"}
               </span>
               <span
                 className="w-10 shrink-0 text-right text-sm font-semibold"

@@ -3,7 +3,7 @@
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
-// The app is dark-first by design (spec section 5) — no theme provider.
+// The app is dark-first by design (spec section 5) - no theme provider.
 const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner

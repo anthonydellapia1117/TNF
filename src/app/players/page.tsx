@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export const revalidate = 30;
 
-// Public read-only mirror of the participant roster — one row per claimed
+// Public read-only mirror of the participant roster - one row per claimed
 // block, built entirely from v_public_blocks + config. No admin data path.
 // FULL vs LEAN detail is an admin-flipped config setting, not a deploy.
 export default async function PlayersPage() {

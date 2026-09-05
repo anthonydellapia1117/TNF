@@ -16,7 +16,7 @@ const geistSans = Geist({
 const SITE_URL = "https://ad-26-tnf.vercel.app";
 const SITE_TITLE = "1622 TNF Block Pool";
 const SITE_DESCRIPTION =
-  "1622 TNF Block Pool, 2026 season — live grid, winners, and payouts. 100 blocks, 23 games.";
+  "1622 TNF Block Pool, 2026 season - live grid, winners, and payouts. 100 blocks, 23 games.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
