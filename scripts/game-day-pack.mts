@@ -251,20 +251,66 @@ async function uploadPublic(
     body: new Uint8Array(readFileSync(path)),
   });
   if (!res.ok) {
-    fail(`upload of ${objectName} failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`, 4);
+    throw new Error(`upload of ${objectName} failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
   }
   const url = publicObjectUrl(SUPABASE_URL, objectName);
   const head = await fetch(url, { method: "HEAD" });
-  if (!head.ok) fail(`${url} is not publicly readable (HTTP ${head.status})`, 4);
+  if (!head.ok) throw new Error(`${url} is not publicly readable (HTTP ${head.status})`);
   return url;
 }
 
+const UPLOAD_ATTEMPTS = 3;
+
+/** One file, retried: a transient failure must not leave the pair half replaced. */
+async function uploadWithRetry(
+  token: string,
+  objectName: string,
+  path: string,
+  mimeType: string,
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      return await uploadPublic(token, objectName, path, mimeType);
+    } catch (e) {
+      lastError = e;
+      if (attempt < UPLOAD_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/**
+ * Both files, under their stable names. The URLs are fixed by design (the
+ * game's date and number) so a link in an email that already went out keeps
+ * working after a re-render, which rules out a versioned prefix. The pair
+ * is therefore replaced one file after the other: the PDF first, then the
+ * PNG, each with retries. If the second still fails after the first was
+ * replaced, the published pair is out of step and the command says so with
+ * exit 4; the rerun with --upload restores it. Nothing is deleted from the
+ * bucket, by policy.
+ */
 async function uploadGrid(filenameBase: string, pngPath: string, pdfPath: string): Promise<GridDelivery> {
   const names = gridObjectNames(filenameBase);
   const token = await adminAccessToken();
-  const pngUrl = await uploadPublic(token, names.png, pngPath, "image/png");
-  const pdfUrl = await uploadPublic(token, names.pdf, pdfPath, "application/pdf");
-  return { mode: "links", pngUrl, pdfUrl };
+  let pdfUrl: string;
+  try {
+    pdfUrl = await uploadWithRetry(token, names.pdf, pdfPath, "application/pdf");
+  } catch (e) {
+    fail(`${e instanceof Error ? e.message : String(e)}; nothing was replaced in ${STORAGE_BUCKET}`, 4);
+  }
+  try {
+    const pngUrl = await uploadWithRetry(token, names.png, pngPath, "image/png");
+    return { mode: "links", pngUrl, pdfUrl };
+  } catch (e) {
+    fail(
+      `${e instanceof Error ? e.message : String(e)}; ${names.pdf} was replaced but ${names.png} was not, ` +
+        `so the published pair is out of step. Rerun with --upload to restore it.`,
+      4,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
