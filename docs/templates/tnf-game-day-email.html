@@ -1,0 +1,179 @@
+<!--
+  TNF game-day email template.
+  Copied 2026-09-05 from the design kit, a read-only reference:
+    nfl-pool-design-kit/tnf/email-templates/tnf-weekly-email-template.html
+  with its brief at
+    nfl-pool-design-kit/docs/templates/2026-09-04_tnf-game-day-email.md
+  Fields: live_grid_url, away_team, home_team, game_date, kickoff_time,
+  network, week_number, broadcast_line, grid_image_url.
+  Module order: game hero, board, game notes, Lock, payouts, footer.
+  Copy rule: no em dashes.
+  One change from the source: the footer name and phone are the fields
+  footer_name and footer_phone instead of literals, so this public repo
+  carries no personal phone number.
+  src/lib/game-day-pack.ts (packBody) renders the same modules in the same
+  order as plain text; this file is the reference for an HTML version.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+  <title>TNF | Week {{week_number}} | {{away_team}} @ {{home_team}}</title>
+</head>
+<body bgcolor="#070A0D" style="margin:0; padding:0; width:100%; background-color:#070A0D; color:#F2F5F7; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+  <div style="display:none!important; max-height:0; max-width:0; overflow:hidden; opacity:0; color:transparent; mso-hide:all; line-height:1px; font-size:1px;">Week {{week_number}} board, game notes, Lock, and payouts for {{away_team}} at {{home_team}}.</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#070A0D" style="width:100%; min-width:100%; margin:0; padding:0; background-color:#070A0D; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+    <tr>
+      <td align="center" bgcolor="#070A0D" style="padding:24px 12px 30px; background-color:#070A0D;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D1216" style="width:100%; max-width:640px; background-color:#0D1216; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; font-family:Arial, Helvetica, sans-serif; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">
+          <!-- SHARED SHELL: HEADER -->
+          <tr>
+            <td height="4" bgcolor="#F2A93B" style="height:4px; line-height:4px; font-size:4px; background-color:#F2A93B;">&nbsp;</td>
+          </tr>
+          <tr>
+            <td bgcolor="#0D1216" style="padding:17px 20px; background-color:#0D1216; border-left:1px solid #273139; border-right:1px solid #273139; border-bottom:1px solid #273139;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D1216" style="width:100%; background-color:#0D1216; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">
+                <tr>
+                  <td valign="middle" bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:20px; font-weight:700; letter-spacing:0.2px; color:#F2F5F7;">TNF <span style="color:#F2A93B; font-family:Arial, Helvetica, sans-serif;">|</span> 2026 NFL Pool</td>
+                  <td align="right" valign="middle" bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:16px; font-weight:700; letter-spacing:1.2px; color:#8B969F; white-space:nowrap; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">WEEK {{week_number}}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- MODULE: GAME HERO -->
+          <tr>
+            <td bgcolor="#0D1216" style="padding:23px 20px 20px; background-color:#0D1216; border:1px solid #273139;">
+              <div style="font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:14px; font-weight:700; letter-spacing:1.5px; color:#F2A93B;">{{broadcast_line}}</div>
+              <div style="padding-top:6px; font-family:Arial, Helvetica, sans-serif; font-size:29px; line-height:34px; font-weight:800; letter-spacing:-0.5px; color:#F2F5F7; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">{{away_team}} <span style="color:#68747D; font-family:Arial, Helvetica, sans-serif;">AT</span> {{home_team}}</div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#11171C" style="width:100%; margin-top:16px; background-color:#11171C; border:1px solid #2A343C; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; table-layout:fixed; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">
+                <tr>
+                  <td width="55%" valign="top" bgcolor="#11171C" style="width:55%; padding:11px 12px; background-color:#11171C;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">DATE</div>
+                    <div style="padding-top:3px; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px; font-weight:800; color:#F2F5F7;">{{game_date}}</div>
+                  </td>
+                  <td width="45%" valign="top" bgcolor="#11171C" style="width:45%; padding:11px 12px; background-color:#11171C; border-left:1px solid #29333A;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">KICKOFF</div>
+                    <div style="padding-top:3px; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px; font-weight:800; color:#F2F5F7; white-space:nowrap;">{{kickoff_time}}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="70%" valign="top" bgcolor="#11171C" style="width:70%; padding:11px 12px; background-color:#11171C; border-top:1px solid #29333A;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">NETWORK</div>
+                    <div style="padding-top:3px; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px; font-weight:800; color:#F2F5F7;">{{network}}</div>
+                  </td>
+                  <td width="30%" valign="top" bgcolor="#11171C" style="width:30%; padding:11px 12px; background-color:#11171C; border-top:1px solid #29333A; border-left:1px solid #29333A;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">WEEK</div>
+                    <div style="padding-top:3px; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px; font-weight:800; color:#F2A93B;">{{week_number}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- MODULE: BOARD; LINK THE IMAGE AND TEXT TO THE LIVE APP -->
+          <tr>
+            <td bgcolor="#0D1216" style="padding:18px 20px 20px; background-color:#0D1216; border:1px solid #273139;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D1216" style="width:100%; background-color:#0D1216; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+                <tr>
+                  <td bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:16px; font-weight:700; letter-spacing:1.3px; color:#F2F5F7;">THE BOARD</td>
+                  <td align="right" bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:16px; font-weight:700; letter-spacing:0.9px; color:#78838C;">HOME &rarr; <span style="color:#59646C;">&middot;</span> AWAY &darr;</td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#090D10" style="width:100%; margin-top:12px; background-color:#090D10; border:1px solid #2A343C; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+                <tr>
+                  <td align="center" bgcolor="#090D10" style="padding:0; background-color:#090D10;">
+                    <a href="{{live_grid_url}}" target="_blank" style="display:block; color:#F2A93B; text-decoration:none;"><img src="{{grid_image_url}}" width="100%" border="0" alt="Week {{week_number}} TNF block grid. HOME digits run across the top; AWAY digits run down the left." style="display:block; width:100%; max-width:598px; height:auto; margin:0; border:0; color:#C7CFD5; font-family:Arial, Helvetica, sans-serif; font-size:13px; line-height:18px;"></a>
+                  </td>
+                </tr>
+              </table>
+              <div style="padding-top:11px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:18px; font-weight:400; color:#8B969F;">Tap the board for the live grid and current owner names.</div>
+              <div style="padding-top:5px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:18px; font-weight:800; letter-spacing:0.5px;"><a href="{{live_grid_url}}" target="_blank" style="color:#F2A93B; text-decoration:underline;">VIEW LIVE GRID &amp; OWNERS &rarr;</a></div>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- MODULE: GAME WRITE-UP -->
+          <tr>
+            <td bgcolor="#0D1216" style="padding:20px; background-color:#0D1216; border:1px solid #273139;">
+              <div style="font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:14px; font-weight:700; letter-spacing:1.5px; color:#F2A93B;">GAME NOTES</div>
+              <div style="padding-top:6px; font-family:Arial, Helvetica, sans-serif; font-size:21px; line-height:27px; font-weight:800; letter-spacing:-0.2px; color:#F2F5F7;">{{writeup_headline}}</div>
+              <div style="padding-top:12px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; font-weight:400; color:#C7CFD5;">{{writeup_paragraph_1}}</div>
+              <div style="padding-top:9px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:23px; font-weight:400; color:#C7CFD5;">{{writeup_paragraph_2}}</div>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- MODULE: LOCK; USE THE SAME ROW FOR PENDING AND FROZEN STATES -->
+          <tr>
+            <td bgcolor="#0D1216" style="padding:18px 20px; background-color:#0D1216; border:1px solid #273139;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#11171C" style="width:100%; background-color:#11171C; border:1px solid #4E3A1C; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+                <tr>
+                  <td width="5" bgcolor="#F2A93B" style="width:5px; background-color:#F2A93B; font-size:1px; line-height:1px;">&nbsp;</td>
+                  <td bgcolor="#11171C" style="padding:13px 14px; background-color:#11171C;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:800; letter-spacing:1.2px; color:#F2A93B;">THE LOCK</div>
+                    <div style="padding-top:4px; font-family:Arial, Helvetica, sans-serif; font-size:15px; line-height:21px; font-weight:800; color:#F2F5F7; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">{{lock_pick}} <span style="color:#68747D;">&middot;</span> {{lock_odds}} <span style="color:#68747D;">&middot;</span> {{lock_book}}</div>
+                    <div style="padding-top:3px; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:16px; font-weight:700; color:#8B969F; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">{{lock_status_line}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- MODULE: PAYOUTS -->
+          <tr>
+            <td bgcolor="#0D1216" style="padding:18px 20px; background-color:#0D1216; border:1px solid #273139;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#0D1216" style="width:100%; background-color:#0D1216; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt;">
+                <tr>
+                  <td bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:11px; line-height:16px; font-weight:700; letter-spacing:1.3px; color:#F2F5F7;">PAYOUTS</td>
+                  <td align="right" bgcolor="#0D1216" style="background-color:#0D1216; font-family:Arial, Helvetica, sans-serif; font-size:10px; line-height:16px; font-weight:700; letter-spacing:0.9px; color:#78838C;">THIS GAME</td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#11171C" style="width:100%; margin-top:12px; background-color:#11171C; border:1px solid #2A343C; border-collapse:collapse; mso-table-lspace:0pt; mso-table-rspace:0pt; table-layout:fixed; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">
+                <tr>
+                  <td width="50%" valign="top" bgcolor="#11171C" style="width:50%; padding:14px 14px 13px; background-color:#11171C;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">HALFTIME</div>
+                    <div style="padding-top:4px; font-family:Arial, Helvetica, sans-serif; font-size:20px; line-height:25px; font-weight:800; color:#F2F5F7;">{{halftime_payout}}</div>
+                  </td>
+                  <td width="50%" valign="top" bgcolor="#11171C" style="width:50%; padding:14px 14px 13px; background-color:#11171C; border-left:1px solid #29333A;">
+                    <div style="font-family:Arial, Helvetica, sans-serif; font-size:9px; line-height:12px; font-weight:700; letter-spacing:1px; color:#75818A;">FINAL</div>
+                    <div style="padding-top:4px; font-family:Arial, Helvetica, sans-serif; font-size:20px; line-height:25px; font-weight:800; color:#F2A93B;">{{final_payout}}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td height="10" bgcolor="#070A0D" style="height:10px; line-height:10px; font-size:10px; background-color:#070A0D;">&nbsp;</td>
+          </tr>
+
+          <!-- SHARED SHELL: FOOTER -->
+          <tr>
+            <td bgcolor="#070A0D" style="padding:19px 4px 4px; background-color:#070A0D;">
+              <div style="font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:18px; font-weight:700; color:#C7CFD5;">{{footer_name}}</div>
+              <div style="padding-top:1px; font-family:Arial, Helvetica, sans-serif; font-size:12px; line-height:18px; font-weight:400; color:#7F8A93; font-variant-numeric:tabular-nums; font-feature-settings:'tnum' 1;">{{footer_phone}}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
