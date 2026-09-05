@@ -1,12 +1,13 @@
 // Admin command: the game-day email pack for one game.
 //
-//   npm run game-day -- --game 1 --participants /path/to/participants.json
+//   npm run game-day -- --game 1 --participants /path/to/participants.json --upload
 //
-// Renders /grid?g=N as a PNG and a one-page PDF, computes the BCC list from
-// an admin participant export, and writes a manifest with everything the
-// Gmail draft needs: subject, body, BCC, attachments. Creating the draft is
-// the caller's step (the Gmail connector); this command never sends mail,
-// never talks to Gmail, and never writes to the database.
+// Renders /grid?g=N as a PNG and a one-page PDF, uploads both to the PUBLIC
+// storage bucket game-day (--upload), computes the BCC list from an admin
+// participant export, and writes a manifest with everything the Gmail draft
+// needs: subject, body (with the two public links), BCC. Creating the draft
+// is the caller's step (the Gmail connector); this command never sends mail
+// and never writes to the database.
 //
 // Inputs
 //   --game N              game number, 1 to 23 (required)
@@ -15,18 +16,32 @@
 //                         holding a block. Admin-only data: keep it out of
 //                         the repo. The SQL that produces it is in
 //                         docs/ROUTINES.md under TNF Game Day Pack.
+//   --upload              upload the PNG and the PDF to the game-day bucket
+//                         over the Storage REST API and put both public URLs
+//                         in the body; the message then carries no
+//                         attachment. Signs in as the admin through Supabase
+//                         Auth (password grant) with ADMIN_EMAIL (default in
+//                         src/lib/env.ts) and ADMIN_PASSWORD. The anon key is
+//                         the only key involved; there is no service-role
+//                         key anywhere in this repo. Exit 4 when the sign-in
+//                         or an upload fails.
+//   --link-only           no files on the message and no upload: the body
+//                         points to the live grid alone. For a connector
+//                         draft when the bucket is not reachable.
 //   --base URL            the app (default https://ad-26-tnf.vercel.app)
 //   --out DIR             output directory (default out/game-day, gitignored)
 //   --scale N             device scale factor for the PNG (default 2)
 //   --allow-undrawn       render even if the digits are not live yet
-//   --draft               also write the draft into Gmail Drafts over IMAP,
-//                         attachments included, using GMAIL_USER and
-//                         GMAIL_APP_PASSWORD (a Google app password, which
-//                         needs 2-Step Verification on the account). This is
-//                         a draft: nothing is sent, ever.
+//   --draft               also write the draft into Gmail Drafts over IMAP
+//                         using GMAIL_USER and GMAIL_APP_PASSWORD (a Google
+//                         app password, which needs 2-Step Verification on
+//                         the account). This is a draft: nothing is sent,
+//                         ever. Optional: the routine uses the Gmail
+//                         connector instead, since the body carries links.
 //
-// Without --draft the command still writes <name>.eml next to the manifest,
-// the same message, for anyone who wants to inspect or import it.
+// Without --upload and --link-only the message carries both files as
+// attachments (the pre-bucket behaviour). The command always writes
+// <name>.eml next to the manifest, the same message, for inspection.
 //
 // Needs Node 22.18 or newer (type stripping is on by default) and a Chromium:
 // TNF_CHROMIUM=/path/to/chrome, else /opt/pw-browsers/chromium, else the
@@ -40,8 +55,14 @@ import { ADMIN_EMAIL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/lib/env.ts"
 import {
   buildDraftMime,
   buildGameDayPack,
+  draftAttachments,
+  gridObjectNames,
+  publicObjectUrl,
+  STORAGE_BUCKET,
+  type GridDelivery,
   type PackGame,
   type PackParticipant,
+  type PackPayouts,
 } from "../src/lib/game-day-pack.ts";
 
 const DEFAULT_BASE = "https://ad-26-tnf.vercel.app";
@@ -72,7 +93,7 @@ function fail(msg: string, code = 1): never {
 
 async function fetchGame(gameNo: number): Promise<PackGame> {
   const select =
-    "game_no,week,kickoff_at,away_team,home_team,network,holiday_label,row_digits,col_digits";
+    "game_no,week,kickoff_at,away_team,home_team,network,holiday_label,game_type,row_digits,col_digits";
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/v_public_games?game_no=eq.${gameNo}&select=${select}`,
     { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } },
@@ -81,6 +102,30 @@ async function fetchGame(gameNo: number): Promise<PackGame> {
   const rows = (await res.json()) as PackGame[];
   if (rows.length !== 1) fail(`game ${gameNo} not found`);
   return rows[0];
+}
+
+// The payout table is public config (money OUT is public, CLAUDE.md). The
+// holiday row applies when the game is a holiday game. Payouts are a
+// template module, so an unreadable config is a failure, not an omission:
+// the command never writes a manifest with the module silently missing.
+async function fetchPayouts(game: PackGame): Promise<PackPayouts> {
+  const select =
+    "regular_halftime_cents,regular_final_cents,holiday_halftime_cents,holiday_final_cents";
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/config?id=eq.1&select=${select}`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!res.ok) fail(`config ${res.status}: payout amounts unavailable`);
+  const rows = (await res.json()) as Record<string, number>[];
+  const c = rows[0];
+  if (!c) fail("config row missing: payout amounts unavailable");
+  for (const k of select.split(",")) {
+    if (!Number.isInteger(c[k])) fail(`config.${k} is not an integer number of cents`);
+  }
+  const holiday = game.game_type === "holiday";
+  return {
+    halftimeCents: holiday ? c.holiday_halftime_cents : c.regular_halftime_cents,
+    finalCents: holiday ? c.holiday_final_cents : c.regular_final_cents,
+  };
 }
 
 function readParticipants(path: string): PackParticipant[] {
@@ -158,6 +203,115 @@ async function render(url: string, pngPath: string, pdfPath: string, scale: numb
   }
 }
 
+
+// ---------------------------------------------------------------------------
+// Storage upload. The admin signs in through Supabase Auth with the anon key
+// plus ADMIN_EMAIL and ADMIN_PASSWORD (password grant), and the resulting
+// access token authorizes two POSTs with x-upsert into the public bucket
+// game-day, one per file. The bucket's insert and update policies re-check
+// is_admin() on that token, the same gate every admin_* RPC uses (migration
+// 22). Neither the password nor the token is ever printed.
+//
+// The object name is the game's date and number, so a re-render replaces the
+// file under the same URL. Cache-Control is therefore no-cache: a browser or
+// intermediary revalidates each time instead of serving a stale grid for an
+// hour after a replacement. The URL in the email never changes.
+
+async function adminAccessToken(): Promise<string> {
+  const password = process.env.ADMIN_PASSWORD;
+  if (!password) {
+    fail("--upload needs ADMIN_PASSWORD (the admin's Supabase Auth password) in the environment", 4);
+  }
+  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    method: "POST",
+    headers: { apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: ADMIN_EMAIL, password }),
+  });
+  if (!res.ok) fail(`admin sign-in failed (HTTP ${res.status})`, 4);
+  const json = (await res.json()) as { access_token?: string };
+  if (!json.access_token) fail("admin sign-in returned no access token", 4);
+  return json.access_token;
+}
+
+async function uploadPublic(
+  token: string,
+  objectName: string,
+  path: string,
+  mimeType: string,
+): Promise<string> {
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${objectName}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": mimeType,
+      "Cache-Control": "no-cache",
+      "x-upsert": "true",
+    },
+    body: new Uint8Array(readFileSync(path)),
+  });
+  if (!res.ok) {
+    throw new Error(`upload of ${objectName} failed (HTTP ${res.status}): ${(await res.text()).slice(0, 200)}`);
+  }
+  const url = publicObjectUrl(SUPABASE_URL, objectName);
+  const head = await fetch(url, { method: "HEAD" });
+  if (!head.ok) throw new Error(`${url} is not publicly readable (HTTP ${head.status})`);
+  return url;
+}
+
+const UPLOAD_ATTEMPTS = 3;
+
+/** One file, retried: a transient failure must not leave the pair half replaced. */
+async function uploadWithRetry(
+  token: string,
+  objectName: string,
+  path: string,
+  mimeType: string,
+): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= UPLOAD_ATTEMPTS; attempt++) {
+    try {
+      return await uploadPublic(token, objectName, path, mimeType);
+    } catch (e) {
+      lastError = e;
+      if (attempt < UPLOAD_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, 2000 * attempt));
+      }
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}
+
+/**
+ * Both files, under their stable names. The URLs are fixed by design (the
+ * game's date and number) so a link in an email that already went out keeps
+ * working after a re-render, which rules out a versioned prefix. The pair
+ * is therefore replaced one file after the other: the PDF first, then the
+ * PNG, each with retries. If the second still fails after the first was
+ * replaced, the published pair is out of step and the command says so with
+ * exit 4; the rerun with --upload restores it. Nothing is deleted from the
+ * bucket, by policy.
+ */
+async function uploadGrid(filenameBase: string, pngPath: string, pdfPath: string): Promise<GridDelivery> {
+  const names = gridObjectNames(filenameBase);
+  const token = await adminAccessToken();
+  let pdfUrl: string;
+  try {
+    pdfUrl = await uploadWithRetry(token, names.pdf, pdfPath, "application/pdf");
+  } catch (e) {
+    fail(`${e instanceof Error ? e.message : String(e)}; nothing was replaced in ${STORAGE_BUCKET}`, 4);
+  }
+  try {
+    const pngUrl = await uploadWithRetry(token, names.png, pngPath, "image/png");
+    return { mode: "links", pngUrl, pdfUrl };
+  } catch (e) {
+    fail(
+      `${e instanceof Error ? e.message : String(e)}; ${names.pdf} was replaced but ${names.png} was not, ` +
+        `so the published pair is out of step. Rerun with --upload to restore it.`,
+      4,
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Gmail Drafts over IMAP. Four commands: LOGIN, APPEND to [Gmail]/Drafts,
@@ -277,25 +431,46 @@ async function main() {
   const base = arg("base") ?? DEFAULT_BASE;
   const outDir = resolve(arg("out") ?? "out/game-day");
   const scale = Number(arg("scale") ?? 2);
+  if (flag("upload") && flag("link-only")) fail("--upload and --link-only exclude each other");
 
   const game = await fetchGame(gameNo);
   const participants = readParticipants(resolve(participantsPath));
-  const pack = buildGameDayPack(game, participants, base);
+  const payouts = await fetchPayouts(game);
+  const draft = buildGameDayPack(game, participants, base, { payouts });
 
-  if (!pack.digitsLive && !flag("allow-undrawn")) {
+  if (!draft.digitsLive && !flag("allow-undrawn")) {
     fail(
-      `${pack.gameCode} digits are not live in the public projection; the grid would render as "?". ` +
+      `${draft.gameCode} digits are not live in the public projection; the grid would render as "?". ` +
         `Publish them first, or pass --allow-undrawn.`,
       2,
     );
   }
 
   mkdirSync(outDir, { recursive: true });
-  const pngPath = resolve(outDir, `${pack.filenameBase}.png`);
-  const pdfPath = resolve(outDir, `${pack.filenameBase}.pdf`);
-  const manifestPath = resolve(outDir, `${pack.filenameBase}.manifest.json`);
+  const pngPath = resolve(outDir, `${draft.filenameBase}.png`);
+  const pdfPath = resolve(outDir, `${draft.filenameBase}.pdf`);
+  const manifestPath = resolve(outDir, `${draft.filenameBase}.manifest.json`);
 
-  await render(pack.gridUrl, pngPath, pdfPath, scale);
+  await render(draft.gridUrl, pngPath, pdfPath, scale);
+
+  // A placeholder grid (digits not live) is never published to the bucket.
+  let grid: GridDelivery = { mode: "attached" };
+  if (flag("link-only")) grid = { mode: "live-only" };
+  else if (flag("upload")) {
+    if (!draft.digitsLive) fail(`${draft.gameCode} digits are not live; refusing to upload a placeholder grid`, 2);
+    grid = await uploadGrid(draft.filenameBase, pngPath, pdfPath);
+  }
+  const pack = buildGameDayPack(game, participants, base, { payouts, grid });
+
+  const files = [
+    { path: pngPath, filename: `${pack.filenameBase}.png`, mimeType: "image/png" },
+    { path: pdfPath, filename: `${pack.filenameBase}.pdf`, mimeType: "application/pdf" },
+  ];
+  const attachments = draftAttachments(pack.grid, files.map((f) => ({
+    filename: f.filename,
+    mimeType: f.mimeType,
+    content: new Uint8Array(readFileSync(f.path)),
+  })));
 
   const manifest = {
     game: {
@@ -307,35 +482,34 @@ async function main() {
       kickoff_at: game.kickoff_at,
       network: game.network,
       holiday_label: game.holiday_label,
+      game_type: game.game_type ?? null,
     },
     digitsLive: pack.digitsLive,
     gridUrl: pack.gridUrl,
+    grid: pack.grid,
+    links: pack.grid.mode === "links" ? { png: pack.grid.pngUrl, pdf: pack.grid.pdfUrl } : null,
+    fields: pack.fields,
+    payouts,
     subject: pack.subject,
     body: pack.body,
     bcc: pack.recipients.bcc,
     noEmail: pack.recipients.noEmail,
     counts: pack.recipients.counts,
-    attachments: [
-      { path: pngPath, filename: `${pack.filenameBase}.png`, mimeType: "image/png" },
-      { path: pdfPath, filename: `${pack.filenameBase}.pdf`, mimeType: "application/pdf" },
-    ],
+    files,
+    attachments: attachments.map((a) => ({ filename: a.filename, mimeType: a.mimeType })),
     renderedAt: new Date().toISOString(),
   };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
-  // The message itself: Bcc only, both files attached. Always written next
-  // to the manifest; pushed into Gmail Drafts only on --draft.
+  // The message itself: Bcc only, files attached only when not linked. Always
+  // written next to the manifest; pushed into Gmail Drafts only on --draft.
   const from = process.env.GMAIL_USER ?? ADMIN_EMAIL;
   const mime = buildDraftMime({
     from,
     bcc: pack.recipients.bcc,
     subject: pack.subject,
     body: pack.body,
-    attachments: manifest.attachments.map((a) => ({
-      filename: a.filename,
-      mimeType: a.mimeType,
-      content: new Uint8Array(readFileSync(a.path)),
-    })),
+    attachments,
   });
   const emlPath = resolve(outDir, `${pack.filenameBase}.eml`);
   writeFileSync(emlPath, mime);
@@ -359,12 +533,22 @@ async function main() {
   }
   console.log(`png: ${pngPath} (${kb(pngPath)})`);
   console.log(`pdf: ${pdfPath} (${kb(pdfPath)})`);
+  if (pack.grid.mode === "links") {
+    console.log(`png link: ${pack.grid.pngUrl}`);
+    console.log(`pdf link: ${pack.grid.pdfUrl}`);
+  } else {
+    console.log(
+      pack.grid.mode === "attached"
+        ? "grid delivery: attached to the message (pass --upload for links)"
+        : "grid delivery: live grid link only (--link-only)",
+    );
+  }
   console.log(`manifest: ${manifestPath}`);
   console.log(`eml: ${emlPath} (${kb(emlPath)})`);
   console.log(
     draftResult
       ? `gmail draft: written to ${DRAFTS} for ${from} (${draftResult})`
-      : "gmail draft: not written (pass --draft with GMAIL_APP_PASSWORD set)",
+      : "gmail draft: not written (create it from the manifest with the Gmail connector, or pass --draft with GMAIL_APP_PASSWORD set)",
   );
 }
 
