@@ -137,6 +137,35 @@ begin
       if sqlerrm like '%TEST FAILURE%' then raise; end if;
   end;
 
+  -- kind and source_message_id are stored trimmed, so a padded restage of
+  -- the same message is still caught by the open-row dedupe and a padded
+  -- kind still reaches its dispatcher.
+  declare
+    v_trim uuid;
+    r2 pending_actions;
+  begin
+    v_trim := admin_stage_pending('  identity_conflict ', '{"who": "x"}'::jsonb,
+                                  '  gmail-msg-17-trim  ', 'test');
+    select * into r2 from pending_actions where id = v_trim;
+    if r2.kind <> 'identity_conflict' or r2.source_message_id <> 'gmail-msg-17-trim' then
+      raise exception 'TEST FAILURE: kind / source_message_id stored untrimmed: [%] [%]',
+        r2.kind, r2.source_message_id;
+    end if;
+    begin
+      perform admin_stage_pending('identity_conflict', '{"who": "x"}'::jsonb,
+                                  'gmail-msg-17-trim', 'test');
+      raise exception 'TEST FAILURE: dedupe missed the trimmed duplicate';
+    exception
+      when others then
+        if sqlerrm like '%TEST FAILURE%' then raise; end if;
+    end;
+    -- A blank-after-trim source is stored as null, not as spaces.
+    v_trim := admin_stage_pending('identity_conflict', '{"who": "y"}'::jsonb, '   ', 'test');
+    if (select source_message_id from pending_actions where id = v_trim) is not null then
+      raise exception 'TEST FAILURE: blank source_message_id stored as spaces';
+    end if;
+  end;
+
   -- Junk is refused: a non-object payload, a blank kind.
   begin
     perform admin_stage_pending('payment', '[1,2]'::jsonb, null, 'test');
@@ -357,6 +386,41 @@ begin
   end if;
   if (select resolved_at from pending_actions where id = v_id) is not null then
     raise exception 'TEST FAILURE: a refused approve resolved the row';
+  end if;
+
+  -- Zero and negative amounts are refused before any RPC is reached: zero
+  -- is a bogus ledger row, negative is a correction the sweep never stages.
+  v_id := admin_stage_pending('payment',
+    jsonb_build_object('participant_id', v_pid, 'amount_cents', 0,
+                       'method', 'venmo', 'paid_on', '2026-09-04',
+                       'venmo_txn_id', 'test-txn-17-zero'),
+    'gmail-msg-17-zero', 'test');
+  begin
+    perform admin_approve_pending(v_id, null, 'test');
+    raise exception 'TEST FAILURE: zero-amount payment approved';
+  exception
+    when others then
+      if sqlerrm like '%TEST FAILURE%' then raise; end if;
+  end;
+  if (select count(*) from payments) <> n_before then
+    raise exception 'TEST FAILURE: a zero-amount payment reached the ledger';
+  end if;
+  if (select resolved_at from pending_actions where id = v_id) is not null then
+    raise exception 'TEST FAILURE: a refused zero-amount approve resolved the row';
+  end if;
+  v_id := admin_stage_pending('payment',
+    jsonb_build_object('participant_id', v_pid, 'amount_cents', -50000,
+                       'method', 'venmo', 'paid_on', '2026-09-04'),
+    'gmail-msg-17-neg', 'test');
+  begin
+    perform admin_approve_pending(v_id, null, 'test');
+    raise exception 'TEST FAILURE: negative-amount payment approved';
+  exception
+    when others then
+      if sqlerrm like '%TEST FAILURE%' then raise; end if;
+  end;
+  if (select count(*) from payments) <> n_before then
+    raise exception 'TEST FAILURE: a negative-amount payment reached the ledger';
   end if;
 
   -- A payment with nobody attached is refused before any RPC is reached.

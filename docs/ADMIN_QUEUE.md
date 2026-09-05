@@ -18,26 +18,29 @@ Staging is not deciding. A staged row changes nothing about the pool.
 
 ## Flow
 
-1. The sweep calls `admin_stage_pending(kind, payload, source_message_id)`
-   once per item, as the admin session. `payload` is a JSON object holding
-   what it found; `source_message_id` is the Gmail message it read. The
-   same kind and message cannot be open twice, so an hourly re-read does
-   not pile up duplicates.
+1. The sweep calls `admin_stage_pending(p_kind, p_payload,
+   p_source_message_id, p_actor)` once per item, as the admin session.
+   `p_payload` is a JSON object holding what it found; `p_source_message_id`
+   is the Gmail message it read; `p_actor` is who is calling, and goes into
+   the audit row (every RPC in this schema takes it last; the app's server
+   actions fill it from the signed-in session, a script passes its own
+   label). Kind and message id are stored trimmed. The same kind and message
+   cannot be open twice, so an hourly re-read does not pile up duplicates.
 2. Anthony opens `/admin/queue`: kind, when it was staged, the message id,
    a one-line summary, the raw payload, and two buttons.
-3. **Approve** calls `admin_approve_pending(id, note)`. What that does
-   depends on the kind:
+3. **Approve** calls `admin_approve_pending(p_id, p_note, p_actor)`. What
+   that does depends on the kind:
 
    | kind | Approve does |
    |------|--------------|
-   | `payment` | `admin_record_payment` with the payload's `participant_id`, `amount_cents`, `method`, `paid_on`, `venmo_txn_id`, `source_ref`, `note`. Promotes the block if that settles it, as the ledger always has. |
+   | `payment` | `admin_record_payment` with the payload's `participant_id`, `amount_cents`, `method`, `paid_on`, `venmo_txn_id`, `source_ref`, `note`. Refused before the RPC if `participant_id` or `paid_on` is missing or `amount_cents` is not a positive whole number of cents. Promotes the block if that settles it, as the ledger always has. |
    | `reserve_blocks` | `admin_reserve_blocks` with `block_numbers`, `participant_id`, `method`, `ref`. |
    | anything else | Records `resolution = approved` and applies nothing. Anthony does it from the relevant admin page. |
 
    If the dispatched RPC refuses (block not available, duplicate Venmo txn,
    participant missing) the row stays open and the error reaches the screen.
-4. **Dismiss** calls `admin_dismiss_pending(id, note)`: resolved, nothing
-   applied.
+4. **Dismiss** calls `admin_dismiss_pending(p_id, p_note, p_actor)`:
+   resolved, nothing applied.
 
 ## Rules
 

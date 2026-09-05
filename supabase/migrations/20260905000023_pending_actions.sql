@@ -20,12 +20,13 @@
 -- The table takes no direct writes from any role. Every other admin table
 -- lets the admin session write under RLS and relies on convention to keep
 -- writes inside the RPCs; the queue is fed by an automated sweep, so the
--- convention is enforced by grants instead: anon and authenticated get
--- SELECT only (gated by is_admin() under RLS), and the three RPCs are
--- SECURITY DEFINER so they can write a table their caller cannot. Each still
--- starts with assert_admin(): is_admin() reads request.jwt.claims, a session
--- GUC that SECURITY DEFINER does not touch, so the real caller is judged.
--- search_path is pinned, as on every function in this schema.
+-- convention is enforced by grants instead: authenticated gets SELECT only
+-- (gated by is_admin() under RLS), anon gets no privilege at all, and the
+-- three RPCs are SECURITY DEFINER so they can write a table their caller
+-- cannot. Each still starts with assert_admin(): is_admin() reads
+-- request.jwt.claims, a session GUC that SECURITY DEFINER does not touch, so
+-- the real caller is judged. search_path is pinned, as on every function in
+-- this schema.
 
 create table pending_actions (
   id uuid primary key default gen_random_uuid(),
@@ -89,10 +90,13 @@ as $$
 declare
   v_id uuid;
   v_open uuid;
-  v_source text := nullif(p_source_message_id, '');
+  -- Stored trimmed: the CASE in admin_approve_pending matches kind exactly,
+  -- and the open-row dedupe compares source_message_id exactly.
+  v_kind text := trim(p_kind);
+  v_source text := nullif(trim(coalesce(p_source_message_id, '')), '');
 begin
   perform assert_admin();
-  if p_kind is null or length(trim(p_kind)) = 0 or length(p_kind) > 64 then
+  if v_kind is null or length(v_kind) = 0 or length(v_kind) > 64 then
     raise exception 'kind must be a short label';
   end if;
   if p_payload is null or jsonb_typeof(p_payload) <> 'object' then
@@ -100,17 +104,17 @@ begin
   end if;
   if v_source is not null then
     select id into v_open from pending_actions
-     where kind = p_kind and source_message_id = v_source and resolved_at is null;
+     where kind = v_kind and source_message_id = v_source and resolved_at is null;
     if v_open is not null then
       raise exception 'already staged and still open as %', v_open;
     end if;
   end if;
   insert into pending_actions (kind, payload, source_message_id, staged_by)
-  values (p_kind, p_payload, v_source, p_actor)
+  values (v_kind, p_payload, v_source, p_actor)
   returning id into v_id;
   insert into audit_log (actor, action, target_table, target_id, after)
   values (p_actor, 'stage_pending', 'pending_actions', v_id::text,
-          jsonb_build_object('kind', p_kind, 'source_message_id', v_source,
+          jsonb_build_object('kind', v_kind, 'source_message_id', v_source,
                              'payload', p_payload));
   return v_id;
 end $$;
@@ -139,6 +143,7 @@ declare
   v_applied boolean := false;
   v_rpc text;
   v_result jsonb;
+  v_amount int;
 begin
   perform assert_admin();
   select * into r from pending_actions where id = p_id for update;
@@ -157,14 +162,23 @@ begin
       if nullif(r.payload ->> 'participant_id', '') is null then
         raise exception 'payment has no participant_id - dismiss it and record by hand, or restage it attached to someone';
       end if;
-      if nullif(r.payload ->> 'amount_cents', '') is null
-         or nullif(r.payload ->> 'paid_on', '') is null then
-        raise exception 'payment needs amount_cents and paid_on';
+      if nullif(r.payload ->> 'paid_on', '') is null then
+        raise exception 'payment needs paid_on';
+      end if;
+      -- A staged payment is money in. Zero would put a bogus row in the
+      -- append-only ledger and could burn a unique Venmo txn id; negative
+      -- is a correction, which the sweep never stages. Same rule the
+      -- /admin/payments form enforces, applied here because this path
+      -- does not go through that form.
+      v_amount := (r.payload ->> 'amount_cents')::int;
+      if v_amount is null or v_amount <= 0 then
+        raise exception 'payment amount_cents must be a positive whole number of cents, got %',
+          coalesce(r.payload ->> 'amount_cents', 'nothing');
       end if;
       v_rpc := 'admin_record_payment';
       v_result := jsonb_build_object('payment_id', admin_record_payment(
         (r.payload ->> 'participant_id')::uuid,
-        (r.payload ->> 'amount_cents')::int,
+        v_amount,
         r.payload ->> 'method',
         (r.payload ->> 'paid_on')::date,
         r.payload ->> 'venmo_txn_id',
