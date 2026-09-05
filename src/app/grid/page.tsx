@@ -9,7 +9,7 @@ import {
 
 export const metadata: Metadata = {
   title: "Grid",
-  description: "The 10x10 block grid — live winners, digits, and owners.",
+  description: "The 10x10 block grid - live winners, digits, and owners.",
 };
 
 export const revalidate = 15;

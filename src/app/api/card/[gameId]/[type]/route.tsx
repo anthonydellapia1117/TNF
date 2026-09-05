@@ -10,7 +10,7 @@ export const revalidate = 60;
 // 1200x630 winner share card (spec 4.8): matchup, final score with the last
 // digits emphasized, the winning block large, the winner's alias, the
 // amount, and a miniature grid with the winning cell lit. Reads only the
-// public projections — the card leaks nothing the grid doesn't.
+// public projections - the card leaks nothing the grid doesn't.
 
 const C = {
   bg: "#0B0D0F",

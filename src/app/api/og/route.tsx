@@ -12,7 +12,7 @@ export const revalidate = 300;
 
 // 1200x630 site-wide link preview, generated from live state.
 //
-// Off-season it shows the sales pressure — blocks open out of 100 — beside
+// Off-season it shows the sales pressure - blocks open out of 100 - beside
 // the next matchup. In season mode the big number becomes the game itself:
 // this image is what 133 people see attached to the link on a game-day
 // morning, and "51 BLOCKS OPEN" at 160px is the last thing that should

@@ -18,7 +18,7 @@ import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
 export const metadata: Metadata = {
   title: "Schedule",
   description:
-    "The 2026 season — all 23 games, states, digits, and payouts, week by week.",
+    "The 2026 season - all 23 games, states, digits, and payouts, week by week.",
 };
 
 export const revalidate = 30;

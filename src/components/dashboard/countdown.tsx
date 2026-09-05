@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // Ticking kickoff countdown. Server-renders real values (so first paint is
-// correct), then ticks every second after hydration — the value text carries
+// correct), then ticks every second after hydration - the value text carries
 // suppressHydrationWarning because server and client clocks differ.
 
 interface Segment {

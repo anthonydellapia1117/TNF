@@ -1,7 +1,7 @@
 "use client";
 
 // The next holiday game. Holiday finals pay more than a regular week, which
-// is worth knowing in advance — and unlike the rest of the season stats this
+// is worth knowing in advance - and unlike the rest of the season stats this
 // card has real content from day one.
 
 import { useEffect, useState } from "react";

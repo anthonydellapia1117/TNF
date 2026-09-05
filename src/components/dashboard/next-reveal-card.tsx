@@ -1,7 +1,7 @@
 "use client";
 
 // The NEXT REVEAL card: one card, four states, always the most relevant
-// thing at this moment — reveal countdown, kickoff countdown, the live
+// thing at this moment - reveal countdown, kickoff countdown, the live
 // game, or the last winner; season summary once there's no next game.
 // Ticks every second like the deadline countdown, and refreshes the route
 // once when a countdown crosses zero so the state flips without a reload.
@@ -148,7 +148,7 @@ function CardBody({
             </>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">
-              Numbers drop before kickoff — date TBD.
+              Numbers drop before kickoff - date TBD.
             </p>
           )}
         </>
@@ -179,7 +179,7 @@ function CardBody({
             </>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">
-              Kickoff time TBD —{" "}
+              Kickoff time TBD -{" "}
               <Link href="/grid" className="text-pool-accent hover:text-foreground">
                 see the grid
               </Link>
@@ -269,7 +269,7 @@ function CardBody({
             </>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground" data-numeric>
-              {gameCode(g.game_no)} is final — result under review.
+              {gameCode(g.game_no)} is final - result under review.
             </p>
           )}
           {state.nextGame && (

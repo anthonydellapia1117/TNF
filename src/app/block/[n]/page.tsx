@@ -36,7 +36,7 @@ export async function generateMetadata({
   if (n === null) return { title: "Block not found" };
   return {
     title: `Block ${n}`,
-    description: `Block ${n} across the whole season — digits, hits, and winnings.`,
+    description: `Block ${n} across the whole season - digits, hits, and winnings.`,
   };
 }
 
@@ -140,7 +140,7 @@ export default async function BlockPage({
         </div>
       </header>
 
-      {/* The sales nudge — only while the block is still open, and never
+      {/* The sales nudge - only while the block is still open, and never
           once the season is running. */}
       {status === "available" && !isSeasonMode(config) && (
         <section className="rounded-lg border border-dashed border-pool-accent/60 bg-pool-accent/[0.04] px-4 py-4 text-center">
@@ -160,7 +160,7 @@ export default async function BlockPage({
         </section>
       )}
 
-      {/* Running total — the number a player checks all season. */}
+      {/* Running total - the number a player checks all season. */}
       <section className="rounded-lg border border-border bg-surface px-4 py-6 text-center sm:py-8">
         <p
           className="text-3xl font-semibold text-final sm:text-4xl"
@@ -175,10 +175,10 @@ export default async function BlockPage({
               {wins.length === 1 ? "hit" : "hits"}
             </>
           ) : seasonUnderway ? (
-            "won so far — no hits yet"
+            "won so far - no hits yet"
           ) : (
             <>
-              won so far — season starts{" "}
+              won so far - season starts{" "}
               <span data-numeric>{fmtDateET(firstKickoff)}</span>
             </>
           )}
@@ -192,7 +192,7 @@ export default async function BlockPage({
 }
 
 /**
- * B4: the block's full history — who held it, when, what changed. Rendered
+ * B4: the block's full history - who held it, when, what changed. Rendered
  * only for the signed-in admin; a public visitor never sees it.
  */
 async function BlockHistory({ n }: { n: number }) {
@@ -227,7 +227,7 @@ async function BlockHistory({ n }: { n: number }) {
             <li key={r.id} className="text-xs text-muted-foreground" data-numeric>
               <span className="text-foreground">{r.action}</span> ·{" "}
               {fmtDateET(r.at)} · {r.actor}
-              {r.note && <> — {r.note}</>}
+              {r.note && <> - {r.note}</>}
             </li>
           ))}
         </ul>

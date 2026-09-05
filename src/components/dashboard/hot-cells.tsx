@@ -1,7 +1,7 @@
-// Score patterns: the home–away last-digit pairs that keep coming up.
+// Score patterns: the home-away last-digit pairs that keep coming up.
 //
 // A PAIR, never a block. Digits are drawn independently for every game, so
-// "home 7, away 0" lands on a different number each week — the pair is the
+// "home 7, away 0" lands on a different number each week - the pair is the
 // thing that recurs, and it is the thing a fan can actually reason about.
 import type { HotCell } from "@/lib/fan-stats";
 
@@ -16,7 +16,7 @@ export function HotCells({
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
         {gamesPlayed === 0
-          ? "Nothing yet — after a few games this shows which home–away digit pairs keep landing."
+          ? "Nothing yet - after a few games this shows which home-away digit pairs keep landing."
           : "Not enough scores yet to see a pattern."}
       </p>
     );
@@ -40,7 +40,7 @@ export function HotCells({
                 {c.homeDigit}
               </span>
               <span className="text-2xs font-normal text-muted-foreground">
-                –
+                -
               </span>
               <span className="inline-flex size-6 items-center justify-center rounded border border-border bg-surface-2">
                 {c.awayDigit}

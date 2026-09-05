@@ -4,7 +4,7 @@ import { gameCode } from "@/lib/pool";
 import { matchupLabel } from "@/lib/nfl";
 import type { PublicGame } from "@/lib/types";
 
-// C3: the whole season at a glance — one segment per game, colored by
+// C3: the whole season at a glance - one segment per game, colored by
 // state, current game marked, click to jump to that game's card.
 
 function segmentClass(g: PublicGame): string {

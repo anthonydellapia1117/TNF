@@ -13,7 +13,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 
-// The plain-text list is admin-only — it is a chase tool, not a viewer
+// The plain-text list is admin-only - it is a chase tool, not a viewer
 // surface. /admin/list already carries it (and more).
 const NAV = [
   { href: "/", label: "Home" },
@@ -82,7 +82,7 @@ export function SiteHeader() {
           </Link>
         </nav>
 
-        {/* Phone: hamburger menu — every destination reachable at any width */}
+        {/* Phone: hamburger menu - every destination reachable at any width */}
         <div className="flex flex-1 items-center justify-end sm:hidden">
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger

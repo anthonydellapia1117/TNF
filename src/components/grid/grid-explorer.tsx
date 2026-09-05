@@ -31,7 +31,7 @@ export function GridExplorer({
       const stored = window.localStorage.getItem(MODE_KEY);
       if (stored === "comfortable" || stored === "fit") setMode(stored);
     } catch {
-      // storage unavailable — keep the default
+      // storage unavailable - keep the default
     }
   }, []);
 
@@ -154,7 +154,7 @@ export function GridExplorer({
 
       {!game.digits_published_at && (
         <p className="text-center text-xs text-muted-foreground">
-          Digits publish before kickoff — every ? becomes a number, freshly
+          Digits publish before kickoff - every ? becomes a number, freshly
           randomized for this game.
         </p>
       )}

@@ -1,5 +1,5 @@
 // Close calls: the blocks that were one point from a win. The near-miss a
-// player actually feels — "one more field goal and that was mine."
+// player actually feels - "one more field goal and that was mine."
 //
 // Pre-season this shows what it will show rather than an empty box: there is
 // nothing honest to put in it until a game has been scored.
@@ -19,7 +19,7 @@ export function CloseCalls({
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
         {gamesPlayed === 0
-          ? "Nothing yet — this fills in the first time a score lands one point off somebody's block."
+          ? "Nothing yet - this fills in the first time a score lands one point off somebody's block."
           : "No near misses so far. Every hit has been clean."}
       </p>
     );

@@ -42,7 +42,7 @@ export function BoardGrid({ blocks }: { blocks: PublicBlock[] }) {
       </div>
 
       {/* The board: 10 columns always, block-number order (1 top-left, 100
-          bottom-right). Filtering dims rather than removes — the geometry
+          bottom-right). Filtering dims rather than removes - the geometry
           is the point, and nothing is ever deleted. */}
       <div className="mx-auto grid w-full max-w-3xl grid-cols-10 gap-1 sm:gap-1.5">
         {Array.from({ length: 100 }, (_, i) => (
@@ -117,10 +117,10 @@ function BoardCell({
       className={cn(
         "group relative flex aspect-square flex-col items-center justify-center overflow-hidden rounded-[4px] border text-center transition-opacity duration-150 sm:aspect-auto sm:h-16",
         !matchesShow && "opacity-20 saturate-50",
-        // Available: loud — dashed accent border, open affordance on hover.
+        // Available: loud - dashed accent border, open affordance on hover.
         isOpen &&
           "border-dashed border-pool-accent/60 bg-pool-accent/[0.04] hover:border-pool-accent hover:bg-pool-accent/10",
-        // Taken: quiet — solid surface, muted alias.
+        // Taken: quiet - solid surface, muted alias.
         !isOpen &&
           !isHeld &&
           "border-border bg-surface-2 hover:border-pool-accent/50",
