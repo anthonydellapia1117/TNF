@@ -7,6 +7,7 @@ import { signOut } from "@/app/admin/actions";
 
 const ITEMS = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/queue", label: "Queue" },
   { href: "/admin/participants", label: "Participants" },
   { href: "/admin/emails", label: "Emails" },
   { href: "/admin/blocks", label: "Blocks" },

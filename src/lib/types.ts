@@ -186,3 +186,21 @@ export interface Payout extends PublicPayout {
   method: string | null;
   note: string | null;
 }
+
+/**
+ * One NEEDS ANTHONY item (pending_actions, migration 23). Staged by the
+ * sweep, resolved at /admin/queue. Admin-only; written only through the
+ * admin_*_pending RPCs.
+ */
+export interface PendingAction {
+  id: string;
+  kind: string;
+  payload: Record<string, unknown>;
+  source_message_id: string | null;
+  staged_at: string;
+  resolved_at: string | null;
+  resolution: "approved" | "dismissed" | null;
+  resolution_note: string | null;
+  staged_by: string | null;
+  resolved_by: string | null;
+}
