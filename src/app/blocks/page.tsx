@@ -54,7 +54,7 @@ export default async function BlocksPage() {
         </p>
         {open === 0 && (
           <p className="mt-2 text-sm text-muted-foreground">
-            Every block is taken - see you Thursday nights.
+            Every block is taken.
           </p>
         )}
         {unnumbered > 0 && (
