@@ -56,18 +56,18 @@ describe("committed vs placed are computed independently (spec G1)", () => {
 });
 
 describe("house position against the FIXED payout (admin only)", () => {
-  const SEASON = 4_425_000; // $44,250
+  const SEASON = 4_500_000; // $45,000: 10 games x $4,500, one tier since 2026-09-08
   const PRICE = 50_000; // $500
 
-  it("needs 89 paying blocks to break even", () => {
+  it("needs 90 paying blocks to break even", () => {
     const h = housePosition(
       { collected_cents: 0, committed_blocks: 0 },
       0,
       SEASON,
       PRICE,
     );
-    expect(h.payingBlocksNeeded).toBe(89); // ceil(44250 / 500)
-    expect(h.blocksToBreakEven).toBe(89);
+    expect(h.payingBlocksNeeded).toBe(90); // ceil(45000 / 500)
+    expect(h.blocksToBreakEven).toBe(90);
     expect(h.positionCents).toBe(-SEASON);
   });
 
@@ -79,7 +79,7 @@ describe("house position against the FIXED payout (admin only)", () => {
       PRICE,
     );
     expect(h.payingBlocksSold).toBe(30);
-    expect(h.blocksToBreakEven).toBe(59);
+    expect(h.blocksToBreakEven).toBe(60);
     expect(h.positionCents).toBe(1_500_000 - SEASON);
   });
 
