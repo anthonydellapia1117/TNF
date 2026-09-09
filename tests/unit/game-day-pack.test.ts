@@ -4,9 +4,11 @@ import {
   buildGameDayPack,
   digitsLive,
   draftAttachments,
+  dropFromBcc,
   etDateStamp,
   gridObjectNames,
   hyphenate,
+  ownerRecipients,
   packBody,
   packFilenameBase,
   packRecipients,
@@ -276,11 +278,32 @@ describe("digits", () => {
   });
 });
 
+describe("owners on the To line", () => {
+  it("is Anthony first, then the TNF_OWNER_EMAILS list, trimmed and deduped", () => {
+    expect(
+      ownerRecipients(" ron@example.test, Mike@example.test;ron@EXAMPLE.test\nnolan@example.test ", "anthony@example.test"),
+    ).toEqual(["anthony@example.test", "ron@example.test", "Mike@example.test", "nolan@example.test"]);
+  });
+
+  it("never repeats Anthony and never yields an empty To", () => {
+    expect(ownerRecipients("Anthony@example.test", "anthony@example.test")).toEqual(["anthony@example.test"]);
+    expect(ownerRecipients(undefined, "anthony@example.test")).toEqual(["anthony@example.test"]);
+    expect(ownerRecipients("", "anthony@example.test")).toEqual(["anthony@example.test"]);
+  });
+
+  it("drops anyone on the To line from Bcc, case-insensitively", () => {
+    expect(
+      dropFromBcc(["holder@example.test", "RON@example.test", "anthony@example.test"], ["anthony@example.test", "ron@example.test"]),
+    ).toEqual(["holder@example.test"]);
+  });
+});
+
 describe("draft MIME", () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]);
   const files = [{ filename: "2026-09-09_TNF_G01_grid.png", mimeType: "image/png", content: png }];
   const msg = buildDraftMime({
     from: "Anthony <a@example.test>",
+    to: ["a@example.test", "owner@example.test"],
     bcc: ["one@example.test", "Two@example.test"],
     subject: "TNF | Week 1 | New England Patriots at Seattle Seahawks",
     body: "Live grid: https://x.test/grid?g=1\n\nThe grid for this game is attached (PNG and PDF).",
@@ -289,9 +312,22 @@ describe("draft MIME", () => {
     date: new Date("2026-09-09T11:30:00Z"),
   }).toString("utf8");
 
-  it("puts every recipient in Bcc and nothing in To", () => {
+  it("puts Anthony and the owners in To and every holder in Bcc", () => {
+    expect(msg).toContain("\r\nTo: a@example.test, owner@example.test\r\n");
     expect(msg).toContain("\r\nBcc: one@example.test, Two@example.test\r\n");
-    expect(msg).not.toMatch(/^To:/m);
+    expect(msg.indexOf("\r\nTo: ")).toBeLessThan(msg.indexOf("\r\nBcc: "));
+  });
+
+  it("writes no To line when no owners are given", () => {
+    const bare = buildDraftMime({
+      from: "a@example.test",
+      bcc: ["one@example.test"],
+      subject: "x",
+      body: "y",
+      attachments: [],
+      date: new Date("2026-09-09T11:30:00Z"),
+    }).toString("utf8");
+    expect(bare).not.toMatch(/^To:/m);
   });
 
   it("is CRLF multipart/mixed with the body first and the file as an attachment", () => {

@@ -343,6 +343,33 @@ it does not move blocks.
 - Never invent a full name. If it is unknown, mirror the alias and flag it
   unconfirmed.
 
+## Email to the pool
+
+- **Every email to the pool where the holders ride in Bcc carries Anthony
+  and the owners in To, Anthony first.** Anthony's rule, set 2026-09-09
+  after the restructure announcement went out with Anthony alone in To.
+  The same announcement was then sent again to the owners' addresses so
+  every owner could see exactly what the pool received. Nobody else goes in
+  To; nothing goes in Cc.
+- **The owners, by code.** AVD Anthony DellaPia (two addresses, personal and
+  GT), RM Ronnie Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD
+  Gregory DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, TJA TJ
+  Auletto, BG Billy Guyon, DN Dom Novelli (no address on file yet). TJA and
+  DN are owners on this list but not yet `owner_group` codes in the
+  database, which still allows the eight in *Data* below; adding them is a
+  migration like migration 19 and Anthony's call.
+- **The addresses never live in this repo.** The repo is public. They live
+  on the routine as `TNF_OWNER_EMAILS` (see `docs/ROUTINES.md`, TNF Game
+  Day Pack) and in Anthony's own list. `ownerRecipients()` in
+  `src/lib/game-day-pack.ts` builds the To line from that variable and
+  `dropFromBcc()` keeps anyone on To out of Bcc.
+- **A link in a pool email is the bare URL and nothing else**, for example
+  `https://ad-26-tnf.vercel.app/blocks`. No tracking wrapper, no second
+  URL. The Gmail connector rewrites the href of any link it is handed into a
+  google.com/url redirect and rewrites the plain-text part the same way; the
+  only control left is the visible text, so hand it an HTML anchor whose
+  text is the bare URL. Verified 2026-09-09 on two test drafts.
+
 ## Isolation
 
 The Survivor pool is a **separate system**. Never reference it, link it, or

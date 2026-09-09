@@ -216,18 +216,27 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
   variable are on the routine)
 - **Connectors:** Gmail (draft only) and Supabase (read-only SQL for the
   recipient list). **Environment variables:** `ADMIN_PASSWORD` (the admin's
-  Supabase Auth password, for the grid upload), optionally `ADMIN_EMAIL` if
-  the admin is not the default in `src/lib/env.ts`.
+  Supabase Auth password, for the grid upload), `TNF_OWNER_EMAILS` (the
+  owners' addresses, comma separated; they go on the To line with Anthony,
+  see *Who is on the To line* below), optionally `ADMIN_EMAIL` if the admin
+  is not the default in `src/lib/env.ts`.
+- **Who is on the To line.** Anthony's rule, 2026-09-09: every email to the
+  pool where the holders ride in Bcc carries Anthony and the owners in To,
+  Anthony first. The command builds To as `ADMIN_EMAIL` plus
+  `TNF_OWNER_EMAILS` (trimmed, deduped) and takes anyone on To out of Bcc.
+  The addresses are never committed: the repo is public. The roster of
+  owner codes and names is in CLAUDE.md under *Email to the pool*.
 - **Why:** the game-day email is one grid, two links, one draft. The command
   `npm run game-day -- --game N --participants FILE --upload` renders
   `/grid?g=N` as a PNG and a one-page PDF named `YYYY-MM-DD_TNF_G0N_grid`
   (the game's own ET date), uploads both to the PUBLIC storage bucket
-  `game-day` over the Storage REST API, computes the BCC list from an admin
-  participant export, and writes a manifest whose body carries the two
-  public links (`.../storage/v1/object/public/game-day/<name>`) plus the
-  complete message as `.eml`. The draft is then created through the Gmail
-  connector from the manifest: subject, body, bcc, no attachments. Nothing
-  is ever sent; Anthony sends from Drafts. Logic is in
+  `game-day` over the Storage REST API, computes the To and BCC lists (To is Anthony plus the owners, BCC every
+  holder with an address, from an admin participant export), and writes a
+  manifest whose body carries the two public links
+  (`.../storage/v1/object/public/game-day/<name>`) plus the complete message
+  as `.eml`. The draft is then created through the Gmail connector from the
+  manifest: subject, body, to, bcc, no attachments. Nothing is ever sent;
+  Anthony sends from Drafts. Logic is in
   `src/lib/game-day-pack.ts`, unit-tested.
 - **The template.** Subject and body follow the design-kit email template
   copied to `docs/templates/tnf-game-day-email.html` (fields live_grid_url,
@@ -277,7 +286,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 1. Today's games are the ones whose kickoff_at, converted to America/New_York, falls on today's date, status not void. If there are none, the entire report is the words NO ACTION.
 2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under TNF Game Day Pack and write the rows as a JSON array to a file outside the repo (for example /tmp/participants.json): full_name, display_alias, email, cc_email, blocks. If the Supabase connector is not available, skip to step 5 with the line: "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Routines > TNF Game Day Pack."
 3. For each game today, run: npm run game-day -- --game <N> --participants /tmp/participants.json --upload when ADMIN_PASSWORD is set in the environment, and with --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live in the public projection; do not pass --allow-undrawn, add the line "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again, rerun with --link-only and add the line "Grid upload failed (exit 4): <the command's message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-4. Create one Gmail draft per game through the Gmail connector, never a send: subject and body verbatim from the manifest, bcc as the manifest's bcc list (no To, no Cc), no attachments. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If the run used --link-only, add the line "Grid links are not in the draft: set ADMIN_PASSWORD in this routine's environment variables so the command uploads both files to the game-day bucket." If the Gmail connector is not available, add the line "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Routines > TNF Game Day Pack." and report the manifest path instead.
+4. Create one Gmail draft per game through the Gmail connector, never a send: subject and body verbatim from the manifest, to as the manifest's to list (Anthony and the owners, from TNF_OWNER_EMAILS), bcc as the manifest's bcc list, no Cc, no attachments. If the manifest's to list is Anthony alone, TNF_OWNER_EMAILS is not set on this routine: still create the draft and add the line "TNF_OWNER_EMAILS is not set on this routine, the owners are not on the To line. Add it at claude.ai/code > Routines > TNF Game Day Pack > Environment variables." When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If the run used --link-only, add the line "Grid links are not in the draft: set ADMIN_PASSWORD in this routine's environment variables so the command uploads both files to the game-day bucket." If the Gmail connector is not available, add the line "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Routines > TNF Game Day Pack." and report the manifest path instead.
 5. Report. The report is a section titled NEEDS ANTHONY with, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set (the run used --upload), and "Links: none, the body carries the live grid link only" when it is null (the run used --link-only). Never invent a URL. Then any line from steps 2 to 4. Nothing else. Never print an email address or a password in the report.
 ```
 

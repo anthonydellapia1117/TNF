@@ -3,11 +3,16 @@
 //   npm run game-day -- --game 1 --participants /path/to/participants.json --upload
 //
 // Renders /grid?g=N as a PNG and a one-page PDF, uploads both to the PUBLIC
-// storage bucket game-day (--upload), computes the BCC list from an admin
-// participant export, and writes a manifest with everything the Gmail draft
-// needs: subject, body (with the two public links), BCC. Creating the draft
-// is the caller's step (the Gmail connector); this command never sends mail
-// and never writes to the database.
+// storage bucket game-day (--upload), computes the To and BCC lists, and
+// writes a manifest with everything the Gmail draft needs: subject, body
+// (with the two public links), To, BCC. Creating the draft is the caller's
+// step (the Gmail connector); this command never sends mail and never writes
+// to the database.
+//
+// To is Anthony plus the owners (Anthony's rule, 2026-09-09): ADMIN_EMAIL
+// first, then every address in TNF_OWNER_EMAILS (comma separated, set on the
+// routine, never committed). BCC is every holder's email and cc_email from
+// the participant export, minus anyone already on the To line.
 //
 // Inputs
 //   --game N              game number, 1 to 23 (required)
@@ -56,6 +61,8 @@ import {
   buildDraftMime,
   buildGameDayPack,
   draftAttachments,
+  dropFromBcc,
+  ownerRecipients,
   gridObjectNames,
   publicObjectUrl,
   STORAGE_BUCKET,
@@ -472,6 +479,11 @@ async function main() {
     content: new Uint8Array(readFileSync(f.path)),
   })));
 
+  const to = ownerRecipients(process.env.TNF_OWNER_EMAILS, ADMIN_EMAIL);
+
+  const bcc = dropFromBcc(pack.recipients.bcc, to);
+
+
   const manifest = {
     game: {
       game_no: game.game_no,
@@ -492,7 +504,8 @@ async function main() {
     payouts,
     subject: pack.subject,
     body: pack.body,
-    bcc: pack.recipients.bcc,
+    to,
+    bcc,
     noEmail: pack.recipients.noEmail,
     counts: pack.recipients.counts,
     files,
@@ -501,12 +514,14 @@ async function main() {
   };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
 
-  // The message itself: Bcc only, files attached only when not linked. Always
-  // written next to the manifest; pushed into Gmail Drafts only on --draft.
+  // The message itself: owners in To, holders in Bcc, files attached only
+  // when not linked. Always written next to the manifest; pushed into Gmail
+  // Drafts only on --draft.
   const from = process.env.GMAIL_USER ?? ADMIN_EMAIL;
   const mime = buildDraftMime({
     from,
-    bcc: pack.recipients.bcc,
+    to,
+    bcc,
     subject: pack.subject,
     body: pack.body,
     attachments,
@@ -522,6 +537,9 @@ async function main() {
     `holders ${c.holders}, blocks ${c.blocksHeld}, with email ${c.withEmail}, ` +
       `without ${c.withoutEmail}, cc addresses ${c.ccAddresses}, shared ${c.shared}, ` +
       `distinct recipients ${c.distinct}`,
+  );
+  console.log(
+    `to: ${to.length} (admin + owners from TNF_OWNER_EMAILS${to.length === 1 ? ", variable not set" : ""}), bcc: ${bcc.length}`,
   );
   if (pack.recipients.noEmail.length > 0) {
     console.log(
