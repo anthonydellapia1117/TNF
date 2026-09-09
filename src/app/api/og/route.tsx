@@ -45,6 +45,8 @@ export async function GET() {
     committed_blocks: (pot as Pot | null)?.committed_blocks ?? 0,
   });
   const open = Math.max(0, cfg.blocks_total - committed);
+  // 0 only when the projection is empty or failed to load; the copy below
+  // falls back to words rather than announcing "0 GAMES".
   const gameCount = (games ?? []).length;
   const next = currentGame((games ?? []) as PublicGame[]);
   const away = next ? teamInfo(next.away_team) : null;
@@ -83,7 +85,7 @@ export async function GET() {
               {next ? `${gameCode(next.game_no)} · THIS WEEK` : "2026 SEASON"}
             </span>
             <span style={{ fontSize: 96, fontWeight: 800, lineHeight: 1 }}>
-              {next ? "GAME DAY" : `${gameCount} GAMES`}
+              {next ? "GAME DAY" : gameCount > 0 ? `${gameCount} GAMES` : "HOLIDAY GAMES"}
             </span>
             <span style={{ fontSize: 32, color: C.muted }}>
               100 blocks · fixed payouts · check the grid
@@ -133,7 +135,8 @@ export async function GET() {
           </div>
         ) : (
           <div style={{ display: "flex", fontSize: 30, color: C.muted }}>
-            100 blocks · {gameCount} holiday games · Thanksgiving to New Year&apos;s Eve
+            100 blocks · {gameCount > 0 ? `${gameCount} holiday games` : "the holiday games"} ·{" "}
+            Thanksgiving to New Year&apos;s Eve
           </div>
         )}
       </div>

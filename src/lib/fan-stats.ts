@@ -228,8 +228,9 @@ export function hotCells(games: PublicGame[], limit = 5): HotCell[] {
 }
 
 // ---------------------------------------------------------------------------
-// The next holiday game. Holidays pay more, which is worth knowing in
-// advance — and unlike everything else here it has real content pre-season.
+// The next holiday game. Since 2026-09-08 every game is a holiday game and
+// every game pays the same, so this is a countdown - and unlike everything
+// else here it has real content pre-season.
 // ---------------------------------------------------------------------------
 
 export interface HolidayNext {
