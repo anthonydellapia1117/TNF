@@ -3,6 +3,40 @@
 Standing rules for anyone (human or agent) working on this pool. These are
 Anthony's calls, not inferences. Do not relax one without him saying so.
 
+## The season (restructured 2026-09-08)
+
+- **The 2026 pool is the 10 holiday games only**, Thanksgiving Eve through
+  New Year's Eve: G01 Wed Nov 25, G02-G04 Thanksgiving Day, G05 Black
+  Friday, G06 Christmas Eve, G07-G09 Christmas Day, G10 New Year's Eve.
+  Weeks 12, 16 and 17. Every game is `game_type = 'holiday'`. The 23-game
+  Thursday slate that ran from Sep 9 is gone; nothing happens before
+  November 25.
+- **One payout tier.** $1,500 halftime, $3,000 final, every game. The four
+  config keys still exist and all carry the same numbers (migration 24), so
+  the regular/holiday split is harmless wherever an older path still reads
+  it. `payoutCents()` in `src/lib/pool.ts` ignores `game_type`.
+- **$500 a block, unchanged.** 100 x $500 = $50,000 in. 10 x $4,500 =
+  $45,000 out. House $5,000. Break-even 90 paying blocks. Expected payout
+  per block $450. None of these is stored; each derives from the games
+  table and config, and the unit and SQL suites assert the $45,000.
+- **The September digits are void and live only in the archive.** The
+  digits drawn and published for the September G01 and G02 were archived
+  by migration 24 as `audit_log` rows with action
+  `season_restructure_archive`, one full game row each, 23 rows, before the
+  games were deleted. Digits are still immutable: nothing edited them, the
+  rows went whole. Never rewrite those audit rows; never reuse those digits.
+- **Claim and payment deadline is Tuesday November 24, 2026** (`config.
+  claim_deadline`). The September 4 deadline is history.
+- **Removing a participant at their own request** (precedent 2026-09-08,
+  nerdz on block 1 and F Chili on block 78): release the block the way
+  `admin_release_block` does, prior holder kept in the block's notes; the
+  participant row is never deleted and the schema has no inactive flag, so
+  the row stays with `blocks_requested = 0` and a dated note. A payment on
+  file is never touched: the refund is Anthony's call, staged as a
+  `refund_needed` row at `/admin/queue` with the amount and the Venmo
+  transaction id. Audit rows: `participant_removed` on the block and on the
+  participant, `stage_pending` on the queue row.
+
 ## Owner codes and how money is actually collected
 
 **The eight owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD, BG — are
@@ -138,19 +172,22 @@ count reopens nothing.
 
 ## Money
 
-- `payout_mode` is **FIXED at $44,250** regardless of blocks sold. Never
-  surface sellout risk or contingent payouts anywhere in the UI.
+- `payout_mode` is **FIXED at $45,000** regardless of blocks sold (10 games
+  x $4,500 since 2026-09-08). Never surface sellout risk or contingent
+  payouts anywhere in the UI.
 - The app never moves money. The payments ledger is append-only; corrections
   are new rows, never edits.
 - Committed is a real **count** of blocks, never money divided by price — a
   comped block owes $0 but is still committed.
-- Break-even is **89 paying blocks**. Comped blocks are excluded from that
-  count. This lives on /admin only and is never public.
+- Break-even is **90 paying blocks** ($45,000 / $500). Comped blocks are
+  excluded from that count. This lives on /admin only and is never public.
 
 ## The claim deadline
 
-The claim and payment deadline is **Friday September 4, 2026**. It governs
-who has settled, and nothing else. In particular it does not move blocks.
+The claim and payment deadline is **Tuesday November 24, 2026**, the day
+before the first game (it was September 4 until the 2026-09-08
+restructure). It governs who has settled, and nothing else. In particular
+it does not move blocks.
 
 - **Unpaid Reserved blocks are NOT released at the deadline.** They stay
   Reserved and they get chased. There is no automatic release, expiry, or
@@ -232,9 +269,10 @@ who has settled, and nothing else. In particular it does not move blocks.
     season looked the same, and 47 people read it from habit without
     checking the axis labels. Neither orientation is more correct
     arithmetically; the app was simply the newcomer and it shipped
-    transposed. Reversed 2026-09-04 by migration 17, with 0 of 23 games
-    drawn, 0 published, 0 scored and 0 payouts — there was no history to
-    invalidate, and there will be after the first draw.
+    transposed. Reversed 2026-09-04 by migration 17, with 0 of the 23
+    games then on the slate drawn, 0 published, 0 scored and 0 payouts —
+    there was no history to invalidate, and there will be after the first
+    draw.
   - **Do not flip it back reasoning from an older spec or an older comment.**
     The pre-reversal formula was `row_index(home) * 10 + col_index(away) + 1`
     and its worked example returned block 13; that example now returns 89.
@@ -272,6 +310,10 @@ who has settled, and nothing else. In particular it does not move blocks.
   - Drawing and publishing stay two deliberate clicks, with the numbers shown
     for review in between. Each reveal is scheduled for **8:00 AM ET on that
     game's own date** — never one shared instant for a week.
+  - The three draw weeks of the restructured season: G01-G05 (week 12) open
+    Tuesday November 24, G06-G09 (week 16) Tuesday December 22, G10 (week
+    17) Tuesday December 29. Thanksgiving week is five games in three days
+    and Christmas week four in two; each game is still its own draw.
 - **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD and BG.** Nothing else.
   `BG` is Billy Guyon, added 2026-09-04 (migration 19). He is an owner on the
   same footing as the rest: he collects from his own participants and holds
@@ -342,7 +384,7 @@ money rules are actually enforced.
 ## Code conventions
 
 - **Money is stored in CENTS, everywhere.** `price_per_block_cents = 50000`
-  is $500; `regular_final_cents = 100000` is $1,000. Never treat a `_cents`
+  is $500; `holiday_final_cents = 300000` is $3,000. Never treat a `_cents`
   column as dollars — that is a 100x error waiting to happen. Format for
   display with the helpers in `src/lib/format.ts`, never by hand.
 - Server components by default; `"use client"` only where there is real
