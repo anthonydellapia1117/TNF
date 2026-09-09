@@ -1,12 +1,13 @@
 "use client";
 
-// The next holiday game. Holiday finals pay more than a regular week, which
-// is worth knowing in advance - and unlike the rest of the season stats this
-// card has real content from day one.
+// The next holiday game. Since 2026-09-08 every game is a holiday game and
+// every game pays the same, so this card is a countdown and a count of what
+// is still ahead - and unlike the rest of the season stats it has real
+// content from day one.
 
 import { useEffect, useState } from "react";
 import { PartyPopper } from "lucide-react";
-import { fmtDateET, fmtUsd } from "@/lib/format";
+import { fmtDateET } from "@/lib/format";
 import { matchupLabel } from "@/lib/nfl";
 import type { HolidayNext } from "@/lib/fan-stats";
 
@@ -57,12 +58,6 @@ export function HolidayCard({ holiday }: { holiday: HolidayNext | null }) {
       <p className="mt-1 text-2xs text-muted-foreground" data-numeric>
         {matchupLabel(g.away_team, g.home_team)} · {fmtDateET(kickoff)}
       </p>
-      {holiday.finalPremiumCents > 0 && (
-        <p className="mt-1.5 text-2xs text-holiday" data-numeric>
-          Final pays {fmtUsd(holiday.finalPremiumCents)} more than a regular
-          week
-        </p>
-      )}
       {holiday.remaining > 1 && (
         <p className="mt-0.5 text-2xs text-muted-foreground" data-numeric>
           {holiday.remaining} holiday games still ahead
