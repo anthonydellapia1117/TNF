@@ -100,6 +100,86 @@ inserted 10) with all 18 SQL suites passing, including the new
 - Full runs: vitest 250 passed, `npm run test:db` 18 of 18 PASS, lint
   clean, `next build` compiles.
 
-## AFTER
+## STEP 7, PR, merge, apply
 
-Filled after the production apply and the live verify (STEP 7).
+- PR #6 `claude/season-restructure-0908` -> main, 26 files. Vercel green on
+  every head. Codex reviewed each head; one P2 fixed before merge (lock
+  `games` and `payouts` in EXCLUSIVE mode before the checks, d884746,
+  proven on a local Postgres: the lock waits out an in-flight write and is
+  granted at once without one). Two Copilot nits fixed (og image word
+  fallback when the games projection is empty, fan-stats header comment,
+  000297d). One Codex P2 filed as issue #7 (`payoutCents()` ignores
+  `game_type`; the SQL scorer stays tier-aware, no DB write depends on the
+  helper) and merged past. Merge commit 735ef7d at 04:27 UTC.
+- Production deploy of main live at 04:28:54 UTC, before the apply.
+- Migration applied to production at 04:29 UTC, attended, as one DO block;
+  recorded by Supabase as `20260909042948 season_restructure`. Self-check
+  passed; nothing rolled back. Rehearsed first at 04:19 UTC inside a block
+  that raised at the end, so every write rolled back: archived 23, deleted
+  23, games 10, blocks 100. That rehearsal consumed audit ids 255-279; no
+  audit row is missing.
+
+## AFTER, read live 2026-09-09 04:31 UTC (12:31 AM ET)
+
+| Read | Value |
+|---|---|
+| blocks by status | available 42, reserved 14, assigned 44, held 0, sum 100 |
+| committed blocks | 58 |
+| participants with a block | 50 |
+| games | 10, all scheduled, 0 published, 0 with digits, weeks 12 / 16 / 17; G01 Packers at Rams Wed Nov 25 8:00 PM ET, G10 Ravens at Bengals Thu Dec 31 8:15 PM ET |
+| config | halftime 150000 and final 300000 on all four keys, total 4,500,000, claim_deadline 2026-11-24, price 50000, season_mode false, season_status open |
+| money | due 2,850,000 = (58 committed - 1 comped) x 50000; collected 2,200,000 (43 ledger rows, unchanged by this run); outstanding 650,000; paid out 0, owed out 0, payout rows 0 |
+| audit_log | 271 rows; 25 new, ids 280-304 sequential: `season_restructure_archive` for games 1-23, `season_restructure_config` on config/1, `season_restructure` {archived 23, deleted 23, inserted 10, games_after 10} |
+| archive spot check | game 1 row carries row_digits [7,1,5,3,6,0,2,8,9,4], col_digits [9,3,0,6,2,4,8,1,7,5], published 2026-09-04 |
+| anon v_pot | available 42, reserved 14, assigned 44, held 0, committed 58; collected, due, paid_out and owed_out all null |
+| anon v_public_games | 10 rows, digits null on all, digits_assigned false, reveal null, all scheduled |
+| /schedule | 10 game cards, first G01 Nov 25, $1,500 and $3,000 on every card, no Sep 9, no $750, no $1,000 |
+| / | G01 Packers at Rams, 78 days to Nov 25, $1,500 / $3,000, no 23 games |
+| /grid?g=1 to g=10 | twenty question marks each, the right game code on each |
+| /blocks | 42 AVAILABLE, the word claim absent |
+
+Before and after, side by side: blocks 40 / 15 / 45 -> 42 / 14 / 44 (the
+two removals), committed 60 -> 58, participants 52 -> 50, games 23 -> 10,
+published 2 -> 0, payouts 75000/100000 and 75000/150000 -> 150000/300000
+on every key, claim deadline 2026-09-04 -> 2026-11-24, due 2,950,000 ->
+2,850,000, collected 2,200,000 -> 2,200,000, outstanding 750,000 ->
+650,000.
+
+## STEP 8, the announcement
+
+- Sent 2026-09-09 04:32 UTC, Gmail message id 1a084701b17e391d, thread
+  1a0846fbb91c2e72. To anthonydellapia@gmail.com, BCC 37, plain text,
+  subject `TNF Block Pool | Change: 10 holiday games, $1,500 / $3,000
+  payouts`. Body read back from the draft and diffed against the text in
+  the run prompt: identical, the only difference being Gmail wrapping the
+  /blocks link in its own redirect, which still opens the page.
+- BCC arithmetic: 50 holders after STEP 1; 11 have no email and no
+  cc_email; the rest give 38 distinct addresses after lowercasing and
+  deduping (one address is shared by two holders, two holders carry a
+  cc_email); Anthony's own address is one of the 38 and is the To, so 37
+  in BCC. The old G01 pack draft carried 40, which is the same list plus
+  the two nerdz addresses removed in STEP 1. The prompt expected 45 to 60;
+  the shortfall is the 11 holders with no address, not a derivation gap.
+  Every address is on a participant holding a committed block; none comes
+  from any other list.
+- Trashed after the send, nothing else touched: G01 pack 1a07247d09aadb3b,
+  G02 pack 1a0781f07230fe68, "TNF Blocks | Final call - kickoff Wednesday"
+  1a0781edacb62007.
+
+## Left for Anthony
+
+- Refund: queue row 806526bf-7d90-41a5-9119-8785ebc3ffa3, kind
+  `refund_needed`, nerdz block 1, $500, Venmo txn 4678217450148051522.
+- Issue #7, the `payoutCents()` tier branch.
+- Routines stay paused. Cron lines to paste: TNF Draw Window
+  `37 14 24 11 *` and `37 14 22,29 12 *`; TNF Game Day Pack
+  `10 14 25-27 11 *` and `10 14 24,25,31 12 *`. Full list in
+  `docs/ROUTINES.md`.
+- Not in the PR: comment-only edits to `src/lib/format.ts`,
+  `src/lib/week-digits.ts`, `src/lib/game-day-pack.ts`,
+  `src/components/grid/grid-explorer.tsx` and `src/lib/season-mode.ts`
+  were dropped to keep the push small; a few comments there still mention
+  the old slate. `tests/unit/game-day-pack.test.ts` now carries literal em
+  and en dash characters in its dash-stripping fixture instead of `\u`
+  escapes (the file went through the GitHub API); the test is unchanged in
+  meaning and passes.
