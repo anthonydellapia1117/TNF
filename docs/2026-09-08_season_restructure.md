@@ -52,6 +52,10 @@ Repo greps before, src + docs + tests + public + CLAUDE.md: "23 games" 6,
 
 Inside one transaction:
 
+- Locked: `games` and `payouts` in EXCLUSIVE mode before anything is
+  checked, so a score or payout committed by a concurrent admin request is
+  either seen by the refusal or blocked until the migration ends (Codex
+  review finding on PR #6, fixed before merge).
 - Archived: one `audit_log` row per existing game, action
   `season_restructure_archive`, target `games/<game_no>`, payload the full
   row including row_digits, col_digits, digits_published_at and

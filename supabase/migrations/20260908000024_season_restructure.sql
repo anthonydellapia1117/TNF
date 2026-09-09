@@ -6,6 +6,11 @@
 -- Break-even is 90 paying blocks. $500 a block is unchanged.
 --
 -- What this does, inside one transaction:
+--   0. Locks games and payouts against concurrent writes first, so the checks
+--      below and the archive/delete after them see one committed state. An
+--      in-flight scoring request commits before the lock is granted and is
+--      then caught by the refusal; nothing can commit between the check and
+--      the delete.
 --   1. Refuses to run if any game is scored or any payout row exists.
 --   2. Archives every existing game row into audit_log, one row per game,
 --      action season_restructure_archive, payload = the full row. The digits
@@ -39,6 +44,11 @@ declare
   v_cfg_after jsonb;
   c config%rowtype;
 begin
+  -- 0. One committed state for the checks, the archive and the delete.
+  -- EXCLUSIVE conflicts with every row-level write lock and still lets the
+  -- public projections read while this runs.
+  lock table games, payouts in exclusive mode;
+
   -- 1. Nothing to lose: no scores, no payouts.
   select count(*) into v_games from games;
   select count(*) into v_scored from games
