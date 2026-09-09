@@ -83,3 +83,23 @@ Staging is not deciding. A staged row changes nothing about the pool.
   refund itself is a Venmo Anthony sends and a ledger row he adds later,
   never the app. The payload carries participant_name, block, amount_cents,
   venmo_txn_id, payment_id and a one-line text.
+
+- `payment_candidate`: **staged by the sweep and handled by nothing.** One open
+  row carries this kind right now (Tom Nataloni, block 23, $500, staged
+  2026-09-08). Approving it records the decision and puts no money in the
+  ledger, because the `CASE` in `admin_approve_pending` knows `payment`, not
+  `payment_candidate`. It looks identical to a real payment row on the page.
+  Record that payment from `/admin/payments` and dismiss the row, or restage it
+  as `payment`. The shortcut grammar stages `payment` for exactly this reason.
+- The shortcut grammar's own decision-only kinds, all documented in
+  `docs/SHORTCUT_GRAMMAR.md`: `new_participant`, `owner_move`,
+  `contact_change`, `release_block`, `hold_block`, `set_comped`, `identity`,
+  `note`. Each records Anthony's call and waits for him on the right admin
+  page. Its other two kinds, `payment` and `reserve_blocks`, do dispatch.
+
+**Why this list has teeth now.** `pending_actions.kind` is checked only for
+length 1-64, so any string inserts and an unknown one applies nothing with no
+error. `tests/unit/shortcut-grammar.test.ts` asserts that every action the
+grammar marks as dispatching names a real key of `DISPATCH` in
+`src/lib/pending.ts`, so a kind renamed on one side turns the suite red instead
+of turning the queue quiet.

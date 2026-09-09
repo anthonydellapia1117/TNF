@@ -4,9 +4,19 @@ The recurring jobs this pool needs beyond the hourly TNF Gmail Sweep. Each
 one is a Claude Code Routine: a fresh session per firing, read-only against
 the pool, reporting either a NEEDS ANTHONY list or the words NO ACTION.
 
-The hourly sweep (`TNF Gmail Sweep`, stored cron `43 7-23 * * *` UTC) is not
-defined here. It was created in the Routines UI and is the only routine that
-writes anything.
+The hourly sweep (`TNF Gmail Sweep`, trigger `trig_017vcw3ADZHPVpKVXS1s1B7X`)
+is the only routine that writes anything, and its prompt now lives in
+`docs/SWEEP_PROMPT.md`. It was created in the Routines UI, so that file is the
+reviewable copy and the UI holds the copy that runs; paste one into the other.
+
+Two things this file used to get wrong about it, both corrected 2026-09-09
+against the live trigger:
+
+- **Its stored cron is `43 11-23,0-2 * * *` UTC, not `43 7-23 * * *`.** Read
+  as EST that is 6:43 AM through 9:43 PM ET, sixteen firings a day.
+- **It is disabled**, along with every other TNF routine in the table below.
+  Nothing is firing. Enabling it is Anthony's click and nothing in this repo
+  does it for him.
 
 ## Standing rules, every routine
 
