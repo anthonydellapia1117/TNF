@@ -89,22 +89,29 @@ export function blockDigits(
   return { away: rowDigits[row], home: colDigits[col] };
 }
 
+/**
+ * What a halftime or a final pays. One tier since the 2026-09-08 restructure:
+ * every game is a holiday game and every game pays the same, $1,500 at the
+ * half and $3,000 at the final. The config row still carries four keys and
+ * migration 24 set all four to the same numbers; this reads the holiday pair
+ * and ignores game_type, so an older caller passing "regular" gets the same
+ * answer as everything else. Never a fallback to any other tier.
+ */
 export function payoutCents(
-  gameType: GameType,
+  _gameType: GameType,
   payoutType: "halftime" | "final",
   config: PoolConfig,
 ): number {
-  if (gameType === "holiday") {
-    return payoutType === "halftime"
-      ? config.holiday_halftime_cents
-      : config.holiday_final_cents;
-  }
   return payoutType === "halftime"
-    ? config.regular_halftime_cents
-    : config.regular_final_cents;
+    ? config.holiday_halftime_cents
+    : config.holiday_final_cents;
 }
 
-/** Season total across all games. Must equal exactly $44,250 (spec 6.2). */
+/**
+ * Season total across all games in the table: 10 games x $4,500 = $45,000
+ * since 2026-09-08. Derived, never stored; the admin page and the SQL suite
+ * both assert it.
+ */
 export function seasonPayoutTotalCents(
   games: Pick<PublicGame, "game_type">[],
   config: PoolConfig,
@@ -253,7 +260,7 @@ export function claimedEntries(
 }
 
 /**
- * Grid-density prize label: "$750", "$1K", "$1.5K". The abbreviated form
+ * Grid-density prize label: "$1.5K", "$3K". The abbreviated form
  * fits winner badges; exact figures live on the schedule and payouts pages.
  */
 export function amountBadge(cents: number): string {

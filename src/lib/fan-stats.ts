@@ -9,7 +9,7 @@
 //
 // Pure logic, unit-tested.
 import { lastDigit, winningBlock } from "@/lib/pool";
-import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
+import type { PublicBlock, PublicGame } from "@/lib/types";
 
 /** One scored event: a halftime or a final with both scores in. */
 export interface ScoredEvent {
@@ -234,18 +234,12 @@ export function hotCells(games: PublicGame[], limit = 5): HotCell[] {
 
 export interface HolidayNext {
   game: PublicGame;
-  /** Extra a final pays on this game versus a regular week, in cents. */
-  finalPremiumCents: number;
   /** How many holiday games are still ahead, including this one. */
   remaining: number;
 }
 
 export function nextHolidayGame(
   games: PublicGame[],
-  config: Pick<
-    PoolConfig,
-    "holiday_final_cents" | "regular_final_cents"
-  >,
   nowMs: number,
 ): HolidayNext | null {
   const ahead = games
@@ -260,14 +254,7 @@ export function nextHolidayGame(
     .sort((a, b) => (a.kickoff_at ?? "").localeCompare(b.kickoff_at ?? ""));
   const game = ahead[0];
   if (!game) return null;
-  return {
-    game,
-    finalPremiumCents: Math.max(
-      0,
-      config.holiday_final_cents - config.regular_final_cents,
-    ),
-    remaining: ahead.length,
-  };
+  return { game, remaining: ahead.length };
 }
 
 // ---------------------------------------------------------------------------

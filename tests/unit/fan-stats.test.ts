@@ -8,7 +8,7 @@ import {
   scoredEvents,
 } from "@/lib/fan-stats";
 import { winningBlock } from "@/lib/pool";
-import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
+import type { PublicBlock, PublicGame } from "@/lib/types";
 
 // Identity permutations keep the arithmetic legible: with rows = cols =
 // [0..9], the block for (home, away) is homeDigit * 10 + awayDigit + 1.
@@ -57,11 +57,6 @@ function block(n: number, name: string | null): PublicBlock {
     assignment_method: null,
   };
 }
-
-const CONFIG = {
-  holiday_final_cents: 150000,
-  regular_final_cents: 100000,
-} as Pick<PoolConfig, "holiday_final_cents" | "regular_final_cents">;
 
 describe("scoredEvents", () => {
   it("is empty pre-season — no scores, nothing to say", () => {
@@ -270,7 +265,7 @@ describe("hotCells", () => {
 describe("nextHolidayGame", () => {
   const NOW = new Date("2026-09-03T12:00:00Z").getTime();
 
-  it("finds the soonest holiday game ahead and its premium", () => {
+  it("finds the soonest holiday game ahead", () => {
     const r = nextHolidayGame(
       [
         game({ game_no: 1, status: "scheduled", kickoff_at: "2026-09-10T00:20:00Z" }),
@@ -289,11 +284,9 @@ describe("nextHolidayGame", () => {
           kickoff_at: "2026-12-25T18:00:00Z",
         }),
       ],
-      CONFIG,
       NOW,
     );
     expect(r?.game.game_no).toBe(13);
-    expect(r?.finalPremiumCents).toBe(50000); // $1,500 vs $1,000
     expect(r?.remaining).toBe(2);
   });
 
@@ -313,7 +306,6 @@ describe("nextHolidayGame", () => {
           kickoff_at: "2026-12-25T18:00:00Z",
         }),
       ],
-      CONFIG,
       NOW,
     );
     expect(r).toBeNull();
@@ -329,26 +321,9 @@ describe("nextHolidayGame", () => {
           kickoff_at: "2026-11-26T18:00:00Z",
         }),
       ],
-      CONFIG,
       new Date("2026-12-31T00:00:00Z").getTime(),
     );
     expect(r).toBeNull();
-  });
-
-  it("never reports a negative premium", () => {
-    const r = nextHolidayGame(
-      [
-        game({
-          game_no: 13,
-          status: "scheduled",
-          game_type: "holiday",
-          kickoff_at: "2026-11-26T18:00:00Z",
-        }),
-      ],
-      { holiday_final_cents: 90000, regular_final_cents: 100000 },
-      NOW,
-    );
-    expect(r?.finalPremiumCents).toBe(0);
   });
 });
 
