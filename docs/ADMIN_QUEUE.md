@@ -75,3 +75,11 @@ Staging is not deciding. A staged row changes nothing about the pool.
   non-admin, stage then approve resolves and writes both audit rows, a
   refused approve leaves the row open, dismiss resolves without applying.
   Runs under `npm run test:db`, which needs a local Postgres.
+
+## Kinds without a dispatcher
+
+- `refund_needed` (first staged 2026-09-08 for nerdz, block 1): a released
+  participant with a payment on file. Approve records the decision only; the
+  refund itself is a Venmo Anthony sends and a ledger row he adds later,
+  never the app. The payload carries participant_name, block, amount_cents,
+  venmo_txn_id, payment_id and a one-line text.

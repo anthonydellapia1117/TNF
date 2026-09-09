@@ -104,7 +104,11 @@ begin
     raise exception 'v_public_blocks should expose assignment_method';
   end if;
   select count(*) into n from v_public_games;
-  if n <> 23 then raise exception 'v_public_games should serve 23 rows to anon'; end if;
+  if n <> 10 then raise exception 'v_public_games should serve 10 rows to anon'; end if;
+  select count(*) into n from v_public_games where row_digits is not null or col_digits is not null;
+  if n <> 0 then raise exception 'v_public_games should serve null digits before any draw'; end if;
+  select count(*) into n from v_public_games where game_no > 10;
+  if n <> 0 then raise exception 'v_public_games should have no game past G10'; end if;
   select count(*) into n from v_pot;
   if n <> 1 then raise exception 'v_pot should serve anon'; end if;
   select count(*) into n from config;

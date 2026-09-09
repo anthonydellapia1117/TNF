@@ -177,17 +177,17 @@ describe("body", () => {
   it("never carries an em dash or an en dash, even when the data does", () => {
     const dashed: PackGame = {
       ...G01,
-      away_team: "New England Patriots \u2014 road",
-      holiday_label: "Thanksgiving \u2013 night",
+      away_team: "New England Patriots — road",
+      holiday_label: "Thanksgiving – night",
     };
     const pack = buildGameDayPack(dashed, [], BASE, {
       grid: LINKS,
-      notes: { headline: "A \u2014 B", paragraphs: ["x \u2013 y"] },
+      notes: { headline: "A — B", paragraphs: ["x – y"] },
     });
-    expect(pack.subject).not.toMatch(/[\u2013\u2014]/);
-    expect(pack.body).not.toMatch(/[\u2013\u2014]/);
+    expect(pack.subject).not.toMatch(/[–—]/);
+    expect(pack.body).not.toMatch(/[–—]/);
     expect(pack.subject).toContain("New England Patriots - road");
-    expect(hyphenate("a \u2014 b \u2013 c")).toBe("a - b - c");
+    expect(hyphenate("a — b – c")).toBe("a - b - c");
   });
 });
 
@@ -197,7 +197,7 @@ describe("payout money", () => {
     expect(usd(100000)).toBe("$1,000");
     expect(usd(150000)).toBe("$1,500");
     expect(usd(75050)).toBe("$750.50");
-    expect(usd(4425000)).toBe("$44,250");
+    expect(usd(4500000)).toBe("$45,000");
   });
 });
 

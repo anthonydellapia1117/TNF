@@ -1,5 +1,5 @@
 -- Verbatim names, the apostrophe round-trip, the worked example, and the
--- $44,250 season total (section 7 rows 9-10 and 13; spec 6.2).
+-- $45,000 season total (10 holiday games, one tier, since 2026-09-08).
 begin;
 
 do $$
@@ -8,7 +8,7 @@ declare
   v_total bigint;
 begin
   -- Apostrophe round-trips exactly (section 7 row 9).
-  select holiday_label into v_label from games where game_no = 23;
+  select holiday_label into v_label from games where game_no = 10;
   if v_label <> 'New Year''s Eve' then
     raise exception 'holiday_label mangled: %', v_label;
   end if;
@@ -34,33 +34,44 @@ begin
     raise exception 'worked example failed';
   end if;
 
-  -- 23 games: 15 regular, 8 holiday, payouts sum to exactly $44,250.
-  if (select count(*) from games) <> 23
-     or (select count(*) from games where game_type = 'regular') <> 15
-     or (select count(*) from games where game_type = 'holiday') <> 8 then
+  -- 10 games, every one holiday, since the 2026-09-08 restructure.
+  if (select count(*) from games) <> 10
+     or (select count(*) from games where game_type = 'holiday') <> 10
+     or (select count(*) from games where game_type = 'regular') <> 0 then
     raise exception 'game mix wrong';
   end if;
+  -- One tier: the same numbers whichever key an older path reads.
   select sum(
            case when g.game_type = 'holiday'
                 then c.holiday_halftime_cents + c.holiday_final_cents
                 else c.regular_halftime_cents + c.regular_final_cents end)
     into v_total
     from games g cross join config c;
-  if v_total <> 4425000 then
-    raise exception 'season payout total is % cents, not $44,250', v_total;
+  if v_total is null then
+    raise exception 'season payout total is NULL, the assertion below would be vacuous';
+  end if;
+  if v_total <> 4500000 then
+    raise exception 'season payout total is % cents, not $45,000', v_total;
+  end if;
+  if (select regular_halftime_cents from config) <> (select holiday_halftime_cents from config)
+     or (select regular_final_cents from config) <> (select holiday_final_cents from config) then
+    raise exception 'payout tiers differ; the pool has one tier';
   end if;
 
-  -- Holiday mix: 3 Thanksgiving, 1 Christmas Eve, 3 Christmas Day, 1 New Year's Eve.
-  if (select count(*) from games where holiday_label = 'Thanksgiving') <> 3
+  -- Holiday mix: Thanksgiving Eve, 3 Thanksgiving, Black Friday, Christmas
+  -- Eve, 3 Christmas, New Year's Eve.
+  if (select count(*) from games where holiday_label = 'Thanksgiving Eve') <> 1
+     or (select count(*) from games where holiday_label = 'Thanksgiving') <> 3
+     or (select count(*) from games where holiday_label = 'Black Friday') <> 1
      or (select count(*) from games where holiday_label = 'Christmas Eve') <> 1
-     or (select count(*) from games where holiday_label = 'Christmas Day') <> 3
+     or (select count(*) from games where holiday_label = 'Christmas') <> 3
      or (select count(*) from games where holiday_label = 'New Year''s Eve') <> 1 then
     raise exception 'holiday mix wrong';
   end if;
 
-  -- G19 and G23 ship with date_confirmed = false (spec 6.2).
-  if exists (select 1 from games where game_no in (19, 23) and date_confirmed) then
-    raise exception 'G19/G23 must ship unconfirmed';
+  -- Every date is confirmed; nothing ships unconfirmed any more.
+  if exists (select 1 from games where not date_confirmed) then
+    raise exception 'every game must ship date_confirmed';
   end if;
 end $$;
 

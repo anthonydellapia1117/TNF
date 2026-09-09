@@ -82,6 +82,11 @@ export default async function WinnersPage() {
   ]);
 
   const gamesById = new Map(games.map((g) => [g.id, g]));
+  const firstKickoff =
+    games
+      .map((g) => g.kickoff_at)
+      .filter((k): k is string => k !== null)
+      .sort()[0] ?? null;
   const standings = buildStandings(payouts);
   const totalCents = payouts.reduce((sum, p) => sum + p.amount_cents, 0);
 
@@ -106,7 +111,7 @@ export default async function WinnersPage() {
           />
           <p className="mt-4 text-base font-medium">No winners yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            The first game is Wed Sep 9.
+            The first game is {fmtDateET(firstKickoff)}.
           </p>
           <Link
             href="/schedule"

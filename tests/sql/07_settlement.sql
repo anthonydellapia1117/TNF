@@ -91,14 +91,17 @@ begin
   end;
 end $$;
 
--- Locked config values: price, block count, claim deadline.
+-- Locked config values: price, block count, claim deadline (2026-11-24
+-- since the 2026-09-08 restructure), one payout tier.
 do $$
 declare
   c config;
 begin
   select * into c from config;
   if c.price_per_block_cents <> 50000 or c.blocks_total <> 100
-     or c.claim_deadline <> date '2026-09-04' or c.timezone <> 'America/New_York' then
+     or c.claim_deadline <> date '2026-11-24' or c.timezone <> 'America/New_York'
+     or c.regular_halftime_cents <> 150000 or c.holiday_halftime_cents <> 150000
+     or c.regular_final_cents <> 300000 or c.holiday_final_cents <> 300000 then
     raise exception 'config drifted from the locked business rules: %', to_json(c);
   end if;
 end $$;

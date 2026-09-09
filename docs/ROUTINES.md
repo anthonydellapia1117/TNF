@@ -31,18 +31,33 @@ writes anything.
 | # | Name | When (America/New_York) | Stored cron (UTC) | Trigger ID | Job |
 |---|------|-------------------------|-------------------|------------|-----|
 | 1 | TNF Chase List | Daily 9:07 AM EDT, 8:07 AM EST | `7 13 * * *` | `trig_016ZLMsWxbcejrQK2XdJkTza` | Reserved blocks with no payment recorded, plus any dated commitment found in mail |
-| 2 | TNF Draw Window | Saturday 9:37 AM EDT, 8:37 AM EST | `37 13 * * 6` | `trig_01TmmBwcxWv5FdJGspjunhn9` | The coming week is inside the 7-day draw window and not drawn, not published, or date-unconfirmed |
-| 3 | TNF Game Day Digits | Wed, Thu, Fri 9:20 AM EDT, 8:20 AM EST | `20 13 * * 3-5` | `trig_01EptwvxHH2mdctyMzsaH9XC` | Digits live for today's game after the 8:00 AM reveal, reveal scheduled for tomorrow's |
-| 4 | TNF Post-Game Check | Thu, Fri, Sat 11:07 AM EDT, 10:07 AM EST | `7 15 * * 4-6` | `trig_01HJ81a3TUtwMozA32vaqMLN` | Unscored games, winners recomputed, non-assigned winners flagged, payout rows present, Venmo receipt to each winner |
-| 5 | TNF Game Day Pack | Wed, Thu, Fri 7:30 AM EDT, 6:30 AM EST | `30 11 * * 3-5` | `trig_01QLquSeCUP8wc3DxPfzzQRY` | Grid PNG and PDF for today's game uploaded to the public bucket `game-day`, Gmail draft with both links to every holder with an address, never sent. Disabled until Gmail, Supabase and ADMIN_PASSWORD are on it |
+| 2 | TNF Draw Window | Tue Nov 24, Tue Dec 22, Tue Dec 29, 9:37 AM EST | `37 14 24 11 *` and `37 14 22,29 12 *` | `trig_01TmmBwcxWv5FdJGspjunhn9` | The coming week is inside the 7-day draw window and not drawn, not published, or date-unconfirmed |
+| 3 | TNF Game Day Digits | Wed, Thu, Fri 8:20 AM EST (covers all six game dates) | `20 13 * * 3-5` | `trig_01EptwvxHH2mdctyMzsaH9XC` | Digits live for today's game after the 8:00 AM reveal, reveal scheduled for tomorrow's |
+| 4 | TNF Post-Game Check | Thu, Fri, Sat 10:07 AM EST (the morning after each game date) | `7 15 * * 4-6` | `trig_01HJ81a3TUtwMozA32vaqMLN` | Unscored games, winners recomputed, non-assigned winners flagged, payout rows present, Venmo receipt to each winner |
+| 5 | TNF Game Day Pack | Nov 25, 26, 27 and Dec 24, 25, 31, 9:10 AM EST | `10 14 25-27 11 *` and `10 14 24,25,31 12 *` | `trig_01QLquSeCUP8wc3DxPfzzQRY` | Grid PNG and PDF for today's game uploaded to the public bucket `game-day`, Gmail draft with both links to every holder with an address, never sent. Disabled until Gmail, Supabase and ADMIN_PASSWORD are on it |
 
 ## Clock change
 
-Stored crons are UTC, so on Sunday November 1, 2026 every routine starts
-firing one hour earlier in ET. The times were chosen so both readings work:
-every run lands after the 8:00 AM ET reveal, and the post-game run is late
-enough that a final entered the night before or first thing is already in.
-Do not "fix" the crons in November.
+Stored crons are UTC. Every game date of the restructured season is after
+the November 1 clock change, so read every stored cron as EST (UTC-5): the
+lines above give the EST time. The daily and weekly ones fire an hour later
+in ET while EDT still runs; that is harmless, every run still lands after
+the 8:00 AM ET reveal.
+
+## Restructure 2026-09-08: the cron lines to paste
+
+The routines are paused and were created in the UI, so these are pasted by
+hand. One line per routine where the UI takes one cron; a routine that
+needs two lines gets two entries or the wider weekly pattern noted.
+
+- TNF Draw Window: `37 14 24 11 *` (Tue Nov 24) and `37 14 22,29 12 *`
+  (Tue Dec 22 and Dec 29). Draws are one week at a time, never in advance:
+  G01-G05 on Nov 24, G06-G09 on Dec 22, G10 on Dec 29.
+- TNF Game Day Pack: `10 14 25-27 11 *` (Nov 25, 26, 27) and
+  `10 14 24,25,31 12 *` (Dec 24, 25, 31), 9:10 AM EST, after the 8:00 AM
+  reveal.
+- TNF Game Day Digits and TNF Post-Game Check keep their weekly lines;
+  Wed-Fri and Thu-Sat cover all six game dates and their mornings after.
 
 ## How they were created, and the one gap
 
@@ -69,14 +84,15 @@ Do not "fix" the crons in November.
 - **When:** daily, 9:07 AM EDT, 8:07 AM EST.
 - **Stored cron (UTC):** `7 13 * * *`
 - **Trigger:** `trig_016ZLMsWxbcejrQK2XdJkTza`
-- **Why:** the claim deadline was September 4. Reserved blocks are not
-  released at the deadline; they stay Reserved and get chased. This is the
+- **Why:** the claim deadline is November 24 (it was September 4 before the
+  2026-09-08 restructure). Reserved blocks are not released at the
+  deadline; they stay Reserved and get chased. This is the
   roll-up. The hourly sweep does the matching, this job never touches a
   payment. Block status is public; the owner code is admin-only since
   migration 18, so lines are by block and name and Anthony maps them to the
-  collecting owner at `/admin/list`. Runs daily because the money should be
-  in before the Wednesday September 9 kickoff; goes quiet on its own once
-  nothing is Reserved.
+  collecting owner at `/admin/list`. Runs daily so the money is in before
+  the Wednesday November 25 kickoff; goes quiet on its own once nothing is
+  Reserved.
 
 Prompt:
 
@@ -87,7 +103,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 0a. If the repo anthonydellapia1117/TNF is not already checked out in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. Live state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views for this job: v_public_blocks, v_public_games. Anon reads only, bounded by RLS. Never write to the database, never look for another key. If the clone or a read fails, the report is a single NEEDS ANTHONY line naming the failed step. Do not guess state.
 0b. Hard limits: never mark anything Paid, never record or stage a payment, never resolve an identity conflict, never release, move or assign a block, never send or reply to email, never move money. Gmail is read-only here. The Survivor pool is a separate system: never read its mail or labels, never mention it.
 
-1. GET v_public_blocks?status=eq.reserved&order=block_number. A Reserved block is a hold with no full payment recorded by the pool. Per CLAUDE.md, Reserved blocks stay Reserved after the September 4 deadline and get chased. There is no release by date, and releasing is Anthony's call only.
+1. GET v_public_blocks?status=eq.reserved&order=block_number. A Reserved block is a hold with no full payment recorded by the pool. Per CLAUDE.md, Reserved blocks stay Reserved after the November 24 deadline and get chased. There is no release by date, and releasing is Anthony's call only.
 2. For each Reserved block, search Gmail read-only for threads from the last 7 days that mention the holder's display name or "block <number>". Fetch every match in full with get_thread, never trust a search preview. Note a dated commitment ("will pay Friday"), a statement that another owner is holding the cash, or a request to release. Quote it with the date. Do not act on it. If the display name is an alias with no clear match, write "no mail match" and do not guess who it is. If Gmail tools are not available in this session, skip this step and make the first NEEDS ANTHONY line: "Gmail connector missing on this routine, mail not checked. Add it at claude.ai/code > Routines > TNF Chase List."
 3. Money rules per CLAUDE.md: a Reserved block is not evidence the person is unpaid in another owner's book, and no Venmo in Anthony's mail is not evidence either. Say "no payment recorded by the pool", never "unpaid". Payment matching belongs to the hourly TNF Gmail Sweep, not here.
 4. GET v_public_games. If any game kicks off today or tomorrow, add one line: "Kickoff <day> <time> ET: a Reserved block that hits pays nothing and raises a review flag."
@@ -96,16 +112,17 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 
 ## 2. TNF Draw Window
 
-- **When:** Saturday, 9:37 AM EDT, 8:37 AM EST.
-- **Stored cron (UTC):** `37 13 * * 6`
+- **When:** Tuesday November 24, Tuesday December 22, Tuesday December 29,
+  9:37 AM EST.
+- **Stored cron (UTC):** `37 14 24 11 *` and `37 14 22,29 12 *`
 - **Trigger:** `trig_01TmmBwcxWv5FdJGspjunhn9`
-- **Why Saturday:** a Thursday kickoff opens the following week's 7-day
-  window on Thursday night. Christmas week is the exception: its furthest
-  game is Friday December 25, so that window opens Friday December 18 at
-  night, and a Friday-morning run would miss it. Saturday is the first
-  morning every week of the season is open, with five days to draw and
-  publish. Week 1 (Wednesday September 9) is caught by the September 5 run.
-  Draw and publish stay Anthony's two clicks; this only says when.
+- **Why those Tuesdays:** the season is three draw weeks. G01-G05 (week 12,
+  Wed Nov 25 to Fri Nov 27) are drawn Tuesday November 24; G06-G09 (week
+  16, Thu Dec 24 to Fri Dec 25) Tuesday December 22; G10 (week 17, Thu Dec
+  31) Tuesday December 29. Each is inside the 7-day window and never in
+  advance of it: the furthest game of the week sets the gate, and each game
+  is its own draw. Draw and publish stay Anthony's two clicks; this only
+  says when.
 
 Prompt:
 
@@ -122,19 +139,19 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
    - digits_assigned false: "Week <n>: draw G<xx> <away> at <home>, kicks off <day> <time> ET, at /admin/digits, then publish. Reveal is 8:00 AM ET on <date>."
    - digits_assigned true and digits_reveal_at null: "Week <n>: G<xx> is drawn but not published. Publish at /admin/digits."
    - digits_reveal_at set and later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
-   - date_confirmed false: "G<xx> date unconfirmed, cannot be drawn. Confirm at /admin/games." (G19 on December 24 and G23 on December 31 shipped unconfirmed.)
+   - date_confirmed false: "G<xx> date unconfirmed, cannot be drawn. Confirm at /admin/games."
 4. Look ahead: any game 7 to 14 days out with date_confirmed false gets the same confirm line, so it is confirmed before its window opens.
 5. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. Otherwise the entire report is the words NO ACTION.
 ```
 
 ## 3. TNF Game Day Digits
 
-- **When:** Wednesday, Thursday, Friday, 9:20 AM EDT, 8:20 AM EST.
+- **When:** Wednesday, Thursday, Friday, 8:20 AM EST.
 - **Stored cron (UTC):** `20 13 * * 3-5`
 - **Trigger:** `trig_01EptwvxHH2mdctyMzsaH9XC`
-- **Why these days:** Wednesday covers G01 on September 9, Thursday covers
-  every regular week and Thanksgiving, Friday covers Christmas Day. Every
-  other date is NO ACTION. Today's game must have live digits (the public
+- **Why these days:** the six game dates are Wed Nov 25, Thu Nov 26, Fri
+  Nov 27, Thu Dec 24, Fri Dec 25 and Thu Dec 31, all Wednesday to Friday.
+  Every other date is NO ACTION. Today's game must have live digits (the public
   projection shows them once the 8:00 AM reveal has passed); tomorrow's must
   have a reveal scheduled before kickoff. This is the same red alert
   `/admin` shows, delivered to a phone.
@@ -160,12 +177,11 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 
 ## 4. TNF Post-Game Check
 
-- **When:** Thursday, Friday, Saturday, 11:07 AM EDT, 10:07 AM EST.
+- **When:** Thursday, Friday, Saturday, 10:07 AM EST.
 - **Stored cron (UTC):** `7 15 * * 4-6`
 - **Trigger:** `trig_01HJ81a3TUtwMozA32vaqMLN`
-- **Why these days:** the morning after every game date. G01 on Wednesday
-  is checked Thursday, every Thursday game is checked Friday, Christmas Day
-  is checked Saturday. Paid versus owed is admin-only and invisible here, so
+- **Why these days:** the morning after every game date. Wednesday G01 is
+  checked Thursday, the Thursday games Friday, the Friday games Saturday. Paid versus owed is admin-only and invisible here, so
   the payout line is a reminder that repeats once, not a finding. A winning
   block that is not Assigned produces no payout by rule; the line names it
   so the review flag is not missed.
@@ -184,15 +200,17 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
    a. Recompute both winners from the projection, per the CLAUDE.md grid orientation: row = position of the AWAY score's last digit in row_digits, col = position of the HOME score's last digit in col_digits, block = row * 10 + col + 1. Do it for the halftime score and the final score. If your result differs from halftime_block or final_block, one line: "G<xx> <halftime or final>: computed block <b>, projection says <b2>. Review at /admin/score." Do not guess which is right.
    b. Look up each winning block in v_public_blocks. If its status is not assigned, one line: "G<xx> <halftime or final> hit block <b> (<display_name>, <status>). No payout by rule, review flag at /admin/payouts." Only an Assigned block receives a payout.
    c. If a winning block is assigned, v_public_payouts must hold a row for that game_id and payout_type. Missing: "G<xx> is final with no <type> payout recorded. Review at /admin/payouts."
-   d. For each payout row present, search Gmail read-only for a Venmo receipt from Anthony to that winner, subject or body "You paid", for exactly that amount ($750, $1,000 or $1,500) dated after final_scored_at. Fetch matches in full with get_thread. Found: "G<xx> <type> block <b> <display_name> $<amount>: Venmo receipt <date>. Mark paid at /admin/payouts if not already." Not found: "G<xx> <type> block <b> <display_name> $<amount>: no Venmo receipt in mail. If paid by cash or elsewhere, mark paid at /admin/payouts." Paid versus owed is admin-only and invisible here, so this line is a reminder, not a finding. If Gmail tools are not available in this session, skip the receipt search and make the first NEEDS ANTHONY line: "Gmail connector missing on this routine, receipts not checked. Add it at claude.ai/code > Routines > TNF Post-Game Check."
+   d. For each payout row present, search Gmail read-only for a Venmo receipt from Anthony to that winner, subject or body "You paid", for exactly that amount ($1,500 or $3,000) dated after final_scored_at. Fetch matches in full with get_thread. Found: "G<xx> <type> block <b> <display_name> $<amount>: Venmo receipt <date>. Mark paid at /admin/payouts if not already." Not found: "G<xx> <type> block <b> <display_name> $<amount>: no Venmo receipt in mail. If paid by cash or elsewhere, mark paid at /admin/payouts." Paid versus owed is admin-only and invisible here, so this line is a reminder, not a finding. If Gmail tools are not available in this session, skip the receipt search and make the first NEEDS ANTHONY line: "Gmail connector missing on this routine, receipts not checked. Add it at claude.ai/code > Routines > TNF Post-Game Check."
 3. Older finals. For every game final more than 26 hours ago, run only check 2c. Missing payout rows for an assigned winner stay reported until fixed.
 4. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. Otherwise the entire report is the words NO ACTION.
 ```
 
 ## 5. TNF Game Day Pack
 
-- **When:** Wednesday, Thursday, Friday, 7:30 AM EDT, 6:30 AM EST. Non-game days are NO ACTION.
-- **Stored cron (UTC):** `30 11 * * 3-5`
+- **When:** 9:10 AM EST on the six game dates: November 25, 26, 27 and
+  December 24, 25, 31. After the 8:00 AM reveal, so the grid it renders has
+  its digits.
+- **Stored cron (UTC):** `10 14 25-27 11 *` and `10 14 24,25,31 12 *`
 - **Trigger:** `trig_01QLquSeCUP8wc3DxPfzzQRY` (created disabled; enable after
   the Gmail and Supabase connectors and the ADMIN_PASSWORD environment
   variable are on the routine)
@@ -233,11 +251,9 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
   when the second fails, so the rerun restores the pair. The IMAP `--draft`
   path (Google app password, `GMAIL_APP_PASSWORD`) still exists as an option
   and is not needed here.
-- **Timing caveat:** 7:30 AM is before the 8:00 AM ET digit reveal. If the
-  digits are scheduled for game morning the command refuses to render a grid
-  of question marks (exit 2) and never uploads one; the run reports it.
-  Publishing digits on draw day, as week 1 was, avoids the conflict; so does
-  moving this cron after the reveal.
+- **Timing:** 9:10 AM is after the 8:00 AM ET reveal. If a game's digits
+  are still not live the command refuses to render a grid of question marks
+  (exit 2) and never uploads one; the run reports it.
 - **Recipient SQL** (read-only, admin data, never committed):
 
 ```sql
@@ -267,7 +283,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 
 ## Not routines
 
-- **season_mode.** One admin toggle before the September 9 kickoff. A click,
+- **season_mode.** One admin toggle before the November 25 kickoff. A click,
   not a job.
 - **NEEDS ANTHONY has no tracker.** A fired session's report lives in that
   session and its push. If an item goes unanswered, nothing re-raises it

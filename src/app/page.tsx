@@ -16,7 +16,13 @@ import {
   getPublicGames,
   getPublicPayouts,
 } from "@/lib/data/public";
-import { fmtDateLongET, fmtDateOnly, fmtKickoffET, fmtUsd } from "@/lib/format";
+import {
+  fmtDateET,
+  fmtDateLongET,
+  fmtDateOnly,
+  fmtKickoffET,
+  fmtUsd,
+} from "@/lib/format";
 import { teamInfo } from "@/lib/nfl";
 import { seasonStory } from "@/lib/next-reveal";
 import {
@@ -229,7 +235,7 @@ export default async function DashboardPage() {
   const digits = digitReport(games);
   const calls = closeCalls(games, blocks);
   const cells = hotCells(games);
-  const holiday = nextHolidayGame(games, config, Date.now());
+  const holiday = nextHolidayGame(games, Date.now());
   const repeats = repeatWinners(payouts);
 
   // What this page shows, and in what order, is decided in one tested place.
@@ -284,7 +290,8 @@ export default async function DashboardPage() {
         >
           {recent.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No winners yet - the season kicks off Sep 9.
+              No winners yet - the season kicks off{" "}
+              {fmtDateET(story.firstKickoffISO)}.
             </p>
           ) : (
             <ul className="space-y-2">

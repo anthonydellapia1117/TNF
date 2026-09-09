@@ -186,20 +186,44 @@ describe("block geometry", () => {
   });
 });
 
-describe("payouts", () => {
-  it("prices regular and holiday games", () => {
-    expect(payoutCents("regular", "halftime", CONFIG)).toBe(75000);
-    expect(payoutCents("regular", "final", CONFIG)).toBe(100000);
-    expect(payoutCents("holiday", "halftime", CONFIG)).toBe(75000);
-    expect(payoutCents("holiday", "final", CONFIG)).toBe(150000);
+describe("payouts (one tier since 2026-09-08)", () => {
+  // Older config rows still carry four keys. Every game pays the holiday
+  // numbers whichever game_type it is handed; the split is gone.
+  const TWO_TIER: PoolConfig = {
+    ...CONFIG,
+    regular_halftime_cents: 75000,
+    regular_final_cents: 100000,
+    holiday_halftime_cents: 150000,
+    holiday_final_cents: 300000,
+  };
+  const ONE_TIER: PoolConfig = {
+    ...CONFIG,
+    regular_halftime_cents: 150000,
+    regular_final_cents: 300000,
+    holiday_halftime_cents: 150000,
+    holiday_final_cents: 300000,
+  };
+
+  it("pays the same numbers regardless of game_type", () => {
+    expect(payoutCents("regular", "halftime", TWO_TIER)).toBe(150000);
+    expect(payoutCents("regular", "final", TWO_TIER)).toBe(300000);
+    expect(payoutCents("holiday", "halftime", TWO_TIER)).toBe(150000);
+    expect(payoutCents("holiday", "final", TWO_TIER)).toBe(300000);
+    expect(payoutCents("regular", "final", TWO_TIER)).toBe(
+      payoutCents("holiday", "final", TWO_TIER),
+    );
   });
 
-  it("sums the season to exactly $44,250", () => {
-    const games = [
-      ...Array.from({ length: 15 }, () => ({ game_type: "regular" as const })),
-      ...Array.from({ length: 8 }, () => ({ game_type: "holiday" as const })),
-    ];
-    expect(seasonPayoutTotalCents(games, CONFIG)).toBe(4425000);
+  it("sums the 10-game season to exactly $45,000", () => {
+    const games = Array.from({ length: 10 }, () => ({ game_type: "holiday" as const }));
+    expect(seasonPayoutTotalCents(games, ONE_TIER)).toBe(4500000);
+  });
+
+  it("would notice one game paying $2,500 at the final", () => {
+    const games = Array.from({ length: 10 }, () => ({ game_type: "holiday" as const }));
+    const mutated = { ...ONE_TIER, holiday_final_cents: 250000 };
+    expect(seasonPayoutTotalCents(games, mutated)).toBe(4000000);
+    expect(seasonPayoutTotalCents(games, mutated)).not.toBe(4500000);
   });
 });
 

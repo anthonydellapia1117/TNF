@@ -92,8 +92,8 @@ export default async function BlockPage({
   );
   const firstKickoff =
     games.find((g) => g.kickoff_at !== null)?.kickoff_at ?? null;
-  // The pool is 23 games by spec; fall back to that before the schedule lands.
-  const gameCount = games.length > 0 ? games.length : 23;
+  // The season length is the games table, never a constant.
+  const gameCount = games.length;
 
   return (
     <div className="space-y-5">
@@ -147,8 +147,8 @@ export default async function BlockPage({
           <p className="text-sm font-medium">
             This block is open.{" "}
             <span className="font-normal text-muted-foreground" data-numeric>
-              {fmtUsd(config.price_per_block_cents)}, fixed payouts, {gameCount}{" "}
-              games.
+              {fmtUsd(config.price_per_block_cents)}, fixed payouts
+              {gameCount > 0 ? `, ${gameCount} games` : ""}.
             </span>
           </p>
           <Link

@@ -131,7 +131,7 @@ begin
     select 1 from payouts po
       join participants p on p.id = po.participant_id
      where po.game_id = g2 and po.payout_type = 'final' and po.block_number = 15
-       and po.status = 'owed' and po.amount_cents = 100000
+       and po.status = 'owed' and po.amount_cents = 300000
        and p.full_name = 'Nicco Esgro'
   ) then
     raise exception 'final payout row wrong';
@@ -179,7 +179,7 @@ begin
       join participants p on p.id = po.participant_id
      where po.game_id = g2 and po.payout_type = 'final'
        and po.block_number = 36 and po.status = 'owed'
-       and po.amount_cents = 100000 and p.full_name = 'Jr/Diz'
+       and po.amount_cents = 300000 and p.full_name = 'Jr/Diz'
   ) then
     raise exception 'payout row did not recompute to the corrected winner';
   end if;
