@@ -112,7 +112,7 @@ const FIXTURES: Record<ActionName, Fixture> = {
     },
     // The whole point of this action: the address stays in the message.
     drift: {
-      body: ["PARTICIPANT: Joe Longo", "CONTACT_FIELD: email", "SOURCE_MSG: joe.longo@example.com"].join("\n"),
+      body: ["PARTICIPANT: Joe Longo", "CONTACT_FIELD: email", "SOURCE_MSG: someone@example.com"].join("\n"),
       because: /looks like an email address/,
     },
   },
@@ -222,22 +222,17 @@ const FIXTURES: Record<ActionName, Fixture> = {
   },
   note: {
     subject: "NOTE TNF: note - block 23",
-    body: ["SUBJECT_TYPE: block", "SUBJECT: 23", "NOTE: $30 Venmo was a Survivor entry, do not re-flag"].join("\n"),
+    body: ["SUBJECT_TYPE: block", "SUBJECT: 23", "NOTE: the $30 Venmo was unrelated, do not re-flag"].join("\n"),
     kind: "note",
     dispatch: null,
-    payload: { target: "block 23", subject_type: "block", subject: "23", note: "" },
+    payload: {
+      target: "block 23",
+      subject_type: "block",
+      subject: "23",
+      note: "the $30 Venmo was unrelated, do not re-flag",
+    },
     drift: { body: ["SUBJECT_TYPE: player", "SUBJECT: 23", "NOTE: context"].join("\n"), because: /SUBJECT_TYPE must be one of/ },
   },
-};
-
-// The note fixture above deliberately names the other pool, which the parser
-// refuses. Fix it here so the fixture reads as the real rule it demonstrates.
-FIXTURES.note.body = ["SUBJECT_TYPE: block", "SUBJECT: 23", "NOTE: the $30 Venmo was unrelated, do not re-flag"].join("\n");
-FIXTURES.note.payload = {
-  target: "block 23",
-  subject_type: "block",
-  subject: "23",
-  note: "the $30 Venmo was unrelated, do not re-flag",
 };
 
 function parseOk(f: Fixture): ParsedAction {
@@ -362,7 +357,7 @@ describe("what a body may never carry", () => {
   const line = (note: string) => ["SUBJECT_TYPE: pool", "SUBJECT: 2026", `NOTE: ${note}`].join("\n");
 
   it.each([
-    ["an email address", "reach him at ron.malandro@example.com"],
+    ["an email address", "reach him at someone@example.com"],
     ["a dashed phone number", "his cell is 215-555-0134"],
     ["a bare ten-digit phone number", "call 2155550134"],
     ["the other pool", "same as the Survivor sheet"],
