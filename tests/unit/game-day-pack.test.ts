@@ -291,6 +291,11 @@ describe("owners on the To line", () => {
     expect(ownerRecipients("", "anthony@example.test")).toEqual(["anthony@example.test"]);
   });
 
+  it("refuses a blank admin address instead of dropping Anthony from To", () => {
+    expect(() => ownerRecipients("ron@example.test", "")).toThrow(/admin address is blank/);
+    expect(() => ownerRecipients(undefined, "   ")).toThrow(/admin address is blank/);
+  });
+
   it("drops anyone on the To line from Bcc, case-insensitively", () => {
     expect(
       dropFromBcc(["holder@example.test", "RON@example.test", "anthony@example.test"], ["anthony@example.test", "ron@example.test"]),

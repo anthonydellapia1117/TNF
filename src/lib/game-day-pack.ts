@@ -384,11 +384,15 @@ export function buildGameDayPack(
  * Anthony plus the owners, from a comma, semicolon or whitespace separated
  * list. Trimmed, deduped case-insensitively keeping the first casing, the
  * admin address always first. An empty or missing list yields the admin
- * alone, so a blast never goes out with an empty To.
+ * alone, so a blast never goes out with an empty To; a blank admin address
+ * (ADMIN_EMAIL set to nothing) is refused rather than skipped, for the same
+ * reason.
  */
 export function ownerRecipients(list: string | null | undefined, adminEmail: string): string[] {
+  const admin = adminEmail.trim();
+  if (!admin) throw new Error("ownerRecipients: the admin address is blank; To would not carry Anthony");
   const seen = new Map<string, string>();
-  for (const raw of [adminEmail, ...(list ?? "").split(/[,;\s]+/)]) {
+  for (const raw of [admin, ...(list ?? "").split(/[,;\s]+/)]) {
     const a = raw.trim();
     if (!a) continue;
     const key = a.toLowerCase();

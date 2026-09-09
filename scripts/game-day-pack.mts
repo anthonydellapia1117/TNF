@@ -482,6 +482,13 @@ async function main() {
   const to = ownerRecipients(process.env.TNF_OWNER_EMAILS, ADMIN_EMAIL);
 
   const bcc = dropFromBcc(pack.recipients.bcc, to);
+  // distinct is the Bcc actually written; an owner who also holds a block is
+  // counted on the To line, not twice.
+  const counts = {
+    ...pack.recipients.counts,
+    distinct: bcc.length,
+    movedToTo: pack.recipients.bcc.length - bcc.length,
+  };
 
 
   const manifest = {
@@ -507,7 +514,7 @@ async function main() {
     to,
     bcc,
     noEmail: pack.recipients.noEmail,
-    counts: pack.recipients.counts,
+    counts,
     files,
     attachments: attachments.map((a) => ({ filename: a.filename, mimeType: a.mimeType })),
     renderedAt: new Date().toISOString(),
@@ -530,13 +537,13 @@ async function main() {
   writeFileSync(emlPath, mime);
   const draftResult = flag("draft") ? await writeGmailDraft(mime) : null;
 
-  const c = pack.recipients.counts;
+  const c = counts;
   console.log(pack.subject);
   console.log(`digits live: ${pack.digitsLive ? "yes" : "NO"}`);
   console.log(
     `holders ${c.holders}, blocks ${c.blocksHeld}, with email ${c.withEmail}, ` +
       `without ${c.withoutEmail}, cc addresses ${c.ccAddresses}, shared ${c.shared}, ` +
-      `distinct recipients ${c.distinct}`,
+      `distinct in bcc ${c.distinct}${c.movedToTo ? ` (${c.movedToTo} moved to To)` : ""}`,
   );
   console.log(
     `to: ${to.length} (admin + owners from TNF_OWNER_EMAILS${to.length === 1 ? ", variable not set" : ""}), bcc: ${bcc.length}`,
