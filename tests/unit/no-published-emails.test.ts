@@ -42,7 +42,7 @@ const FIXTURE_DOMAINS = /@(example\.com|tnf\.test|test|invalid|localhost)$/;
 const KNOWN_DEBT: Record<string, number> = {
   "TNF_APP_BUILD_SPEC.md": 15,
   "supabase/seed.sql": 15,
-  "tests/unit/game-day-pack.test.ts": 10,
+  "tests/unit/game-day-pack.test.ts": 5,
   "tests/sql/15_cc_email.sql": 6,
   "docs/PARTICIPANT_DATA_RULES.md": 1,
   "tests/sql/16_game_day_bucket.sql": 1,

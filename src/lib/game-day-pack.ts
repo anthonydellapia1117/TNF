@@ -375,10 +375,43 @@ export function buildGameDayPack(
 }
 
 // ---------------------------------------------------------------------------
-// The draft itself, as an RFC 5322 message: plain body, recipients in Bcc
-// only, and the two files attached only when the grid is not linked. Written
-// into Gmail Drafts over IMAP by the command, or handed to the Gmail
-// connector as subject, body and bcc.
+// Who is on the To line. Every email to the pool where the holders ride in
+// Bcc carries Anthony and the owners in To, Anthony first (Anthony's rule,
+// 2026-09-09). The owner addresses live outside the repo, in the routine's
+// TNF_OWNER_EMAILS environment variable, never in source: the repo is public.
+
+/**
+ * Anthony plus the owners, from a comma, semicolon or whitespace separated
+ * list. Trimmed, deduped case-insensitively keeping the first casing, the
+ * admin address always first. An empty or missing list yields the admin
+ * alone, so a blast never goes out with an empty To; a blank admin address
+ * (ADMIN_EMAIL set to nothing) is refused rather than skipped, for the same
+ * reason.
+ */
+export function ownerRecipients(list: string | null | undefined, adminEmail: string): string[] {
+  const admin = adminEmail.trim();
+  if (!admin) throw new Error("ownerRecipients: the admin address is blank; To would not carry Anthony");
+  const seen = new Map<string, string>();
+  for (const raw of [admin, ...(list ?? "").split(/[,;\s]+/)]) {
+    const a = raw.trim();
+    if (!a) continue;
+    const key = a.toLowerCase();
+    if (!seen.has(key)) seen.set(key, a);
+  }
+  return [...seen.values()];
+}
+
+/** The Bcc list without anyone already on the To line, case-insensitive. */
+export function dropFromBcc(bcc: string[], to: string[]): string[] {
+  const onTo = new Set(to.map((a) => a.toLowerCase()));
+  return bcc.filter((a) => !onTo.has(a.toLowerCase()));
+}
+
+// ---------------------------------------------------------------------------
+// The draft itself, as an RFC 5322 message: plain body, Anthony and the
+// owners in To, every holder in Bcc, and the two files attached only when
+// the grid is not linked. Written into Gmail Drafts over IMAP by the
+// command, or handed to the Gmail connector as subject, body, to and bcc.
 
 export interface DraftAttachment {
   filename: string;
@@ -388,6 +421,8 @@ export interface DraftAttachment {
 
 export interface DraftMessage {
   from: string;
+  /** Anthony and the owners. Optional only so older callers still compile. */
+  to?: string[];
   bcc: string[];
   subject: string;
   body: string;
@@ -415,6 +450,7 @@ export function buildDraftMime(m: DraftMessage): Buffer {
   const date = (m.date ?? new Date()).toUTCString().replace("GMT", "+0000");
   const head = [
     `From: ${m.from}`,
+    ...(m.to?.length ? [`To: ${m.to.join(", ")}`] : []),
     ...(m.bcc.length ? [`Bcc: ${m.bcc.join(", ")}`] : []),
     `Subject: ${encodedWord(m.subject)}`,
     `Date: ${date}`,
