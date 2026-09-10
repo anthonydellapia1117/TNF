@@ -7,6 +7,7 @@ import {
   getPayments,
   getPayouts,
 } from "@/lib/data/admin";
+import { collectorLabel } from "@/lib/format";
 import { gameCode } from "@/lib/pool";
 
 export const dynamic = "force-dynamic";
@@ -82,18 +83,22 @@ export async function GET() {
     wb,
     sheet(
       [
-        ["Date", "Participant", "Amount $", "Method", "Venmo txn", "Note", "Corrects"],
+        ["Date", "Participant", "Amount $", "Method", "Collected by", "Venmo txn", "Note", "Corrects"],
         ...payments.map((p) => [
           p.paid_on,
           p.participant_id ? (names.get(p.participant_id) ?? "?") : "UNMATCHED",
           usd(p.amount_cents),
           p.method,
+          // Blank means Anthony. This is the season-end reconciliation column:
+          // who was holding the money, which a later owner_group change cannot
+          // be used to reconstruct.
+          collectorLabel(p.collected_by),
           p.venmo_txn_id,
           p.note,
           p.corrects_payment_id ? "yes" : null,
         ]),
       ],
-      [12, 22, 10, 10, 24, 36, 10],
+      [12, 22, 10, 10, 12, 24, 36, 10],
     ),
     "Ledger",
   );

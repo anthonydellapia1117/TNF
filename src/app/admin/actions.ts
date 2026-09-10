@@ -172,6 +172,15 @@ export async function recordPayment(input: {
   sourceRef: string;
   note: string;
   correctsPaymentId: string | null;
+  /**
+   * Owner code of whoever is holding this money, or null for Anthony.
+   *
+   * Not optional by accident: admin_record_payment moves the participant to
+   * AVD when this is null, so leaving it off the call silently takes a
+   * participant off the owner who collected their cash. This action omitted
+   * it when the column shipped and the form had no field for it.
+   */
+  collectedBy: string | null;
 }): Promise<ActionResult<string>> {
   if (!Number.isInteger(input.amountCents) || input.amountCents === 0)
     return { ok: false, error: "Amount must be a non-zero whole number of cents." };
@@ -187,6 +196,7 @@ export async function recordPayment(input: {
       p_source_ref: input.sourceRef,
       p_note: input.note,
       p_corrects_payment_id: input.correctsPaymentId,
+      p_collected_by: input.collectedBy,
     },
     EVERYTHING,
   );

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { fmtDateOnly, fmtUsd } from "@/lib/format";
+import { collectorLabel, fmtDateOnly, fmtUsd } from "@/lib/format";
 import type { Payment } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
 import { recordPayment } from "@/app/admin/actions";
@@ -36,6 +36,11 @@ import {
 
 type Method = Payment["method"];
 
+// The eight owner codes, same list as the participants and payments CHECK
+// constraints. Picking one records that owner as holding the cash, which is
+// what stops admin_record_payment moving the participant to AVD.
+const OWNER_CODES = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG"] as const;
+
 const METHODS: { value: Method; label: string }[] = [
   { value: "venmo", label: "Venmo" },
   { value: "cash", label: "Cash" },
@@ -46,6 +51,11 @@ const METHODS: { value: Method; label: string }[] = [
 
 /** Sentinel — Radix Select items cannot carry an empty value. */
 const UNMATCHED = "__unmatched__";
+// Radix rejects an empty SelectItem value at runtime, which is why UNMATCHED
+// above exists. The collector menu needs the same trick: "" would have thrown
+// the moment the menu opened, leaving the form usable only on the default
+// null path - the one that moves the participant to AVD.
+const COLLECTED_BY_ME = "__me__";
 
 const LEDGER_SORT_KEYS = [
   "date",
@@ -87,6 +97,10 @@ export function PaymentsClient({
   const [venmoTxnId, setVenmoTxnId] = useState("");
   const [note, setNote] = useState("");
   const [corrects, setCorrects] = useState("");
+  // COLLECTED_BY_ME is Anthony, translated to null on submit. Anything else is
+  // the owner holding the cash, and it is the only thing that stops the AVD
+  // move. Default is Anthony because that is the common case.
+  const [collectedBy, setCollectedBy] = useState(COLLECTED_BY_ME);
 
   // Default date to today after mount — a server-rendered default could be a
   // different calendar day than the phone's.
@@ -106,6 +120,11 @@ export function PaymentsClient({
         : "Unmatched",
     [nameById],
   );
+
+  const selectedOwnerGroup =
+    participantSel && participantSel !== UNMATCHED
+      ? (participants.find((p) => p.id === participantSel)?.owner_group ?? null)
+      : null;
 
   // F1: search filters the ledger, then the active sort orders what's left.
   const [query, setQuery] = useState("");
@@ -221,6 +240,7 @@ export function PaymentsClient({
         sourceRef: "",
         note: note.trim(),
         correctsPaymentId: method === "correction" && corrects ? corrects : null,
+        collectedBy: collectedBy === COLLECTED_BY_ME ? null : collectedBy,
       });
       if (result.ok) {
         toast.success("Recorded — promotion runs automatically on full payment.");
@@ -228,6 +248,13 @@ export function PaymentsClient({
         setVenmoTxnId("");
         setNote("");
         setCorrects("");
+        // Back to Anthony, deliberately, and not lumped in with the fields
+        // above by habit. Participant, method and date stick on purpose - you
+        // can see what they say. This one is stickier than it looks: leaving
+        // it on an owner stamps the NEXT payment with that owner and silently
+        // skips the move to AVD, so the safe default has to be re-asserted
+        // every time rather than carried.
+        setCollectedBy(COLLECTED_BY_ME);
         router.refresh();
       } else {
         toast.error(result.error ?? "Record failed.");
@@ -306,6 +333,51 @@ export function PaymentsClient({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-collected-by">Collected by</Label>
+            {/*
+              Every owner is offered for every participant, deliberately -
+              nothing in CLAUDE.md says the collector must be the participant's
+              own owner, and the ambiguous cross-book case is one to ask Anthony
+              about rather than one for the database to refuse. So the book is
+              shown below rather than enforced here: a mismatch is visible at
+              the moment of choosing, instead of at season-end reconciliation.
+              A correction is the exception, and it is not a choice at all -
+              migration 32 reads the collector off the row being corrected.
+            */}
+            <Select
+              value={collectedBy}
+              onValueChange={setCollectedBy}
+              disabled={method === "correction"}
+            >
+              <SelectTrigger id="pay-collected-by" className="h-12 w-full sm:h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={COLLECTED_BY_ME}>Me (moves them to AVD)</SelectItem>
+                {OWNER_CODES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c} is holding it
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {method === "correction" ? (
+              <p className="text-xs text-muted-foreground">
+                Taken from the payment being corrected. The two are the same
+                money in the same book.
+              </p>
+            ) : selectedOwnerGroup && (
+              <p className="text-xs text-muted-foreground">
+                {selectedOwnerGroup === collectedBy
+                  ? `Their book: ${selectedOwnerGroup}.`
+                  : collectedBy === COLLECTED_BY_ME
+                    ? `Their book: ${selectedOwnerGroup}. This moves them to AVD.`
+                    : `Their book: ${selectedOwnerGroup}. ${collectedBy} is not their owner.`}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -447,6 +519,9 @@ export function PaymentsClient({
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span data-numeric>{fmtDateOnly(p.paid_on)}</span>
                           <Badge variant="outline">{p.method}</Badge>
+                          {collectorLabel(p.collected_by) && (
+                            <span>held by {collectorLabel(p.collected_by)}</span>
+                          )}
                           {p.venmo_txn_id && (
                             <span className="max-w-32 truncate font-mono text-2xs">
                               {p.venmo_txn_id}
@@ -504,8 +579,13 @@ export function PaymentsClient({
                             >
                               {fmtUsd(p.amount_cents)}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="whitespace-nowrap">
                               <Badge variant="outline">{p.method}</Badge>
+                              {collectorLabel(p.collected_by) && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                  {collectorLabel(p.collected_by)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="max-w-28 truncate font-mono text-xs text-muted-foreground">
                               {p.venmo_txn_id ?? "—"}
