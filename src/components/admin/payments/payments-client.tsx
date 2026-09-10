@@ -51,6 +51,11 @@ const METHODS: { value: Method; label: string }[] = [
 
 /** Sentinel — Radix Select items cannot carry an empty value. */
 const UNMATCHED = "__unmatched__";
+// Radix rejects an empty SelectItem value at runtime, which is why UNMATCHED
+// above exists. The collector menu needs the same trick: "" would have thrown
+// the moment the menu opened, leaving the form usable only on the default
+// null path - the one that moves the participant to AVD.
+const COLLECTED_BY_ME = "__me__";
 
 const LEDGER_SORT_KEYS = [
   "date",
@@ -94,7 +99,7 @@ export function PaymentsClient({
   const [corrects, setCorrects] = useState("");
   // "" = Anthony. Anything else is the owner holding the cash, and it stops
   // the AVD move. Default is Anthony because that is the common case.
-  const [collectedBy, setCollectedBy] = useState("");
+  const [collectedBy, setCollectedBy] = useState(COLLECTED_BY_ME);
 
   // Default date to today after mount — a server-rendered default could be a
   // different calendar day than the phone's.
@@ -229,7 +234,7 @@ export function PaymentsClient({
         sourceRef: "",
         note: note.trim(),
         correctsPaymentId: method === "correction" && corrects ? corrects : null,
-        collectedBy: collectedBy === "" ? null : collectedBy,
+        collectedBy: collectedBy === COLLECTED_BY_ME ? null : collectedBy,
       });
       if (result.ok) {
         toast.success("Recorded — promotion runs automatically on full payment.");
@@ -324,7 +329,7 @@ export function PaymentsClient({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Me (moves them to AVD)</SelectItem>
+                <SelectItem value={COLLECTED_BY_ME}>Me (moves them to AVD)</SelectItem>
                 {OWNER_CODES.map((c) => (
                   <SelectItem key={c} value={c}>
                     {c} is holding it
