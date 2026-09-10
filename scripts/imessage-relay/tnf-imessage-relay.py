@@ -109,9 +109,15 @@ def open_db():
     if not os.path.exists(CHAT_DB):
         die(EXIT_NO_DISK, f"{CHAT_DB} not found. This script runs on macOS only.")
     try:
-        # Read-only and immutable: sqlite will not create a -wal, will not lock,
-        # and cannot write. His Messages database is never modified by this.
-        return sqlite3.connect(f"file:{CHAT_DB}?mode=ro&immutable=1", uri=True)
+        # mode=ro only. sqlite cannot write, will not create a -wal and will not
+        # lock, so his Messages database is never modified by this.
+        #
+        # immutable=1 was here and is deliberately gone. It PROMISES sqlite that
+        # nothing else will change the file, which lets it skip the current WAL -
+        # and Messages is running, writing that WAL, the whole time. A minute-by-
+        # minute relay would have read a stale snapshot and silently missed the
+        # newest messages, which are the only ones it exists to carry.
+        return sqlite3.connect(f"file:{CHAT_DB}?mode=ro", uri=True)
     except sqlite3.OperationalError as exc:
         die(
             EXIT_NO_DISK,

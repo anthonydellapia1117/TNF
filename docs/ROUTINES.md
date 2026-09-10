@@ -179,7 +179,13 @@ days 22, 24 and 29 across November and December, 6 fires.
 
 ## Connectors, and what can and cannot be changed from a session
 
-Every routine below was created from a Claude Code session. Two things about
+The routines below have MIXED origins, and that is the whole reason one of
+them is stuck. TNF Game Day and TNF Draw Window were created from a Claude
+Code session and a session can update them. TNF Sweep was created through
+the HTTP API, so `update_trigger` refuses it with `this routine was created
+via "http_api", not by an agent` and its three edits have to be made by hand.
+An earlier version of this line said every routine came from a session, which
+hid exactly the fact an operator needs. Two things about the session path
 that path matter and the older version of this file had both wrong.
 
 - **`create_trigger` does take a `connectors` list.** The claim that the org
@@ -251,7 +257,7 @@ A1. The 8:00 AM ET reveal has already passed, so row_digits and col_digits must 
     - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
 A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
 A3. For each game today run: npm run game-day -- --game <N> --participants /tmp/participants.json --upload when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-A4. One Gmail DRAFT per game, never a send: subject and body verbatim from the manifest, To as the manifest's to list, Bcc as the manifest's bcc list, no Cc, no attachments. If the to list is Anthony alone, TNF_OWNER_EMAILS is not set: still create the draft and add "TNF_OWNER_EMAILS is not set on this routine, the owners are not on the To line. Add it at claude.ai/code > Code > Routines > TNF Game Day > Environment variables." When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If Gmail is not available, add "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors." and report the manifest path instead.
+A4. One Gmail DRAFT per game, never a send: subject and body verbatim from the manifest, Bcc as the manifest's bcc list, no To beyond Anthony himself, no Cc, no attachments. THE MANIFEST HAS NO to FIELD: scripts/game-day-pack.mts writes recipients.bcc and nothing else, and this line used to tell the routine to read a to list that is not there, which invites it to invent recipients. If recipients.bcc is Anthony alone, TNF_OWNER_EMAILS is not set: still create the draft and add "TNF_OWNER_EMAILS is not set on this routine, the owners are not on the Bcc line. Add it at claude.ai/code > Code > Routines > TNF Game Day > Environment variables." When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If Gmail is not available, add "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors." and report the manifest path instead.
 A5. Phase A lines, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set, and "Links: none, the body carries the live grid link only" when it is null. Never invent a URL.
 
 PHASE B, the morning after.
@@ -339,7 +345,10 @@ The older version of this file recorded a known gap: **a fired session's
 it.** Nothing carried an item forward, nothing marked one done, and the only
 thing that ever re-raised it was the next run of the same job.
 
-**That gap is closed.** Two things closed it, and both are live:
+**That gap is designed closed, and HALF of it is actually running.** Both
+pieces are built and both are in this repo; the second one cannot fire until
+the sweep is enabled, which needs the three by-hand edits above. Do not read
+this section as "handled" until that is done:
 
 1. **`/admin/queue`**, migration 23. The sweep calls `admin_stage_pending` for
    every item it is not allowed to decide, one row per kind and message id.
@@ -375,8 +384,8 @@ of its report:
 
 | Check | Passes when | Today |
 |-------|-------------|-------|
-| Block invariant | `count(*) from blocks` is 100 and available + reserved + assigned is 100 | 42 + 14 + 44 = 100, pass |
-| Committed agreement | blocks in `reserved` or `assigned` equals the sum of `blocks_requested` across participants | 58 = 58, pass |
+| Block invariant | `count(*) from blocks` is 100 and available + reserved + assigned + held is 100 | read it live, do not trust a number written here |
+| Committed agreement | blocks in `reserved` or `assigned` equals the sum of `blocks_requested` across participants | read it live, do not trust a number written here |
 | Quiet routine | a write or a staged row from actor `tnf-sweep` within 48 hours | reported as a line, not a failure |
 
 The quiet check exists because a broken sweep and a quiet pool look identical

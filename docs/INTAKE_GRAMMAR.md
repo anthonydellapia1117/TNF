@@ -43,7 +43,7 @@ uuid, exact).
 | ACTION | Fields | Effect |
 |--------|--------|--------|
 | `participant` | `NAME` R, `ALIAS` O, `EMAIL` O, `CC_EMAIL` O, `PHONE` O, `OWNER` O, `SOURCE` O, `BLOCKS` O, `NOTE` O | `admin_upsert_participant`. A blank `OWNER` falls back to `AVD`. |
-| `claim` | `WHO` R, `BLOCKS` R **or** `COUNT` R, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. A specific block number only goes to someone who specifically asked for it. |
+| `claim` | `WHO` R, **`BLOCKS` R**, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. A specific block number only goes to someone who specifically asked for it. `COUNT` is NOT an accepted alternative: `admin_reserve_blocks` raises `no block numbers given` on an empty array, so a `COUNT`-only claim stages a row whose Approve fails and leaves Anthony a dead button. Someone who wants a block without naming one gets T2 and picks from the board. |
 | `contact` | `WHO` R, and at least one of `EMAIL`, `CC_EMAIL`, `PHONE` | `admin_upsert_participant`, contact fields only. |
 | `block_name` | `BLOCK` R, `DISPLAY_NAME` R | `admin_set_block_name`. |
 | `note` | `WHO` R **or** `BLOCK` R, `NOTE` R | Appends a dated note. |
@@ -77,11 +77,19 @@ the whole message malformed.
 3. `COUNT` is an integer 1 or more, and never appears together with
    `BLOCKS`.
 4. `AMOUNT` is **whole dollars**, digits only, optional leading `$`, no
-   cents and no decimal point. `500` and `$1,500` are fine, `500.00` is
-   malformed. The sweep converts to cents; money is stored in cents
+   cents and no decimal point. `500` and `$1500` are fine, `500.00` is
+   malformed. A thousands separator is NOT digits: `$1,500` is malformed
+   too, and this rule carried it as a worked example until 2026-09-10,
+   which would have had the sweep reject a message written exactly as the
+   grammar told the sender to write it. The sweep converts to cents; money is stored in cents
    everywhere.
-5. `AMOUNT` on a `payment` must be a multiple of 500. Anything else is a
-   question for Anthony, not a payment.
+5. `AMOUNT` on a `payment` must be a multiple of 500 AND must equal that
+   participant's live `due_cents`. A multiple of 500 is not enough on its
+   own: a two-block holder owes $1,000, and a `DECISION TNF:` carrying
+   `AMOUNT: 500` for him is the second of CLAUDE.md's three sweep outcomes,
+   a non-matching multiple that goes to Anthony as a question. Stage
+   `non_matching_multiple` and record nothing. Anything that is not a
+   multiple of 500 at all is not a block payment and is invisible.
 6. `PAID_ON` is `YYYY-MM-DD`, not in the future in America/New_York, and not
    before 2026-08-01 (the season floor).
 7. `METHOD` is one of `venmo` `cash` `check` `zelle` `other`, on a `payment`

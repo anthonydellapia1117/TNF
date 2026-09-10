@@ -169,3 +169,57 @@ begin
 end $$;
 
 rollback;
+
+-- 5. A row carrying an off-list kind cannot be APPROVED into a no-op.
+--
+-- Migration 26 closed the staging door; migration 28 closes this one. A row
+-- staged before the closed list existed still sits in the queue looking
+-- ordinary, and without this guard Approve falls through the case statement,
+-- runs nothing, and resolves it green. That is the same silent no-op that held
+-- $500 for two days, arriving by the other door.
+--
+-- The row has to be inserted directly, because admin_stage_pending now refuses
+-- the kind - which is the point: this is the state that can only pre-exist.
+do $$
+declare
+  v_id uuid;
+  v_msg text;
+  v_n int;
+begin
+  perform set_config('app.admin_email', 'admin@tnf.test', true);
+  perform set_config('request.jwt.claims', '{"email":"admin@tnf.test"}', true);
+
+  insert into pending_actions (kind, payload, source_message_id, staged_by)
+  values ('payment_candidate', '{"amount_cents": 50000}'::jsonb, 'legacy-test-1', 'tnf-sweep')
+  returning id into v_id;
+
+  begin
+    perform admin_approve_pending(v_id, null, 'admin@tnf.test');
+    raise exception 'TEST FAILURE: approving a legacy payment_candidate row was allowed';
+  exception when others then
+    v_msg := sqlerrm;
+    if v_msg like 'TEST FAILURE%' then raise; end if;
+    if position('not approvable' in v_msg) = 0 then
+      raise exception 'TEST FAILURE: wrong error approving an off-list kind: %', v_msg;
+    end if;
+  end;
+
+  -- and it is still open, not silently resolved by the failed attempt
+  select count(*) into v_n from pending_actions
+   where id = v_id and resolved_at is null and applied is null;
+  if v_n is null then raise exception 'TEST FAILURE: legacy-row state count came back NULL'; end if;
+  if v_n <> 1 then
+    raise exception 'TEST FAILURE: the refused approve did not leave the row open';
+  end if;
+
+  -- dismissing it is still available, which is the way out
+  perform admin_dismiss_pending(v_id, 'legacy row, dismissed by test', 'admin@tnf.test');
+  select count(*) into v_n from pending_actions
+   where id = v_id and resolution = 'dismissed' and applied = false;
+  if v_n <> 1 then
+    raise exception 'TEST FAILURE: a legacy row could not be dismissed';
+  end if;
+
+  delete from pending_actions where id = v_id;
+  raise notice 'kind guard: an off-list kind cannot be approved, only dismissed';
+end $$;
