@@ -205,7 +205,7 @@ describe("the body", () => {
   it("refuses COUNT on an action that is not participant, even without BLOCKS", () => {
     // The COUNT-and-BLOCKS test alone left this dead: that pair is refused by
     // the other half of rule 3 whatever action carries it.
-    const r = parseIntake(S.u, ["ACTION: contact", "NAME: Joe Longo", "EMAIL: a@b.co", "COUNT: 2"].join("\n"), opts);
+    const r = parseIntake(S.u, ["ACTION: contact", "NAME: Joe Longo", "EMAIL: a@example.com", "COUNT: 2"].join("\n"), opts);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.errors.join(" ")).toMatch(/rule 3: COUNT belongs to the participant action only/);
   });
@@ -265,7 +265,7 @@ describe("what the parser cannot know without the database", () => {
   it("refuses NAME and PARTICIPANT_ID together rather than picking one", () => {
     const r = parseIntake(
       S.u,
-      ["ACTION: contact", "NAME: Joe Longo", "PARTICIPANT_ID: 806526bf-7d90-41a5-9119-8785ebc3ffa3", "EMAIL: a@b.co"].join("\n"),
+      ["ACTION: contact", "NAME: Joe Longo", "PARTICIPANT_ID: 806526bf-7d90-41a5-9119-8785ebc3ffa3", "EMAIL: a@example.com"].join("\n"),
       opts,
     );
     expect(r.ok).toBe(false);
