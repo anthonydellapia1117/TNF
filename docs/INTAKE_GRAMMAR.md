@@ -145,7 +145,7 @@ ACTION: claim
 NAME: Mike Colavita
 BLOCKS: 62
 METHOD: requested
-NOTE: texted 2026-09-10, no specific block asked for
+NOTE: texted 2026-09-10, asked for 62 by number
 ```
 
 A payment Anthony is stating himself:

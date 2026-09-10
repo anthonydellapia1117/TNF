@@ -305,7 +305,16 @@ def main():
         die(EXIT_NO_DISK, f"macOS only, this is {sys.platform}. Run it on the Mac.")
 
     state = load_state()
-    last_rowid = int(state.get("last_rowid", 0))
+    # The watermark is keyed by SCOPE, not global.
+    #
+    # --self-chat-only excludes rows the unfiltered query would have returned.
+    # With one shared key, a filtered run that reaches ROWID 100 records 100,
+    # and a later unfiltered run can never see the message at ROWID 90 it
+    # skipped, because fetch() requires m.ROWID > last_rowid. The wider scope
+    # would silently start mid-stream and drop everything before its first run.
+    # Two keys, so each scope only ever advances past what it actually looked at.
+    scope_key = "last_rowid_self_chat" if self_handles else "last_rowid"
+    last_rowid = int(state.get(scope_key, 0))
     since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours)
     since_ns = apple_ns(since) if last_rowid == 0 else 0
 
@@ -340,7 +349,7 @@ def main():
         # never advanced it. Re-running draft simply rewrites the same files,
         # which are named by rowid.
         if args.mode == "send-self":
-            state["last_rowid"] = high
+            state[scope_key] = high
             state["last_run"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
             save_state(state)
 
