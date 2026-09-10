@@ -143,7 +143,7 @@ Subject: UPDATE TNF: Colavita claim
 
 ACTION: claim
 NAME: Mike Colavita
-COUNT: 1
+BLOCKS: 62
 METHOD: requested
 NOTE: texted 2026-09-10, no specific block asked for
 ```
@@ -194,7 +194,7 @@ Subject: UPDATE TNF: two things
 
 ACTION: claim
 NAME: Mike Colavita
-COUNT: 1
+BLOCKS: 62
 ACTION: contact
 NAME: Mike Colavita
 EMAIL: mike@example.com

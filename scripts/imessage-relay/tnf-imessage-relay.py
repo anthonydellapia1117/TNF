@@ -8,7 +8,7 @@ hourly TNF Sweep reads. He is never at a keyboard for this: he texts
     UPDATE TNF: Colavita claim
     ACTION: claim
     NAME: Mike Colavita
-    COUNT: 1
+    BLOCKS: 62
 
 and the change lands in the pool within the hour.
 

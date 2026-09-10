@@ -400,5 +400,8 @@ mail in Pool-TNF is not.
   `/admin/payouts`.
 - Releasing a block stays `admin_release_block`, case by case, never triggered
   by a date. Unpaid Reserved blocks are not released at the claim deadline.
-- Sending any email, including the digest and the game-day draft, stays
-  Anthony pressing send.
+- Sending email is a closed list of two, and only TNF Sweep holds it: a
+  verbatim T1-T7 reply to the sender, and the nightly digest to Anthony
+  alone, which he authorised on 2026-09-10. Everything else, the game-day
+  pack included, stays Anthony pressing send. This line said the digest was
+  his to send until 2026-09-10 and contradicted the prompt that governs it.
