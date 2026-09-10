@@ -128,7 +128,12 @@ export function summarizePayload(kind: string, payload: unknown): string {
       const method = str(payload.method) ?? "method ?";
       const on = str(payload.paid_on) ?? "date ?";
       const txn = str(payload.venmo_txn_id);
-      return `${amount} ${method} from ${who} on ${on}${txn ? ` (txn ${txn})` : ""}`;
+      // Approve on this row decides a book: migration 31 moves the participant
+      // to AVD unless collected_by names another owner. AVD is Anthony, and the
+      // RPC reads it and null identically, so only the deviation is shown.
+      const held = str(payload.collected_by);
+      const by = held && held !== "AVD" ? ` (held by ${held})` : "";
+      return `${amount} ${method} from ${who} on ${on}${txn ? ` (txn ${txn})` : ""}${by}`;
     }
     case "reserve_blocks": {
       const nums = Array.isArray(payload.block_numbers)

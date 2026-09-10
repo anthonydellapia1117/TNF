@@ -242,6 +242,13 @@ export function PaymentsClient({
         setVenmoTxnId("");
         setNote("");
         setCorrects("");
+        // Back to Anthony, deliberately, and not lumped in with the fields
+        // above by habit. Participant, method and date stick on purpose - you
+        // can see what they say. This one is stickier than it looks: leaving
+        // it on an owner stamps the NEXT payment with that owner and silently
+        // skips the move to AVD, so the safe default has to be re-asserted
+        // every time rather than carried.
+        setCollectedBy(COLLECTED_BY_ME);
         router.refresh();
       } else {
         toast.error(result.error ?? "Record failed.");

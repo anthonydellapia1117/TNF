@@ -85,6 +85,47 @@ describe("summarizePayload", () => {
     ).toBe("amount ? venmo from Somebody on 2026-09-04");
   });
 
+  // Approve on a payment row now decides a book: migration 31 moves the
+  // participant to AVD unless collected_by names another owner. A summary that
+  // omits it makes the two outcomes look identical to the person pressing the
+  // button, so the deviation shows and the default stays quiet.
+  it("payment: names the owner holding the cash", () => {
+    expect(
+      summarizePayload("payment", {
+        participant_name: "Gurt",
+        amount_cents: 50000,
+        method: "cash",
+        paid_on: "2026-09-10",
+        collected_by: "JPOD",
+      }),
+    ).toBe("$500 cash from Gurt on 2026-09-10 (held by JPOD)");
+  });
+
+  it("payment: says nothing when the money reached Anthony", () => {
+    expect(
+      summarizePayload("payment", {
+        participant_name: "Gurt",
+        amount_cents: 50000,
+        method: "venmo",
+        paid_on: "2026-09-10",
+      }),
+    ).toBe("$500 venmo from Gurt on 2026-09-10");
+  });
+
+  // AVD is Anthony. The RPC reads null and AVD identically, so a summary that
+  // rendered "held by AVD" would describe a move as if it were the exception.
+  it("payment: treats AVD as Anthony, the same way the RPC does", () => {
+    expect(
+      summarizePayload("payment", {
+        participant_name: "Gurt",
+        amount_cents: 50000,
+        method: "cash",
+        paid_on: "2026-09-10",
+        collected_by: "AVD",
+      }),
+    ).toBe("$500 cash from Gurt on 2026-09-10");
+  });
+
   it("reserve_blocks: lists the blocks and the holder", () => {
     expect(
       summarizePayload("reserve_blocks", {

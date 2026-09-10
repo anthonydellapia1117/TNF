@@ -90,12 +90,15 @@ normal case: the sweep only ever sees money that reached his Venmo or his mail.
 Set it only when an owner has said he collected and is holding his own
 participant's cash, and set it to that owner's code.
 
-It decides one thing, and it decides it silently: `admin_record_payment` moves
-the participant to `AVD` when this is absent or `AVD`, and leaves the owner
-alone when it names one. So a payment staged with the wrong code here puts a
-block in the wrong owner's book, and a payment staged without one for cash an
-owner is holding takes his participant off him. Neither shows up until
-season-end reconciliation.
+It decides one thing: `admin_record_payment` moves the participant to `AVD`
+when this is absent or `AVD`, and leaves the owner alone when it names one. So
+a payment staged with the wrong code here puts a block in the wrong owner's
+book, and a payment staged without one for cash an owner is holding takes his
+participant off him. Neither would show up until season-end reconciliation,
+which is why the row on this page **names the holder** - `(held by JPOD)` after
+the transaction - whenever the code is set to anything but `AVD`. A row with no
+such note is a row that will move the participant into Anthony's book, and that
+is the only reading it has.
 
 Migration 30 backfilled the 48 historical rows from the prose already in
 `source_ref`: 29 resolved to an owner (RM 21, MAP 7, JPOD 1), and 19 stayed
