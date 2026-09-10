@@ -203,15 +203,28 @@ that path matter and the older version of this file had both wrong.
 | Routine | Gmail | Supabase | Repo source | Environment |
 |---------|-------|----------|-------------|-------------|
 | TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | - |
-| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. `TNF_OWNER_EMAILS` is unset and it does not matter: nothing reads it |
+| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. `TNF_OWNER_EMAILS` is unset and now matters: the pack reads it |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
 TNF Game Day runs without either variable and says so in its report: no
 `ADMIN_PASSWORD` means the grid is not uploaded and the draft carries the live
-grid link instead of two file links. `TNF_OWNER_EMAILS` is a dead variable: no
-code reads it, `scripts/game-day-pack.mts` builds the Bcc from the participant
-query alone, and an owner who holds no block is off that list whatever is set.
-Putting owners on it is a change to the pack.
+grid link instead of two file links.
+
+**`TNF_OWNER_EMAILS` stopped being a dead variable when the pack changed.**
+Until then no code read it, `scripts/game-day-pack.mts` built the Bcc from the
+participant query alone, and this file rightly sent anyone who set it away
+again. The pack now builds a To line from `ADMIN_EMAIL` plus that variable, so
+setting it is the whole of the change and no longer a wasted click.
+
+What has not changed is the Bcc. It is still the participant query, so an owner
+who holds no block is still absent from it whatever is set. He now rides on To
+instead, which is the point: Anthony's rule of 2026-09-09 is that every pool
+email where the holders are in Bcc carries Anthony and the owners in To,
+Anthony first, and `dropFromBcc` keeps anyone on To out of Bcc so nobody is
+listed twice.
+
+The addresses never live in this repo, which is public. They live on the
+routine as `TNF_OWNER_EMAILS` and in Anthony's own list.
 
 ## 1. TNF Sweep
 
@@ -256,7 +269,7 @@ A1. The 8:00 AM ET reveal has already passed, so row_digits and col_digits must 
     - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
 A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
 A3. For each game today run: npm run game-day -- --game <N> --participants /tmp/participants.json --upload when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-A4. One Gmail DRAFT per game, never a send: subject and body verbatim from the manifest, Bcc as the manifest's bcc list, no To beyond Anthony himself, no Cc, no attachments. THE MANIFEST HAS NO to FIELD: scripts/game-day-pack.mts writes recipients.bcc and nothing else, and this line used to tell the routine to read a to list that is not there, which invites it to invent recipients. If recipients.bcc is Anthony alone, say so in the report and create the draft anyway. DO NOT tell him to set TNF_OWNER_EMAILS: NO CODE READS THAT VARIABLE. scripts/game-day-pack.mts builds recipients.bcc from the participant query alone and reads only ADMIN_PASSWORD, GMAIL_USER, GMAIL_APP_PASSWORD and TNF_CHROMIUM from the environment. Setting it changes nothing, and an owner who holds no block is not on that Bcc however it is configured. Getting owners onto the list is a change to the pack, not a routine setting, and this file sent the operator after the setting until 2026-09-10. When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If Gmail is not available, add "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors." and report the manifest path instead.
+A4. One Gmail DRAFT per game, never a send: subject and body verbatim from the manifest, To as the manifest's to list, Bcc as its bcc list, no Cc, no attachments. THE MANIFEST NOW HAS BOTH FIELDS: scripts/game-day-pack.mts writes recipients.to and recipients.bcc. Read them; never invent a recipient that is not in one of those two lists. The to list is ADMIN_EMAIL first, then TNF_OWNER_EMAILS, deduped, and it is never empty: a blank ADMIN_EMAIL makes the pack refuse to build rather than quietly drop Anthony off his own email. If TNF_OWNER_EMAILS is unset the to list is Anthony alone, which is valid: say so in the report and create the draft anyway, and it is worth one line telling him the variable is now read, because until 2026-09-10 nothing read it and this file rightly said so. The bcc list is still the participant query alone, so an owner who holds no block is not on it however it is configured; he rides on To instead, and dropFromBcc keeps anyone on To out of Bcc so nobody is listed twice. If recipients.bcc is Anthony alone, say so and create the draft anyway. When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If Gmail is not available, add "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors." and report the manifest path instead.
 A5. Phase A lines, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set, and "Links: none, the body carries the live grid link only" when it is null. Never invent a URL.
 
 PHASE B, the morning after.

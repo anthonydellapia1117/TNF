@@ -4,9 +4,11 @@ import {
   buildGameDayPack,
   digitsLive,
   draftAttachments,
+  dropFromBcc,
   etDateStamp,
   gridObjectNames,
   hyphenate,
+  ownerRecipients,
   packBody,
   packFilenameBase,
   packRecipients,
@@ -253,7 +255,7 @@ describe("recipients", () => {
   });
 
   it("does not count a cc-only holder as missing an email", () => {
-    const r = packRecipients([person({ full_name: "C", cc_email: "c@x.test" })]);
+    const r = packRecipients([person({ full_name: "C", cc_email: "c@example.com" })]);
     expect(r.noEmail).toEqual([]);
     expect(r.counts.withEmail).toBe(0);
     expect(r.counts.distinct).toBe(1);
@@ -276,12 +278,38 @@ describe("digits", () => {
   });
 });
 
+describe("owners on the To line", () => {
+  it("is Anthony first, then the TNF_OWNER_EMAILS list, trimmed and deduped", () => {
+    expect(
+      ownerRecipients(" ron@example.com, Mike@example.com;RON@example.com\nnolan@example.com ", "anthony@example.com"),
+    ).toEqual(["anthony@example.com", "ron@example.com", "Mike@example.com", "nolan@example.com"]);
+  });
+
+  it("never repeats Anthony and never yields an empty To", () => {
+    expect(ownerRecipients("Anthony@example.com", "anthony@example.com")).toEqual(["anthony@example.com"]);
+    expect(ownerRecipients(undefined, "anthony@example.com")).toEqual(["anthony@example.com"]);
+    expect(ownerRecipients("", "anthony@example.com")).toEqual(["anthony@example.com"]);
+  });
+
+  it("refuses a blank admin address instead of dropping Anthony from To", () => {
+    expect(() => ownerRecipients("ron@example.com", "")).toThrow(/admin address is blank/);
+    expect(() => ownerRecipients(undefined, "   ")).toThrow(/admin address is blank/);
+  });
+
+  it("drops anyone on the To line from Bcc, case-insensitively", () => {
+    expect(
+      dropFromBcc(["holder@example.com", "RON@example.com", "anthony@example.com"], ["anthony@example.com", "ron@example.com"]),
+    ).toEqual(["holder@example.com"]);
+  });
+});
+
 describe("draft MIME", () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]);
   const files = [{ filename: "2026-09-09_TNF_G01_grid.png", mimeType: "image/png", content: png }];
   const msg = buildDraftMime({
-    from: "Anthony <a@example.test>",
-    bcc: ["one@example.test", "Two@example.test"],
+    from: "Anthony <a@example.com>",
+    to: ["a@example.com", "owner@example.com"],
+    bcc: ["one@example.com", "Two@example.com"],
     subject: "TNF | Week 1 | New England Patriots at Seattle Seahawks",
     body: "Live grid: https://x.test/grid?g=1\n\nThe grid for this game is attached (PNG and PDF).",
     attachments: files,
@@ -289,13 +317,26 @@ describe("draft MIME", () => {
     date: new Date("2026-09-09T11:30:00Z"),
   }).toString("utf8");
 
-  it("puts every recipient in Bcc and nothing in To", () => {
-    expect(msg).toContain("\r\nBcc: one@example.test, Two@example.test\r\n");
-    expect(msg).not.toMatch(/^To:/m);
+  it("puts Anthony and the owners in To and every holder in Bcc", () => {
+    expect(msg).toContain("\r\nTo: a@example.com, owner@example.com\r\n");
+    expect(msg).toContain("\r\nBcc: one@example.com, Two@example.com\r\n");
+    expect(msg.indexOf("\r\nTo: ")).toBeLessThan(msg.indexOf("\r\nBcc: "));
+  });
+
+  it("writes no To line when no owners are given", () => {
+    const bare = buildDraftMime({
+      from: "a@example.com",
+      bcc: ["one@example.com"],
+      subject: "x",
+      body: "y",
+      attachments: [],
+      date: new Date("2026-09-09T11:30:00Z"),
+    }).toString("utf8");
+    expect(bare).not.toMatch(/^To:/m);
   });
 
   it("is CRLF multipart/mixed with the body first and the file as an attachment", () => {
-    expect(msg.startsWith("From: Anthony <a@example.test>\r\n")).toBe(true);
+    expect(msg.startsWith("From: Anthony <a@example.com>\r\n")).toBe(true);
     expect(msg).toContain('Content-Type: multipart/mixed; boundary="b0undary"');
     expect(msg).toContain('Content-Disposition: attachment; filename="2026-09-09_TNF_G01_grid.png"');
     expect(msg.endsWith("--b0undary--\r\n")).toBe(true);
@@ -319,11 +360,11 @@ describe("draft MIME", () => {
   });
 
   it("is a plain single-part message with no attachment when the body carries the links", () => {
-    const pack = buildGameDayPack(G01, [person({ full_name: "A", email: "a@x.test" })], BASE, {
+    const pack = buildGameDayPack(G01, [person({ full_name: "A", email: "a@example.com" })], BASE, {
       grid: LINKS,
     });
     const linked = buildDraftMime({
-      from: "a@example.test",
+      from: "a@example.com",
       bcc: pack.recipients.bcc,
       subject: pack.subject,
       body: pack.body,
