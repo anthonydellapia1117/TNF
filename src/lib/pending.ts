@@ -4,7 +4,7 @@
 // list of what Approve can do. It mirrors the CASE in admin_approve_pending
 // (migration 23): change both together.
 
-import { fmtUsd } from "@/lib/format";
+import { collectorLabel, fmtUsd } from "@/lib/format";
 
 export interface PendingDispatch {
   /** The existing admin_* RPC admin_approve_pending calls, or null. */
@@ -129,10 +129,10 @@ export function summarizePayload(kind: string, payload: unknown): string {
       const on = str(payload.paid_on) ?? "date ?";
       const txn = str(payload.venmo_txn_id);
       // Approve on this row decides a book: migration 31 moves the participant
-      // to AVD unless collected_by names another owner. AVD is Anthony, and the
-      // RPC reads it and null identically, so only the deviation is shown.
-      const held = str(payload.collected_by);
-      const by = held && held !== "AVD" ? ` (held by ${held})` : "";
+      // to AVD unless collected_by names another owner. collectorLabel is the
+      // one place that rule lives, shared with the ledger and the export.
+      const held = collectorLabel(str(payload.collected_by));
+      const by = held ? ` (held by ${held})` : "";
       return `${amount} ${method} from ${who} on ${on}${txn ? ` (txn ${txn})` : ""}${by}`;
     }
     case "reserve_blocks": {

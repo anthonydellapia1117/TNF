@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { fmtDateOnly, fmtUsd } from "@/lib/format";
+import { collectorLabel, fmtDateOnly, fmtUsd } from "@/lib/format";
 import type { Payment } from "@/lib/types";
 import type { ParticipantWithFinance } from "@/lib/data/admin";
 import { recordPayment } from "@/app/admin/actions";
@@ -97,8 +97,9 @@ export function PaymentsClient({
   const [venmoTxnId, setVenmoTxnId] = useState("");
   const [note, setNote] = useState("");
   const [corrects, setCorrects] = useState("");
-  // "" = Anthony. Anything else is the owner holding the cash, and it stops
-  // the AVD move. Default is Anthony because that is the common case.
+  // COLLECTED_BY_ME is Anthony, translated to null on submit. Anything else is
+  // the owner holding the cash, and it is the only thing that stops the AVD
+  // move. Default is Anthony because that is the common case.
   const [collectedBy, setCollectedBy] = useState(COLLECTED_BY_ME);
 
   // Default date to today after mount — a server-rendered default could be a
@@ -119,6 +120,11 @@ export function PaymentsClient({
         : "Unmatched",
     [nameById],
   );
+
+  const selectedOwnerGroup =
+    participantSel && participantSel !== UNMATCHED
+      ? (participants.find((p) => p.id === participantSel)?.owner_group ?? null)
+      : null;
 
   // F1: search filters the ledger, then the active sort orders what's left.
   const [query, setQuery] = useState("");
@@ -344,6 +350,23 @@ export function PaymentsClient({
                 ))}
               </SelectContent>
             </Select>
+            {/*
+              The menu offers every owner for every participant, deliberately -
+              nothing in CLAUDE.md says the collector must be the participant's
+              own owner, and the ambiguous cross-book case is one to ask Anthony
+              about rather than one for the database to refuse. So the book is
+              shown rather than enforced: a mismatch is visible here, at the
+              moment of choosing, instead of at season-end reconciliation.
+            */}
+            {selectedOwnerGroup && (
+              <p className="text-xs text-muted-foreground">
+                {selectedOwnerGroup === collectedBy
+                  ? `Their book: ${selectedOwnerGroup}.`
+                  : collectedBy === COLLECTED_BY_ME
+                    ? `Their book: ${selectedOwnerGroup}. This moves them to AVD.`
+                    : `Their book: ${selectedOwnerGroup}. ${collectedBy} is not their owner.`}
+              </p>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -485,6 +508,9 @@ export function PaymentsClient({
                         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span data-numeric>{fmtDateOnly(p.paid_on)}</span>
                           <Badge variant="outline">{p.method}</Badge>
+                          {collectorLabel(p.collected_by) && (
+                            <span>held by {collectorLabel(p.collected_by)}</span>
+                          )}
                           {p.venmo_txn_id && (
                             <span className="max-w-32 truncate font-mono text-2xs">
                               {p.venmo_txn_id}
@@ -542,8 +568,13 @@ export function PaymentsClient({
                             >
                               {fmtUsd(p.amount_cents)}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="whitespace-nowrap">
                               <Badge variant="outline">{p.method}</Badge>
+                              {collectorLabel(p.collected_by) && (
+                                <span className="ml-1.5 text-xs text-muted-foreground">
+                                  {collectorLabel(p.collected_by)}
+                                </span>
+                              )}
                             </TableCell>
                             <TableCell className="max-w-28 truncate font-mono text-xs text-muted-foreground">
                               {p.venmo_txn_id ?? "—"}
