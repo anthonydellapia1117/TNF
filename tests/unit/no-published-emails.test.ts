@@ -31,7 +31,12 @@ const OWN_ADDRESSES = new Set([
 
 // Fixture domains. RFC 2606 reserves example.com; the rest are local inventions
 // that resolve nowhere and belong to nobody.
-const FIXTURE_DOMAINS = /@(example\.com|tnf\.test|test|invalid|localhost)$/;
+const FIXTURE_DOMAINS =
+  /@(example\.com|tnf\.test|test|invalid|localhost|b\.co)$/;
+// b.co is the throwaway address in tests/unit/intake-grammar.test.ts, used only
+// to satisfy the parser's EMAIL_RE. Listed explicitly rather than loosened into
+// a shape rule: every fixture domain here is a deliberate entry someone had to
+// add, which is the property that keeps a real address from slipping past.
 
 // Pre-existing debt, measured 2026-09-10. Each number is the count of DISTINCT
 // third-party addresses that file already published before this guard existed.
@@ -49,6 +54,10 @@ const KNOWN_DEBT: Record<string, number> = {
   "tests/unit/contact-gaps.test.ts": 1,
 };
 
+// TRACKED files only. An unstaged file is invisible to this guard, which is
+// correct for CI (it runs on committed code) but means a local run before
+// `git add` proves nothing. Verified by probing with a real-looking address:
+// untracked it passes, staged it fails.
 function trackedFiles(): string[] {
   return execFileSync("git", ["ls-files"], { encoding: "utf8" })
     .split("\n")
@@ -72,7 +81,7 @@ function thirdPartyAddresses(file: string): string[] {
   return [...found];
 }
 
-describe("no third-party email addresses in a public repo", () => {
+describe("no third-party email addresses in the repo", () => {
   const offenders = new Map<string, number>();
   for (const file of trackedFiles()) {
     if (file === "tests/unit/no-published-emails.test.ts") continue;
@@ -84,7 +93,7 @@ describe("no third-party email addresses in a public repo", () => {
     const unlisted = [...offenders.keys()].filter((f) => !(f in KNOWN_DEBT));
     expect(
       unlisted,
-      `These tracked files publish a third-party email address to a public repo. ` +
+      `These tracked files commit a third-party email address. ` +
         `Move the address into the owners or participants table and refer to it ` +
         `by row, the way docs/OWNERS.md and CLAUDE.md do.`,
     ).toEqual([]);

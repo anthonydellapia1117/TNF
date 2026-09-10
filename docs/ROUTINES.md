@@ -223,8 +223,12 @@ email where the holders are in Bcc carries Anthony and the owners in To,
 Anthony first, and `dropFromBcc` keeps anyone on To out of Bcc so nobody is
 listed twice.
 
-The addresses never live in this repo, which is public. They live on the
-routine as `TNF_OWNER_EMAILS` and in Anthony's own list.
+The addresses never live in this repo. They live on the routine as
+`TNF_OWNER_EMAILS` and in Anthony's own list. That is not because the repo is
+public - Anthony made it private on 2026-09-10 - but because git history is
+permanent and a delete does not reach it, visibility is a setting that can be
+changed back, and a repo has no row-level access control while the `owners`
+table has exactly that.
 
 ## 1. TNF Sweep
 
