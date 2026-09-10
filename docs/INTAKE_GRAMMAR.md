@@ -69,6 +69,24 @@ would destroy the rest of that person's record - and the audit row would read as
 an ordinary `update_participant`, with the old values recoverable only from its
 `before` payload. **Read the row, change the one field, send all of them.**
 
+### `applies` is a default, not the whole routing
+
+`ACTIONS[...].applies` names ONE RPC per action. One action does not have one:
+
+**`queue` routes on `VERDICT`.** `applies` says `admin_approve_pending`
+unconditionally, and the parser never branches on the verdict - it only checks
+that the value is `approve` or `dismiss`. So a `VERDICT: dismiss` message,
+applied through `applies` as written, calls **approve**. On a `payment` or
+`reserve_blocks` row that records the payment or reserves the blocks: it does
+the exact thing Anthony sent the message to refuse.
+
+    VERDICT: approve  ->  admin_approve_pending
+    VERDICT: dismiss  ->  admin_dismiss_pending
+
+This is the one piece of routing the deleted action tables carried that
+`ACTIONS` cannot express, and deleting them lost it for one commit. The parser
+still wins on the field set; it just does not decide this.
+
 ### The three checks the parser CANNOT make
 
 `parseIntake` returns them in `deferred` for the sweep to run against live data.
@@ -76,7 +94,7 @@ an ordinary `update_participant`, with the old values recoverable only from its
 
 | Rule | Check | Why it cannot be static |
 |------|-------|------------------------|
-| 11 | `who_resolves_to_exactly_one` | Needs the roster. Zero matches or two is malformed - never a guess, and never a new row created to make it fit. |
+| 11 | `who_resolves_to_exactly_one` | Needs the roster. **What zero means depends on the action**: on `participant` it means CREATE, and on every other action it is malformed. Two matches is always malformed - never a guess, and never a new row created to make it fit. See rule 11. |
 | 5 | `amount_equals_due_cents` | Needs that participant's live balance. A multiple of $500 is not enough on its own: a two-block holder owes $1,000, and `AMOUNT: 500` for him is CLAUDE.md's second sweep outcome, a non-matching multiple that goes to Anthony as a question. |
 | 12 | `queue_row_is_open` | Needs the queue. A resolved row is malformed. |
 
