@@ -241,8 +241,8 @@ exactly that.
   refund only on mail from `anthonydellapia@gmail.com` to
   `anthonydellapia@gmail.com` with a subject beginning `DECISION TNF:`.
   Everything else stages at `/admin/queue`.
-- **Intake grammar:** `docs/INTAKE_GRAMMAR.md`, and the iMessage relay that
-  feeds it is `scripts/imessage-relay/`.
+- **Intake grammar:** `docs/INTAKE_GRAMMAR.md`. The grammar arrives by mail;
+  there is no relay.
 
 This routine absorbed TNF Chase List. The chase list was a daily roll-up of
 Reserved blocks with no payment recorded; it is now the first section of the
