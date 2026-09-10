@@ -169,6 +169,13 @@ export interface Payment {
   paid_on: string;
   venmo_txn_id: string | null;
   source_ref: string | null;
+  /**
+   * The owner holding the $500, or null for Anthony - migration 30. It is the
+   * only thing that stops admin_record_payment moving the participant to AVD,
+   * so it belongs in the ledger and the export, not just in the queue row that
+   * staged it. A resolved queue row ages out; this does not.
+   */
+  collected_by: string | null;
   note: string | null;
   corrects_payment_id: string | null;
   created_at: string;

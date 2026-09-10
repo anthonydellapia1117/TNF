@@ -101,3 +101,17 @@ export function fmtDateOnly(ymd: string): string {
     year: "numeric",
   });
 }
+
+/**
+ * `payments.collected_by` as something to show, or null to show nothing.
+ *
+ * Three surfaces read this field - the queue summary, the ledger row and the
+ * xlsx export - and the rule has to be the same in all three, so it lives here
+ * rather than in each of them. AVD is Anthony: `admin_record_payment` reads AVD
+ * and null identically when it decides the move to AVD, so a surface printing
+ * "AVD" would dress the default up as the exception.
+ */
+export function collectorLabel(collectedBy: string | null | undefined): string | null {
+  const code = (collectedBy ?? "").trim();
+  return code === "" || code === "AVD" ? null : code;
+}
