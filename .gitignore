@@ -27,3 +27,7 @@ npm-debug.log*
 
 # local test postgres
 /tmp
+
+# Python bytecode, never tracked
+__pycache__/
+*.pyc

@@ -203,4 +203,7 @@ export interface PendingAction {
   resolution_note: string | null;
   staged_by: string | null;
   resolved_by: string | null;
+  /** Did Approve actually run an RPC? Null on an open row, and on any row
+   *  resolved before migration 26 added the column. */
+  applied: boolean | null;
 }

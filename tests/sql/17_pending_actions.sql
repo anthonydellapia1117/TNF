@@ -294,6 +294,9 @@ begin
 
   v_out := admin_approve_pending(v_id, 'verified in Venmo', 'test');
 
+  if v_out ->> 'dispatched_to' is null then
+    raise exception 'TEST FAILURE: approve returned no dispatched_to key at all - the contract was renamed, and every comparison against it is a silent no-op: %', v_out;
+  end if;
   if (v_out ->> 'applied')::boolean is not true
      or v_out ->> 'dispatched_to' <> 'admin_record_payment' then
     raise exception 'TEST FAILURE: approve did not dispatch a payment: %', v_out;
@@ -329,6 +332,7 @@ begin
     raise exception 'TEST FAILURE: no approve_pending audit row';
   end if;
   if (a.after ->> 'applied')::boolean is not true
+     or a.after ->> 'dispatched_to' is null
      or a.after ->> 'dispatched_to' <> 'admin_record_payment'
      or a.before ->> 'kind' <> 'payment' or a.note <> 'verified in Venmo' then
     raise exception 'TEST FAILURE: approve_pending audit payload wrong: % / %', a.before, a.after;
@@ -461,6 +465,9 @@ begin
                        'ref', 'gmail-msg-17-2'),
     'gmail-msg-17-2', 'test');
   v_out := admin_approve_pending(v_id, null, 'test');
+  if v_out ->> 'dispatched_to' is null then
+    raise exception 'TEST FAILURE: approve returned no dispatched_to key at all: %', v_out;
+  end if;
   if v_out ->> 'dispatched_to' <> 'admin_reserve_blocks' or (v_out -> 'result' ->> 'reserved')::int <> 1 then
     raise exception 'TEST FAILURE: reserve dispatch wrong: %', v_out;
   end if;
