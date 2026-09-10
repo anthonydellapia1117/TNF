@@ -33,7 +33,7 @@ Staging is not deciding. A staged row changes nothing about the pool.
 
    | kind | Approve does |
    |------|--------------|
-   | `payment` | `admin_record_payment` with the payload's `participant_id`, `amount_cents`, `method`, `paid_on`, `venmo_txn_id`, `source_ref`, `note`. Refused before the RPC if `participant_id` or `paid_on` is missing or `amount_cents` is not a positive whole number of cents. Promotes the block if that settles it, as the ledger always has. |
+   | `payment` | `admin_record_payment` with the payload's `participant_id`, `amount_cents`, `method`, `paid_on`, `venmo_txn_id`, `source_ref`, `note`, `collected_by`. Refused before the RPC if `participant_id` or `paid_on` is missing or `amount_cents` is not a positive whole number of cents. Promotes the block if that settles it, as the ledger always has. |
    | `reserve_blocks` | `admin_reserve_blocks` with `block_numbers`, `participant_id`, `method`, `ref`. |
    | anything else on the stageable list | Records `resolution = approved` and applies nothing. Anthony does it from the relevant admin page. The row now stores `applied = false` and `/admin/queue` says so. |
 
@@ -75,12 +75,32 @@ Staging is not deciding. A staged row changes nothing about the pool.
   before the migration has `applied = null` and reads "Approved, applied
   unknown", never "applied".
 - Payload shapes the summary understands: `payment` carries
-  `participant_id`, `participant_name`, `amount_cents`, `method`, `paid_on`,
+  `participant_id`, `participant_name`, `amount_cents`, `method`, `paid_on`, `collected_by`,
   `venmo_txn_id`, `source_ref`, `note`; `reserve_blocks` carries
   `participant_id`, `participant_name`, `block_numbers`, `method`, `ref`.
   Any other kind is free-form and its scalar fields render as `key: value`.
 - The sweep's prompt is owned by the routine, not by this file. Until it
   stages, the queue is empty and the page says so.
+
+
+### `collected_by` on a payment payload
+
+An owner code, or absent. **Absent means Anthony collected it**, and that is the
+normal case: the sweep only ever sees money that reached his Venmo or his mail.
+Set it only when an owner has said he collected and is holding his own
+participant's cash, and set it to that owner's code.
+
+It decides one thing, and it decides it silently: `admin_record_payment` moves
+the participant to `AVD` when this is absent or `AVD`, and leaves the owner
+alone when it names one. So a payment staged with the wrong code here puts a
+block in the wrong owner's book, and a payment staged without one for cash an
+owner is holding takes his participant off him. Neither shows up until
+season-end reconciliation.
+
+Migration 30 backfilled the 48 historical rows from the prose already in
+`source_ref`: 29 resolved to an owner (RM 21, MAP 7, JPOD 1), and 19 stayed
+absent, every one of them a Venmo receipt or an instruction from Anthony. That
+19 is not a gap to close - absent is the correct value for all of them.
 
 ## Tests
 
