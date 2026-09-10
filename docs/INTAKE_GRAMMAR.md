@@ -92,12 +92,22 @@ the whole message malformed.
    multiple of 500 at all is not a block payment and is invisible.
 6. `PAID_ON` is `YYYY-MM-DD`, not in the future in America/New_York, and not
    before 2026-08-01 (the season floor).
-7. `METHOD` is one of `venmo` `cash` `check` `zelle` `other`, on a `payment`
-   and on a `claim` alike. `cash` names the owner holding it in `SOURCE_REF`.
-   On a `claim` it is how he INTENDS to pay and nothing is recorded from it;
-   the list is still closed, so `requested` is not a value (the worked claim
-   example used it, and the sweep would have staged that message as
-   `unparsed_intake` rather than reserving the block).
+7. **`METHOD` means two different columns and the two lists do not overlap.**
+   Reading it as one list is how this rule was wrong in both directions on
+   2026-09-10, first accepting values the ledger rejects and then "fixing" a
+   correct example into a broken one.
+   - On a `payment` it is `payments.method`, constrained to `venmo` `cash`
+     `check`. `cash` names the owner holding it in `SOURCE_REF`. The column
+     also allows `correction` and `comp`, and intake may use NEITHER: a
+     correction needs the id of the payment it corrects, and a comp is an
+     admin action, not something a text message asks for. `zelle` and `other`
+     are NOT values - the CHECK constraint rejects them, so the insert would
+     fail and a valid-looking instruction would retry forever.
+   - On a `claim` it is `blocks.assignment_method`, constrained to `requested`
+     `carryover` `random` `admin`, and it records HOW THE BLOCK WAS CHOSEN,
+     not how anyone intends to pay. `requested` is the normal value for a
+     phone claim and is the default when `METHOD` is absent. A payment method
+     here fails the constraint on Approve.
 8. `SOURCE` is one of `email` `text` `in_person` `import`.
 9. `NAME`, `ALIAS`, `DISPLAY_NAME` and `NOTE` go in **verbatim**. No case
    fixing, no trimming beyond the leading and trailing space, no expanding
@@ -134,7 +144,7 @@ Subject: UPDATE TNF: Colavita claim
 ACTION: claim
 NAME: Mike Colavita
 COUNT: 1
-METHOD: venmo
+METHOD: requested
 NOTE: texted 2026-09-10, no specific block asked for
 ```
 

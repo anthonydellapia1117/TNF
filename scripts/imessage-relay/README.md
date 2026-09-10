@@ -29,7 +29,7 @@ System Settings > Privacy & Security > Full Disk Access > + > Terminal
 ```
 
 Quit and reopen Terminal afterwards. You should see: `python3 -c "import sqlite3,os;
-sqlite3.connect('file:'+os.path.expanduser('~/Library/Messages/chat.db')+'?mode=ro&immutable=1',uri=True)"`
+sqlite3.connect('file:'+os.path.expanduser('~/Library/Messages/chat.db')+'?mode=ro',uri=True)"`
 return with no error.
 
 ## Run it
@@ -54,7 +54,16 @@ python3 scripts/imessage-relay/tnf-imessage-relay.py --mode send-self
 You should see `sent to anthonydellapia@gmail.com` under each message, and the
 mail arrive in his inbox within a minute. `--mode draft` writes `.txt` files to
 `~/tnf-relay-outbox` instead; those are files, not mail, and the sweep will not
-see them.
+see them, so draft mode leaves the watermark alone and a later `--mode send-self`
+still picks the same messages up. Only `--mode send-self` moves it, and it moves
+it one message at a time as each send succeeds, so a refusal part-way through
+never re-sends what already went.
+
+Mail must have an account that sends as that address. The sweep only honours a
+`DECISION TNF:` whose From and To are both his Gmail, and Mail otherwise sends
+from whatever account is default: the relay would look like it worked while the
+sweep correctly refused every decision. The script checks, and exits 5 without
+sending if no account matches.
 
 The first send-mode run asks for Automation permission. If it was ever refused:
 

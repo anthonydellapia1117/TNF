@@ -79,6 +79,7 @@ PREFIX = re.compile(r"^\s*(UPDATE|DECISION|NOTE)\s+TNF:", re.IGNORECASE)
 APPLE_EPOCH = datetime(2001, 1, 1, tzinfo=timezone.utc)
 
 EXIT_OK, EXIT_NOTHING, EXIT_USAGE, EXIT_NO_DISK, EXIT_NO_AUTOMATION = 0, 0, 2, 3, 4
+EXIT_NO_ACCOUNT = 5
 
 
 def die(code, msg):
@@ -223,11 +224,32 @@ def send_self(subject, body):
     Mail.app, to ANTHONY and nobody else. The recipient is not interpolated
     from anything the message said, so no body can redirect it.
     """
+    # The SENDING account is set explicitly, not left to Mail's default.
+    #
+    # The sweep's authority check (SWEEP_PROMPT 1b) requires a DECISION TNF:
+    # message to be FROM Anthony's Gmail address AND TO it. Mail sends from
+    # whichever account is default unless told otherwise, so on a Mac where
+    # that is his work address or an iCloud account, every relayed decision
+    # arrives from the wrong sender and the sweep correctly refuses it: the
+    # relay looks like it worked, and nothing is ever applied.
+    #
+    # If no account in Mail can send as that address, stop and say so rather
+    # than sending from whatever is to hand.
     script = """
     on run {theSubject, theBody, theTo}
       tell application "Mail"
+        set senderAddress to missing value
+        repeat with a in every account
+          repeat with ea in (email addresses of a)
+            if (ea as string) is equal to theTo then set senderAddress to (ea as string)
+          end repeat
+        end repeat
+        if senderAddress is missing value then
+          error "NOACCOUNT" number 9001
+        end if
         set m to make new outgoing message with properties {subject:theSubject, content:theBody, visible:false}
         tell m to make new to recipient at end of to recipients with properties {address:theTo}
+        set sender of m to senderAddress
         send m
       end tell
     end run
@@ -239,6 +261,14 @@ def send_self(subject, body):
     )
     if proc.returncode != 0:
         err = (proc.stderr or "").strip()
+        if "NOACCOUNT" in err or "9001" in err:
+            die(
+                EXIT_NO_ACCOUNT,
+                f"Mail has no account that sends as {ANTHONY}, so a relayed\n"
+                "  DECISION TNF: would arrive from the wrong sender and the sweep\n"
+                "  would refuse it. Add that account: Mail > Settings > Accounts.\n"
+                "  Nothing was sent.",
+            )
         if "-1743" in err or "not authorized" in err.lower() or "1743" in err:
             die(
                 EXIT_NO_AUTOMATION,
@@ -302,9 +332,16 @@ def main():
         if rowid <= high:
             return
         high = rowid
-        state["last_rowid"] = high
-        state["last_run"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-        if args.mode != "dry-run":
+        # ONLY send-self advances the delivery watermark. draft mode writes
+        # files for Anthony to look at and explicitly does not close the
+        # mail-to-sweep loop, so consuming the watermark there would mean the
+        # next send-self found nothing and the drafted messages were never
+        # actually relayed - inspected, then silently dropped. dry-run has
+        # never advanced it. Re-running draft simply rewrites the same files,
+        # which are named by rowid.
+        if args.mode == "send-self":
+            state["last_rowid"] = high
+            state["last_run"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
             save_state(state)
 
     relayed, high = 0, last_rowid
@@ -331,8 +368,9 @@ def main():
         advance(rowid)
         relayed += 1
 
-    if high > last_rowid and args.mode == "dry-run":
-        print(f"\ndry run, watermark NOT advanced (would be {high})")
+    if high > last_rowid and args.mode != "send-self":
+        print(f"\n{args.mode}: watermark NOT advanced (would be {high}). "
+              "Only send-self closes the loop.")
 
     if relayed == 0:
         print("nothing to relay")
