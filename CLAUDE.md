@@ -330,6 +330,21 @@ it does not move blocks.
   was deliberately not rewritten: audit rows still carry `DIRECT` in their
   `before` payloads, which is correct — the ledger records what was true at
   the time, and the constraint has never reached into jsonb.
+  **Every code now has a person attached** (migration 25, `owners` table,
+  2026-09-10). `NL` is Nolan Lawrence and `BG` is Billy Guyon, both named
+  2026-09-09; until then those two codes existed in the schema with no name
+  anywhere, so reconciling either book at season end meant asking Anthony who
+  the code belonged to. The table is the mapping only: what a code *means* is
+  the rule above it and is unchanged. `docs/OWNERS.md` is its readable copy.
+- **Owner email addresses live in the `owners` table, never in the repo.**
+  The repo is public, so eight addresses in a tracked file are eight addresses
+  published permanently, and deleting the file does not clear the git history.
+  The table is admin-only on the same footing as `pending_actions`: RLS on
+  `is_admin()`, `anon` holds no privilege, no `v_public_*` view selects from
+  it. `docs/OWNERS.md` carries the codes and the names and no addresses. The
+  standing rule that a public surface never exposes email applies to repo
+  files too; that is the thing to check before writing any contact detail into
+  one.
 - **A prior season is a source of identity, never of state.** Alias and
   email carry forward; owner group, block number, block count and payment
   status never do — each needs a 2026 source. A prior-season value can go in
