@@ -43,27 +43,27 @@ uuid, exact).
 | ACTION | Fields | Effect |
 |--------|--------|--------|
 | `participant` | `NAME` R, `ALIAS` O, `EMAIL` O, `CC_EMAIL` O, `PHONE` O, `OWNER` O, `SOURCE` O, `COUNT` O, `NOTE` O | `admin_upsert_participant`. A blank `OWNER` falls back to `AVD`. **`COUNT`, never `BLOCKS`.** `p_blocks_requested` is a scalar commitment, and `BLOCKS` is a list of block NUMBERS: `BLOCKS: 62` on this action reads either as block 62 or as sixty-two blocks requested, which is $31,000 due. The grammar carried that ambiguity until 2026-09-10 and gave no conversion rule. Numbers are chosen by a `claim`; this action only records how many. |
-| `claim` | `WHO` R, **`BLOCKS` R**, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. A specific block number only goes to someone who specifically asked for it. `COUNT` is NOT an accepted alternative: `admin_reserve_blocks` raises `no block numbers given` on an empty array, so a `COUNT`-only claim stages a row whose Approve fails and leaves Anthony a dead button. Someone who wants a block without naming one gets T2 and picks from the board. |
+| `claim` | `WHO` R, **`BLOCKS` R**, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. `admin_reserve_blocks` has no note parameter, so `NOTE` rides in the payload's `ref` and reaches `blocks.requested_ref`; it is not a participant note. A specific block number only goes to someone who specifically asked for it. `COUNT` is NOT an accepted alternative: `admin_reserve_blocks` raises `no block numbers given` on an empty array, so a `COUNT`-only claim stages a row whose Approve fails and leaves Anthony a dead button. Someone who wants a block without naming one gets T2 and picks from the board. |
 | `contact` | `WHO` R, and at least one of `EMAIL`, `CC_EMAIL`, `PHONE` | `admin_upsert_participant`, contact fields only. |
 | `block_name` | `BLOCK` R, `DISPLAY_NAME` R | `admin_set_block_name`. |
-| `note` | `WHO` R **or** `BLOCK` R, `NOTE` R | Appends a dated note. |
+| `note` | `WHO` R, `NOTE` R | **There is no RPC that appends a note.** `admin_upsert_participant` REPLACES `participants.notes` with whatever `p_notes` it is handed, so a note is applied by READING the current value, adding a dated line to it, and passing the WHOLE field back. Passing only the new line erases every note before it, silently, with the audit row showing a legitimate upsert. Verified against the signature on 2026-09-10; the grammar said "appends" for both actions and nothing appended. **`BLOCK` is no longer accepted on this action.** No RPC writes `blocks.notes` as a note at all: `admin_hold_block` writes that column but also sets the block to `held`, which is a state change and not a note, and `admin_release_block` writes prior-holder history there itself. A note about a block goes on its HOLDER. If the block has no holder there is nowhere to put it: stage `unclassified_mail`. |
 
 ### Under `DECISION TNF:`
 
 | ACTION | Fields | Effect |
 |--------|--------|--------|
-| `payment` | `WHO` R, `AMOUNT` R, `METHOD` R, `PAID_ON` R, `TXN` O, `SOURCE_REF` O, `NOTE` O | `admin_record_payment`, then `admin_promote_if_paid`. Money that reached Anthony also moves the participant to `AVD` in the same operation. |
-| `owner` | `WHO` R, `OWNER` R, `REASON` R | `admin_upsert_participant`, owner code only. |
-| `release` | `BLOCK` R, `REASON` R | `admin_release_block`. Prior holder kept in the block's notes. The participant row is never deleted. **Set `blocks_requested` to what he still holds, not to 0.** Zero is right only when the released block was his last one. Seven people hold more than one today and Ed D holds three: releasing one of his and zeroing the count would erase $1,000 of his own remaining commitment and leave him holding two numbered blocks against a commitment of none, which is the state self-check 7b now reports as an error. |
+| `payment` | `WHO` R, `AMOUNT` R, `METHOD` R, `PAID_ON` R, `TXN` O, `SOURCE_REF` O, `COLLECTED_BY` O, `NOTE` O | `admin_record_payment`, then `admin_promote_if_paid`. **`COLLECTED_BY` decides whether the participant moves to `AVD`, so it is the field to get right.** Absent means Anthony collected it, which is the normal case and moves the participant to `AVD` in the same operation. An owner code means that owner is holding his own book's cash and nobody moves. Live in production since 2026-09-10. |
+| `owner` | `WHO` R, `OWNER` R, `REASON` R | `admin_upsert_participant`, owner code only. `REASON` has no parameter of its own either: it goes into `p_source_ref`, or into `p_notes` by the read-add-write rule above. It is never dropped - an owner code changing with no recorded reason is how a book silently drifts. |
+| `release` | `BLOCK` R, `REASON` R | `admin_release_block(p_block_number, p_actor)` - **two arguments, and neither is the reason.** The RPC has nowhere to put it, so `REASON` is required here for Anthony's own record and lands in the audit row's note and in the holder's `notes`, never in the block. Releasing and recording why are two calls, not one. Prior holder kept in the block's notes. The participant row is never deleted. **Set `blocks_requested` to what he still holds, not to 0.** Zero is right only when the released block was his last one. Seven people hold more than one today and Ed D holds three: releasing one of his and zeroing the count would erase $1,000 of his own remaining commitment and leave him holding two numbered blocks against a commitment of none, which is the state self-check 7b now reports as an error. |
 | `refund` | `WHO` R, `BLOCK` R, `AMOUNT` R, `TXN` R, `REASON` R | Stages a `refund_needed` row. **The app never moves money.** The Venmo is Anthony's, the ledger row is his, later. |
 | `queue` | `ID` R, `VERDICT` R (`approve` or `dismiss`), `NOTE` O | `admin_approve_pending` or `admin_dismiss_pending` on that row. This is how a queue row gets cleared from a phone. |
-| `identity` | `KEEP` R, `OTHER` R, `NOTE` R | Records the call as a dated note on both participants and dismisses the open `identity_conflict` row. Never merges or deletes a row. |
+| `identity` | `KEEP` R, `OTHER` R, `NOTE` R | Dismisses the open `identity_conflict` row and records the call on BOTH participants by the read-add-write rule on the `note` action - two separate reads and two separate writes, because there is no append and no RPC that touches two rows at once. Never merges or deletes a row. |
 
 ### Under `NOTE TNF:`
 
 | ACTION | Fields | Effect |
 |--------|--------|--------|
-| `note` | `WHO` R **or** `BLOCK` R, `NOTE` R | Appends a dated note. Nothing else, whatever else the body says. |
+| `note` | `WHO` R, `NOTE` R | Read, add a dated line, write the whole `notes` field back - see the `note` action above, and never pass the new line alone. `BLOCK` is not accepted here either, for the same reason. Nothing else, whatever else the body says. |
 
 ## Validation rules
 
@@ -111,6 +111,14 @@ the whole message malformed.
      phone claim and is the default when `METHOD` is absent. A payment method
      here fails the constraint on Approve.
 8. `SOURCE` is one of `email` `text` `in_person` `import`.
+8a. `COLLECTED_BY` on a `payment` is one of the eight owner codes, or absent.
+   Absent is not a missing value: it MEANS Anthony collected it, and it is
+   the right value for every Venmo receipt and every payment he takes in
+   hand. Set it only when an owner has said he collected and is holding his
+   own participant's cash. Getting it wrong is silent in both directions -
+   a wrong code leaves a block in an owner's book that is not his, and a
+   missing one takes a participant off the owner who is holding the money -
+   and neither surfaces until season-end reconciliation.
 9. `NAME`, `ALIAS`, `DISPLAY_NAME` and `NOTE` go in **verbatim**. No case
    fixing, no trimming beyond the leading and trailing space, no expanding
    an initial, no guessing a surname. Never invent a full name: if it is

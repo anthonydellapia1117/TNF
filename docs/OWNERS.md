@@ -29,7 +29,7 @@ audit rows still carry `DIRECT` in their `before` payloads, which is correct.
 
 They are **provisioned out of band**, by hand, once. Migration 25 seeds the
 codes, the names and the notes and no contact detail at all, because a
-migration is a tracked file like any other and the repo is public. The first
+migration is a tracked file like any other. The first
 draft of that migration seeded all eight addresses ten lines below a comment
 saying they must never be in a repo file; seven of the eight were not in the
 repo anywhere before that, and it took a review to catch it.
@@ -47,9 +47,12 @@ go red.
 
 ## Why there are no email addresses on this page
 
-**This repository is public.** Eight real addresses in a tracked file are
-eight addresses published to the open internet, permanently, and deleting the
-file later does not remove them from the git history.
+**A repository is the wrong place for contact detail, private or not.** Eight
+real addresses in a tracked file are eight addresses committed permanently:
+deleting the file later does not reach the git history, visibility is a setting
+that can be changed back, and a repo has no row-level access control at all.
+Anthony made this repo private on 2026-09-10. That removed the urgency and
+none of the reasons.
 
 The addresses are in the `owners` table instead, which is admin-only on the
 same footing as `pending_actions`: RLS on `is_admin()`, `anon` holds no

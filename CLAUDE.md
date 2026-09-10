@@ -386,14 +386,23 @@ it does not move blocks.
   the code belonged to. The table is the mapping only: what a code *means* is
   the rule above it and is unchanged. `docs/OWNERS.md` is its readable copy.
 - **Owner email addresses live in the `owners` table, never in the repo.**
-  The repo is public, so eight addresses in a tracked file are eight addresses
-  published permanently, and deleting the file does not clear the git history.
   The table is admin-only on the same footing as `pending_actions`: RLS on
   `is_admin()`, `anon` holds no privilege, no `v_public_*` view selects from
-  it. `docs/OWNERS.md` carries the codes and the names and no addresses. The
-  standing rule that a public surface never exposes email applies to repo
-  files too; that is the thing to check before writing any contact detail into
-  one.
+  it. `docs/OWNERS.md` carries the codes and the names and no addresses.
+  - **The reason is not that the repo is public, and the rule does not relax
+    when it stops being.** Anthony made it private on 2026-09-10. Three things
+    are unchanged by that. Git history is permanent and a delete does not
+    reach it, so an address committed once is committed for good. Visibility
+    is a setting and settings get changed back, by a fork, a transfer, or a
+    contractor added for an afternoon. And a repo has no row-level access
+    control at all, while the table has exactly that.
+  - Private only removes the *urgency*. The first draft of migration 25 seeded
+    all eight addresses while the repo was public, and seven of them were not
+    in it before; that was caught in review. Private would have made it
+    quieter, not better.
+  - The standing rule that a public surface never exposes email applies to
+    repo files too. That is the thing to check before writing any contact
+    detail into one.
 - **A prior season is a source of identity, never of state.** Alias and
   email carry forward; owner group, block number, block count and payment
   status never do — each needs a 2026 source. A prior-season value can go in
