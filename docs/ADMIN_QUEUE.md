@@ -135,3 +135,9 @@ absent, every one of them a Venmo receipt or an instruction from Anthony. That
   refund itself is a Venmo Anthony sends and a ledger row he adds later,
   never the app. The payload carries participant_name, block, amount_cents,
   venmo_txn_id, payment_id and a one-line text.
+
+- The shortcut parser (`src/lib/shortcut-grammar.ts`) stages only kinds on
+  `STAGEABLE_KINDS`. A unit test asserts every action it can stage names a
+  member of that list, and that every kind it marks as dispatching names a real
+  key of `DISPATCH`. Rename a kind on either side and the suite goes red
+  instead of the queue going quiet.
