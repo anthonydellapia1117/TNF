@@ -105,6 +105,14 @@ the whole message malformed.
 
 1. `OWNER` is one of `AVD` `RM` `MAP` `JPOD` `EJD` `NL` `GD` `BG`, upper
    case, exact. `DIRECT` was retired 2026-08-28 and is rejected.
+   - `COLLECTED_BY` on a `payment` is from that same list and means **who is
+     holding the $500**, never who introduced anyone. Leave it out when the
+     money reached Anthony: that is the common case and it is the null the
+     column stores. Name an owner only when that owner has said he is holding
+     his own participant's cash. `admin_record_payment` reads this one field
+     to decide the AVD move and reads nothing else, so `SOURCE_REF` does not
+     stand in for it - a `payment` naming JPOD there and nowhere else still
+     moves the participant to AVD.
 2. `BLOCK` is an integer 1 to 100. `BLOCKS` is a comma-separated list of
    those, each 1 to 100, no duplicates.
 3. `COUNT` is an integer, 0 to 100, and belongs to the `participant` action
@@ -132,12 +140,14 @@ the whole message malformed.
    2026-09-10, first accepting values the ledger rejects and then "fixing" a
    correct example into a broken one.
    - On a `payment` it is `payments.method`, constrained to `venmo` `cash`
-     `check`. `cash` names the owner holding it in `SOURCE_REF`. The column
-     also allows `correction` and `comp`, and intake may use NEITHER: a
-     correction needs the id of the payment it corrects, and a comp is an
-     admin action, not something a text message asks for. `zelle` and `other`
-     are NOT values - the CHECK constraint rejects them, so the insert would
-     fail and a valid-looking instruction would retry forever.
+     `check`. `cash` says nothing about who holds it - it can be cash in
+     Anthony's hand - so when it is an owner holding it, name him in
+     `COLLECTED_BY`. `SOURCE_REF` is prose beside that and decides nothing.
+     The column also allows `correction` and `comp`, and intake may use
+     NEITHER: a correction needs the id of the payment it corrects, and a
+     comp is an admin action, not something a text message asks for. `zelle`
+     and `other` are NOT values - the CHECK constraint rejects them, so the
+     insert would fail and a valid-looking instruction would retry forever.
    - On a `claim` it is `blocks.assignment_method`, constrained to `requested`
      `carryover` `random` `admin`, and it records HOW THE BLOCK WAS CHOSEN,
      not how anyone intends to pay. `requested` is the normal value for a
@@ -215,6 +225,7 @@ AMOUNT: $500
 METHOD: cash
 PAID_ON: 2026-09-10
 SOURCE_REF: JPOD
+COLLECTED_BY: JPOD
 NOTE: Julian confirmed he is holding it, code stays JPOD
 ```
 
