@@ -36,6 +36,11 @@ import {
 
 type Method = Payment["method"];
 
+// The eight owner codes, same list as the participants and payments CHECK
+// constraints. Picking one records that owner as holding the cash, which is
+// what stops admin_record_payment moving the participant to AVD.
+const OWNER_CODES = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG"] as const;
+
 const METHODS: { value: Method; label: string }[] = [
   { value: "venmo", label: "Venmo" },
   { value: "cash", label: "Cash" },
@@ -87,6 +92,9 @@ export function PaymentsClient({
   const [venmoTxnId, setVenmoTxnId] = useState("");
   const [note, setNote] = useState("");
   const [corrects, setCorrects] = useState("");
+  // "" = Anthony. Anything else is the owner holding the cash, and it stops
+  // the AVD move. Default is Anthony because that is the common case.
+  const [collectedBy, setCollectedBy] = useState("");
 
   // Default date to today after mount — a server-rendered default could be a
   // different calendar day than the phone's.
@@ -221,6 +229,7 @@ export function PaymentsClient({
         sourceRef: "",
         note: note.trim(),
         correctsPaymentId: method === "correction" && corrects ? corrects : null,
+        collectedBy: collectedBy === "" ? null : collectedBy,
       });
       if (result.ok) {
         toast.success("Recorded — promotion runs automatically on full payment.");
@@ -302,6 +311,23 @@ export function PaymentsClient({
                 {METHODS.map((m) => (
                   <SelectItem key={m.value} value={m.value}>
                     {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="pay-collected-by">Collected by</Label>
+            <Select value={collectedBy} onValueChange={setCollectedBy}>
+              <SelectTrigger id="pay-collected-by" className="h-12 w-full sm:h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Me (moves them to AVD)</SelectItem>
+                {OWNER_CODES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c} is holding it
                   </SelectItem>
                 ))}
               </SelectContent>
