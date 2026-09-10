@@ -42,7 +42,7 @@ uuid, exact).
 
 | ACTION | Fields | Effect |
 |--------|--------|--------|
-| `participant` | `NAME` R, `ALIAS` O, `EMAIL` O, `CC_EMAIL` O, `PHONE` O, `OWNER` O, `SOURCE` O, `BLOCKS` O, `NOTE` O | `admin_upsert_participant`. A blank `OWNER` falls back to `AVD`. |
+| `participant` | `NAME` R, `ALIAS` O, `EMAIL` O, `CC_EMAIL` O, `PHONE` O, `OWNER` O, `SOURCE` O, `COUNT` O, `NOTE` O | `admin_upsert_participant`. A blank `OWNER` falls back to `AVD`. **`COUNT`, never `BLOCKS`.** `p_blocks_requested` is a scalar commitment, and `BLOCKS` is a list of block NUMBERS: `BLOCKS: 62` on this action reads either as block 62 or as sixty-two blocks requested, which is $31,000 due. The grammar carried that ambiguity until 2026-09-10 and gave no conversion rule. Numbers are chosen by a `claim`; this action only records how many. |
 | `claim` | `WHO` R, **`BLOCKS` R**, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. A specific block number only goes to someone who specifically asked for it. `COUNT` is NOT an accepted alternative: `admin_reserve_blocks` raises `no block numbers given` on an empty array, so a `COUNT`-only claim stages a row whose Approve fails and leaves Anthony a dead button. Someone who wants a block without naming one gets T2 and picks from the board. |
 | `contact` | `WHO` R, and at least one of `EMAIL`, `CC_EMAIL`, `PHONE` | `admin_upsert_participant`, contact fields only. |
 | `block_name` | `BLOCK` R, `DISPLAY_NAME` R | `admin_set_block_name`. |
@@ -54,7 +54,7 @@ uuid, exact).
 |--------|--------|--------|
 | `payment` | `WHO` R, `AMOUNT` R, `METHOD` R, `PAID_ON` R, `TXN` O, `SOURCE_REF` O, `NOTE` O | `admin_record_payment`, then `admin_promote_if_paid`. Money that reached Anthony also moves the participant to `AVD` in the same operation. |
 | `owner` | `WHO` R, `OWNER` R, `REASON` R | `admin_upsert_participant`, owner code only. |
-| `release` | `BLOCK` R, `REASON` R | `admin_release_block`. Prior holder kept in the block's notes. The participant row is never deleted; it stays with `blocks_requested = 0` and a dated note. |
+| `release` | `BLOCK` R, `REASON` R | `admin_release_block`. Prior holder kept in the block's notes. The participant row is never deleted. **Set `blocks_requested` to what he still holds, not to 0.** Zero is right only when the released block was his last one. Seven people hold more than one today and Ed D holds three: releasing one of his and zeroing the count would erase $1,000 of his own remaining commitment and leave him holding two numbered blocks against a commitment of none, which is the state self-check 7b now reports as an error. |
 | `refund` | `WHO` R, `BLOCK` R, `AMOUNT` R, `TXN` R, `REASON` R | Stages a `refund_needed` row. **The app never moves money.** The Venmo is Anthony's, the ledger row is his, later. |
 | `queue` | `ID` R, `VERDICT` R (`approve` or `dismiss`), `NOTE` O | `admin_approve_pending` or `admin_dismiss_pending` on that row. This is how a queue row gets cleared from a phone. |
 | `identity` | `KEEP` R, `OTHER` R, `NOTE` R | Records the call as a dated note on both participants and dismisses the open `identity_conflict` row. Never merges or deletes a row. |
@@ -74,8 +74,10 @@ the whole message malformed.
    case, exact. `DIRECT` was retired 2026-08-28 and is rejected.
 2. `BLOCK` is an integer 1 to 100. `BLOCKS` is a comma-separated list of
    those, each 1 to 100, no duplicates.
-3. `COUNT` is an integer 1 or more, and never appears together with
-   `BLOCKS`.
+3. `COUNT` is an integer, 0 to 100, and belongs to the `participant` action
+   ONLY: it is that person's commitment count, `participants.blocks_requested`.
+   It is not a claim field - a claim names its numbers in `BLOCKS` - and it
+   never appears together with `BLOCKS` in the same message.
 4. `AMOUNT` is **whole dollars**, digits only, optional leading `$`, no
    cents and no decimal point. `500` and `$1500` are fine, `500.00` is
    malformed. A thousands separator is NOT digits: `$1,500` is malformed
