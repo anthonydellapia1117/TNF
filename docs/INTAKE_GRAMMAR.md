@@ -134,9 +134,15 @@ the whole message malformed.
     two participants is worth noting and is never by itself a duplicate
     signal.
 11. The person named - `NAME`, or `PARTICIPANT_ID` where the parser accepts
-    it - must resolve to exactly one live participant. Zero matches or two
-    matches is malformed, never a guess and never a new row created to make
-    it fit.
+    it - must resolve to exactly one live participant, **except on
+    `participant`, where zero matches means CREATE.** That action exists to add
+    someone: `admin_upsert_participant` takes a null id and inserts. The parser
+    emits `who_resolves_to_exactly_one` for every action carrying a `NAME`, so
+    it is the sweep that decides what zero means, and it means different things
+    on different actions. Read as a blanket rule it made the creation path in
+    `SWEEP_PROMPT.md` 1a unreachable through intake, which is how it read until
+    2026-09-10. On every other action, zero matches or two matches is
+    malformed - never a guess, and never a new row created to make it fit.
 12. `ID` on a `queue` action is a uuid that is an open row in
     `pending_actions`. A resolved row is malformed.
 13. `VERDICT` is `approve` or `dismiss`, lower case.

@@ -31,12 +31,12 @@ const OWN_ADDRESSES = new Set([
 
 // Fixture domains. RFC 2606 reserves example.com; the rest are local inventions
 // that resolve nowhere and belong to nobody.
-const FIXTURE_DOMAINS =
-  /@(example\.com|tnf\.test|test|invalid|localhost|b\.co)$/;
-// b.co is the throwaway address in tests/unit/intake-grammar.test.ts, used only
-// to satisfy the parser's EMAIL_RE. Listed explicitly rather than loosened into
-// a shape rule: every fixture domain here is a deliberate entry someone had to
-// add, which is the property that keeps a real address from slipping past.
+const FIXTURE_DOMAINS = /@(example\.com|tnf\.test|test|invalid|localhost)$/;
+// Reserved domains only. b.co was briefly listed here for the parser suite's
+// throwaway address, which was wrong: .co is a real registrable TLD, so the
+// exemption would have hidden any genuine name@b.co in any tracked file. The
+// fixture moved to example.com instead. A fixture domain has to be one nobody
+// can own, or the allowlist is a hole rather than an exception.
 
 // Pre-existing debt, measured 2026-09-10. Each number is the count of DISTINCT
 // third-party addresses that file already published before this guard existed.
