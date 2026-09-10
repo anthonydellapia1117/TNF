@@ -28,7 +28,7 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
 - **Claim and payment deadline is Tuesday November 24, 2026** (`config.
   claim_deadline`). The September 4 deadline is history.
 - **Removing a participant at their own request** (precedent 2026-09-08,
-  nerdz on block 1 and F Chili on block 78): release the block the way
+  F Chili on block 78): release the block the way
   `admin_release_block` does, prior holder kept in the block's notes; the
   participant row is never deleted and the schema has no inactive flag, so
   the row stays with `blocks_requested = 0` and a dated note. A payment on
@@ -36,6 +36,30 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   `refund_needed` row at `/admin/queue` with the amount and the Venmo
   transaction id. Audit rows: `participant_removed` on the block and on the
   participant, `stage_pending` on the queue row.
+- **A release asked for by a THIRD PARTY is provisional until the person
+  whose money it is confirms it.** Ask them first. Until they answer, the
+  block stays where it is: do not release it, do not stage a refund, do not
+  let the roster move on somebody else's say-so.
+  - The precedent is nerdz, block 1, and it is why the line above no longer
+    names her. On 2026-09-08 Ray Vassallo (`ray@economydelivers.com`) asked
+    Anthony to release "the box you were holding for us", believing there
+    were two blocks and one was his. There was only ever one and it was his
+    daughter's: **Raychel Neil** (`rayplay1107@gmail.com`) asked for one
+    block under nerdz on 2026-09-03 and paid $500 the same day, venmo txn
+    4678217450148051522. Block 1 was released on 2026-09-09 and a
+    `refund_needed` row staged. She wrote on 2026-09-09 saying she never
+    went in with her father, and by then she had also been dropped from the
+    roster before the season-change announcement, so she was never told the
+    pool had changed. Reversed 2026-09-10: block 1 restored and assigned,
+    refund row dismissed, **no new payment row** (hers was never removed and
+    the ledger is append-only), and she was written to directly.
+  - Ray Vassallo is **not** a TNF participant and never was. He is her
+    `cc_email` and nothing more. **Two Rays are on that thread and they are
+    different people**: never merge them, and never read a request from the
+    cc as a request from the holder.
+  - The tell is money. The person who paid is the person whose block it is,
+    whatever the relationship. If the request comes from an address that is
+    not the payer's, that is a question, not an instruction.
 
 ## Owner codes and how money is actually collected
 
