@@ -25,6 +25,64 @@ export const DISPATCH: Record<string, PendingDispatch> = {
   },
 };
 
+/**
+ * Every kind the sweep may stage, and the whole list. `admin_stage_pending`
+ * enforces the same list (migration 26); change both together, exactly as
+ * DISPATCH mirrors the CASE in admin_approve_pending.
+ *
+ * The list is closed because an open one already cost money. On 2026-09-08 the
+ * sweep staged Tom Nataloni's $500 under the kind "payment_candidate": it
+ * reads like a dispatching kind, no dispatcher handles it, so Approve would
+ * have marked the row green and written nothing. The row sat open for two days
+ * while the money was already in Anthony's Venmo and block 23 stayed reserved.
+ * A kind that is merely plausible must be refused at the door, not accepted
+ * and then silently ignored.
+ *
+ * Two of these dispatch (see DISPATCH above). The rest deliberately do not:
+ * each needs Anthony on the right admin page, and that is the point of them.
+ * "owner_owes_refund" is NOT here: owner-held cash left the pool's scope on
+ * 2026-09-10, so there is nothing left to stage about it.
+ */
+export const STAGEABLE_KINDS = [
+  "payment",
+  "reserve_blocks",
+  "refund_needed",
+  "identity_conflict",
+  "non_matching_multiple",
+  "unparsed_intake",
+  "unclassified_mail",
+] as const;
+
+export type StageableKind = (typeof STAGEABLE_KINDS)[number];
+
+/** Exact match, case-sensitive. "PAYMENT" is not "payment". */
+export function isStageableKind(kind: string): kind is StageableKind {
+  return (STAGEABLE_KINDS as readonly string[]).includes(kind);
+}
+
+/**
+ * What actually happened to a resolved row, for the screen.
+ *
+ * An approved row that applied nothing must never read like one that worked.
+ * Before `applied` was persisted (migration 26) the only signal was a toast
+ * on the click, and the row then vanished from the open list, so a green
+ * no-op and a green success looked identical five seconds later.
+ *
+ * `applied === null` on an approved row means the row predates that column.
+ * It is reported as unknown, never as applied: guessing "applied" here would
+ * be the exact lie the column exists to prevent.
+ */
+export function outcomeLabel(row: {
+  resolution: "approved" | "dismissed" | null;
+  applied: boolean | null;
+}): string | null {
+  if (row.resolution === null) return null;
+  if (row.resolution === "dismissed") return "Dismissed";
+  if (row.applied === true) return "Approved and applied";
+  if (row.applied === false) return "Approved, nothing applied";
+  return "Approved, applied unknown";
+}
+
 const NO_DISPATCH: PendingDispatch = {
   rpc: null,
   onApprove:

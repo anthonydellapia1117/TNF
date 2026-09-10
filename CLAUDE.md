@@ -106,6 +106,29 @@ collecting and does not move the participant — it is the Konnor case
 arriving by Venmo instead of by hand. If the sender is an owner rather than
 the participant, ask Anthony rather than moving anyone.
 
+### Anthony tracks his own money only (2026-09-10)
+
+**The pool's money scope is Anthony's own money: what reaches or leaves his
+Venmo, cash in his hand, or a check made out to him. Nothing else.**
+
+- **An owner holding cash for his own book is that owner's business.** Do not
+  chase it, do not compute what an owner owes a participant, do not stage a
+  queue row about it, and do not put it in the digest. Assume every
+  owner-to-participant payment and refund has already happened.
+- Precedent, the row this rule retired: a queue row said Mike Pungitore owed
+  Billy Agnes $500 back after block 28 was released. Dismissed 2026-09-10,
+  "owner-held cash, out of scope per 2026-09-10". MAP's ledger was not touched
+  and no refund row was written. `owner_owes_refund` is no longer a kind the
+  sweep may stage.
+- **An owner code still does not decide whose money it is.** A Venmo receipt
+  into Anthony's account from a participant in ANY book is Anthony's money: it
+  gets recorded, and the participant moves to AVD under the rule above. That
+  behaviour is unchanged.
+- **Outstanding, due and collected stay whole-pool figures.** Never filter them
+  by owner code. What narrows is the chasing and the notifications, not the
+  arithmetic: `collected_cents` still means collected by the pool, cash an
+  owner holds included.
+
 Supersedes the confirm-with-the-owner-first version of this rule, set
 2026-09-03 and replaced the same evening. Anthony's reasoning for the
 change: the code means collection responsibility, so if he collected it, it
