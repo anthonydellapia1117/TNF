@@ -337,7 +337,21 @@ export function PaymentsClient({
 
           <div className="space-y-1.5">
             <Label htmlFor="pay-collected-by">Collected by</Label>
-            <Select value={collectedBy} onValueChange={setCollectedBy}>
+            {/*
+              Every owner is offered for every participant, deliberately -
+              nothing in CLAUDE.md says the collector must be the participant's
+              own owner, and the ambiguous cross-book case is one to ask Anthony
+              about rather than one for the database to refuse. So the book is
+              shown below rather than enforced here: a mismatch is visible at
+              the moment of choosing, instead of at season-end reconciliation.
+              A correction is the exception, and it is not a choice at all -
+              migration 32 reads the collector off the row being corrected.
+            */}
+            <Select
+              value={collectedBy}
+              onValueChange={setCollectedBy}
+              disabled={method === "correction"}
+            >
               <SelectTrigger id="pay-collected-by" className="h-12 w-full sm:h-8">
                 <SelectValue />
               </SelectTrigger>
@@ -350,15 +364,12 @@ export function PaymentsClient({
                 ))}
               </SelectContent>
             </Select>
-            {/*
-              The menu offers every owner for every participant, deliberately -
-              nothing in CLAUDE.md says the collector must be the participant's
-              own owner, and the ambiguous cross-book case is one to ask Anthony
-              about rather than one for the database to refuse. So the book is
-              shown rather than enforced: a mismatch is visible here, at the
-              moment of choosing, instead of at season-end reconciliation.
-            */}
-            {selectedOwnerGroup && (
+            {method === "correction" ? (
+              <p className="text-xs text-muted-foreground">
+                Taken from the payment being corrected. The two are the same
+                money in the same book.
+              </p>
+            ) : selectedOwnerGroup && (
               <p className="text-xs text-muted-foreground">
                 {selectedOwnerGroup === collectedBy
                   ? `Their book: ${selectedOwnerGroup}.`

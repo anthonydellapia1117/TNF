@@ -170,6 +170,82 @@ begin
   raise notice 'AVD move: null collected_by moves and audits; an owner code, a comp and a correction do not';
 end $$;
 
+-- 4e. A CORRECTION INHERITS THE COLLECTOR OF THE ROW IT CORRECTS. The two are
+--     the same money in the same book, so the collector is not an independent
+--     fact about the correction: reversing an RM-held payment with a null
+--     collector would credit RM $500 and debit Anthony $500, and every
+--     season-end total grouped by owner would be wrong while the ledger
+--     balanced. The CHECK correction_references_original guarantees there is
+--     always a row to inherit from.
+do $$
+declare
+  v_p uuid; v_orig uuid; v_corr uuid; v_got text;
+begin
+  perform set_config('app.admin_email', 'admin@tnf.test', true);
+  perform set_config('request.jwt.claims', '{"email":"admin@tnf.test"}', true);
+
+  insert into participants (full_name, display_alias, owner_group, blocks_requested)
+  values ('Test Correction Inherit', 'corrinherit', 'RM', 1) returning id into v_p;
+
+  v_orig := admin_record_payment(v_p, 50000, 'cash', current_date, null,
+                                 'Held by Ronnie Malandro (RM)', null, null,
+                                 'admin@tnf.test', 'RM');
+
+  -- The admin form defaults AND resets the collector to Anthony, so this is
+  -- the argument a real correction arrives with.
+  v_corr := admin_record_payment(v_p, -50000, 'correction', current_date, null,
+                                 'reversing it', null, v_orig,
+                                 'admin@tnf.test', null);
+
+  select collected_by into v_got from payments where id = v_corr;
+  if v_got is null then
+    raise exception 'TEST FAILURE: the correction was attributed to Anthony, and the row it corrects is RM';
+  end if;
+  if v_got <> 'RM' then
+    raise exception 'TEST FAILURE: the correction carries %, and the row it corrects is RM', v_got;
+  end if;
+
+  -- A collector supplied on a correction is not a second opinion. The row
+  -- being corrected is the authority, so a contradicting argument loses.
+  v_corr := admin_record_payment(v_p, -50000, 'correction', current_date, null,
+                                 'reversing it again', null, v_orig,
+                                 'admin@tnf.test', 'MAP');
+
+  select collected_by into v_got from payments where id = v_corr;
+  if v_got is null then raise exception 'TEST FAILURE: collector came back NULL on the contradicting correction'; end if;
+  if v_got <> 'RM' then
+    raise exception 'TEST FAILURE: an argument overrode the corrected row and wrote %, expected RM', v_got;
+  end if;
+
+  -- And nothing else inherits: a plain receipt still takes its argument.
+  v_corr := admin_record_payment(v_p, 50000, 'cash', current_date, null,
+                                 'held by Michael Pungitore (MAP)', null, null,
+                                 'admin@tnf.test', 'MAP');
+  select collected_by into v_got from payments where id = v_corr;
+  if v_got is null then raise exception 'TEST FAILURE: collector came back NULL on the plain receipt'; end if;
+  if v_got <> 'MAP' then
+    raise exception 'TEST FAILURE: a plain receipt lost its collector and carries %', v_got;
+  end if;
+
+  -- The line above does NOT isolate the METHOD, because it passes no
+  -- corrects_payment_id: widening the condition to "corrects_payment_id is not
+  -- null" left the suite green. Only `correction` inherits, and nothing stops a
+  -- receipt from also naming the row it supersedes - correction_references_
+  -- original constrains corrections, not the other direction. A `cash` row that
+  -- names one must still take its argument, because it is money arriving, and
+  -- it is what decides the AVD move.
+  v_corr := admin_record_payment(v_p, 50000, 'cash', current_date, null,
+                                 'held by Michael Pungitore (MAP), see the earlier row',
+                                 null, v_orig, 'admin@tnf.test', 'MAP');
+  select collected_by into v_got from payments where id = v_corr;
+  if v_got is null then raise exception 'TEST FAILURE: collector came back NULL on the receipt that names a payment'; end if;
+  if v_got <> 'MAP' then
+    raise exception 'TEST FAILURE: a cash receipt naming another payment inherited % instead of keeping MAP', v_got;
+  end if;
+
+  raise notice 'correction: inherits the corrected row''s collector, argument and all; other methods keep theirs';
+end $$;
+
 -- 5. The old 9-argument signature is GONE, not sitting beside the new one.
 --    Two overloads would make every 9-argument call ambiguous at run time.
 do $$
