@@ -94,7 +94,7 @@ still wins on the field set; it just does not decide this.
 
 | Rule | Check | Why it cannot be static |
 |------|-------|------------------------|
-| 11 | `who_resolves_to_exactly_one` | Needs the roster. **What zero means depends on the action**: on `participant` it means CREATE, and on every other action it is malformed. Two matches is always malformed - never a guess, and never a new row created to make it fit. See rule 11. |
+| 11 | `who_resolves_to_exactly_one` | Needs the roster. **What zero means depends on the action**: on `participant` with a `NAME` it means CREATE, and everywhere else - including a `participant` naming a `PARTICIPANT_ID` - it is malformed. Two matches is always malformed - never a guess, and never a new row created to make it fit. See rule 11. |
 | 5 | `amount_equals_due_cents` | Needs that participant's live balance. A multiple of $500 is not enough on its own: a two-block holder owes $1,000, and `AMOUNT: 500` for him is CLAUDE.md's second sweep outcome, a non-matching multiple that goes to Anthony as a question. |
 | 12 | `queue_row_is_open` | Needs the queue. A resolved row is malformed. |
 
@@ -163,14 +163,22 @@ the whole message malformed.
     signal.
 11. The person named - `NAME`, or `PARTICIPANT_ID` where the parser accepts
     it - must resolve to exactly one live participant, **except on
-    `participant`, where zero matches means CREATE.** That action exists to add
-    someone: `admin_upsert_participant` takes a null id and inserts. The parser
-    emits `who_resolves_to_exactly_one` for every action carrying a `NAME`, so
-    it is the sweep that decides what zero means, and it means different things
-    on different actions. Read as a blanket rule it made the creation path in
-    `SWEEP_PROMPT.md` 1a unreachable through intake, which is how it read until
-    2026-09-10. On every other action, zero matches or two matches is
-    malformed - never a guess, and never a new row created to make it fit.
+    `participant` carrying a `NAME`, where zero matches means CREATE.** That
+    action exists to add someone: `admin_upsert_participant` takes a null id
+    and inserts. The parser emits `who_resolves_to_exactly_one` for every
+    action carrying a `NAME`, so it is the sweep that decides what zero means,
+    and it means different things on different actions. Read as a blanket rule
+    it made the creation path in `SWEEP_PROMPT.md` 1a unreachable through
+    intake, which is how it read until 2026-09-10. On every other action, zero
+    matches or two matches is malformed - never a guess, and never a new row
+    created to make it fit.
+    - **The exception is `NAME` only, and a `PARTICIPANT_ID` never creates
+      anything.** `admin_upsert_participant` inserts only when the id it is
+      handed is NULL; hand it a well-formed uuid that names no row and it
+      raises `participant not found`. So a `participant` action carrying a
+      `PARTICIPANT_ID` that resolves to nothing is malformed like any other -
+      reject it and stage `unparsed_intake`, rather than calling the RPC and
+      letting it throw.
 12. `ID` on a `queue` action is a uuid that is an open row in
     `pending_actions`. A resolved row is malformed.
 13. `VERDICT` is `approve` or `dismiss`, lower case.
