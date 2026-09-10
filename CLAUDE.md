@@ -389,17 +389,16 @@ it does not move blocks.
   The table is admin-only on the same footing as `pending_actions`: RLS on
   `is_admin()`, `anon` holds no privilege, no `v_public_*` view selects from
   it. `docs/OWNERS.md` carries the codes and the names and no addresses.
-  - **The reason is not that the repo is public, and the rule does not relax
-    when it stops being.** Anthony made it private on 2026-09-10. Three things
-    are unchanged by that. Git history is permanent and a delete does not
-    reach it, so an address committed once is committed for good. Visibility
-    is a setting and settings get changed back, by a fork, a transfer, or a
-    contractor added for an afternoon. And a repo has no row-level access
-    control at all, while the table has exactly that.
-  - Private only removes the *urgency*. The first draft of migration 25 seeded
-    all eight addresses while the repo was public, and seven of them were not
-    in it before; that was caught in review. Private would have made it
-    quieter, not better.
+  - **The reason is not that the repo is public, and the rule will not relax
+    when it stops being.** Three things hold at any visibility. Git history is
+    permanent and a delete does not reach it, so an address committed once is
+    committed for good. Visibility is a setting and settings get changed back,
+    by a fork, a transfer, or a contractor added for an afternoon. And a repo
+    has no row-level access control at all, while the table has exactly that.
+  - Private would remove only the *urgency*. The first draft of migration 25
+    seeded all eight addresses while the repo was public, and seven of them
+    were not in it before; that was caught in review. Private would have made
+    it quieter, not better.
   - The standing rule that a public surface never exposes email applies to
     repo files too. That is the thing to check before writing any contact
     detail into one.

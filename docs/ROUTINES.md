@@ -225,10 +225,10 @@ listed twice.
 
 The addresses never live in this repo. They live on the routine as
 `TNF_OWNER_EMAILS` and in Anthony's own list. That is not because the repo is
-public - Anthony made it private on 2026-09-10 - but because git history is
-permanent and a delete does not reach it, visibility is a setting that can be
-changed back, and a repo has no row-level access control while the `owners`
-table has exactly that.
+public, and it will not change when it stops being: git history is permanent
+and a delete does not reach it, visibility is a setting that can be changed
+back, and a repo has no row-level access control while the `owners` table has
+exactly that.
 
 ## 1. TNF Sweep
 
