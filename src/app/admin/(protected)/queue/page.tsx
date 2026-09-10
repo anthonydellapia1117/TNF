@@ -82,7 +82,13 @@ export default async function QueuePage() {
           <div className="rounded-lg border border-border bg-surface">
             {recent.map((item) => {
               const outcome = outcomeLabel(item);
-              const inert = item.resolution === "approved" && item.applied !== true;
+              // applied === false means the approve provably wrote nothing.
+              // applied === null is a row resolved BEFORE migration 26 added the
+              // column, where what happened was never recorded - outcomeLabel()
+              // says "applied unknown" for exactly that case. Treating null as
+              // inert would paint every legacy row with the destructive warning
+              // and assert something the row does not know.
+              const inert = item.resolution === "approved" && item.applied === false;
               return (
                 <div
                   key={item.id}

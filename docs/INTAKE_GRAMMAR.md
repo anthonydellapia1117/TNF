@@ -84,8 +84,12 @@ the whole message malformed.
    question for Anthony, not a payment.
 6. `PAID_ON` is `YYYY-MM-DD`, not in the future in America/New_York, and not
    before 2026-08-01 (the season floor).
-7. `METHOD` is one of `venmo` `cash` `check` `zelle` `other`. `cash` names
-   the owner holding it in `SOURCE_REF`.
+7. `METHOD` is one of `venmo` `cash` `check` `zelle` `other`, on a `payment`
+   and on a `claim` alike. `cash` names the owner holding it in `SOURCE_REF`.
+   On a `claim` it is how he INTENDS to pay and nothing is recorded from it;
+   the list is still closed, so `requested` is not a value (the worked claim
+   example used it, and the sweep would have staged that message as
+   `unparsed_intake` rather than reserving the block).
 8. `SOURCE` is one of `email` `text` `in_person` `import`.
 9. `NAME`, `ALIAS`, `DISPLAY_NAME` and `NOTE` go in **verbatim**. No case
    fixing, no trimming beyond the leading and trailing space, no expanding
@@ -122,7 +126,7 @@ Subject: UPDATE TNF: Colavita claim
 ACTION: claim
 NAME: Mike Colavita
 COUNT: 1
-METHOD: requested
+METHOD: venmo
 NOTE: texted 2026-09-10, no specific block asked for
 ```
 

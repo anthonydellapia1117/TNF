@@ -164,7 +164,15 @@ def fetch(conn, since_ns, last_rowid, self_handles):
 
 
 def split(text):
-    """First line is the subject, the rest is the body. Verbatim, both."""
+    """First line is the subject, the rest is the body.
+
+    Leading and trailing whitespace comes off both, and nothing else does:
+    no case fixing, no collapsing, no reflowing. That is exactly what rule 9
+    of docs/INTAKE_GRAMMAR.md allows ("no trimming beyond the leading and
+    trailing space"), so a KEY: VALUE line reaches the sweep as typed. The
+    docstring used to claim "verbatim, both", which was not true of a value
+    with trailing space and invited the reader to assume more than it does.
+    """
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     subject = lines[0].strip()
     body = "\n".join(lines[1:]).strip()

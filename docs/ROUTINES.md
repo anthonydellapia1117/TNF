@@ -346,8 +346,12 @@ thing that ever re-raised it was the next run of the same job.
    The row persists until Anthony presses Approve or Dismiss, Approve applies
    it only through an existing `admin_*` RPC, and both write their own audit
    row. A unique index on the open rows means an hourly re-read cannot pile up
-   duplicates. Two rows are open today, a `payment_candidate` and a
-   `refund_needed`.
+   duplicates. The kind string is a closed list as of migration 26, and
+   `payment_candidate` is not on it: the row that sat open under that kind
+   holding $500 was dismissed on 2026-09-10 and the kind can no longer be
+   staged at all. For the live count of open rows read `/admin/queue` - a
+   number written into this file goes stale the next time Anthony presses a
+   button, which is exactly how this line came to be wrong.
 2. **The nightly digest**, section 9 of `docs/SWEEP_PROMPT.md`. At the 10:43 PM
    ET run the sweep drafts one email covering every Reserved block with no
    payment recorded, every open queue row, every thread it could not classify,
