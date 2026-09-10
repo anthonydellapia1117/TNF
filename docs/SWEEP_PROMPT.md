@@ -7,9 +7,14 @@ the same text onto the routine (`update_trigger` on
 > Prompt). Never edit the routine's copy alone.
 
 - **Trigger:** `trig_017vcw3ADZHPVpKVXS1s1B7X`
-- **Stored cron (UTC):** `43 11-23,0-4 * * *`
-- **When (ET):** hourly on the :43. 7:43 AM to 12:43 AM during EDT, 6:43 AM
-  to 11:43 PM during EST. See the cron note in `docs/ROUTINES.md`.
+- **Target cron (UTC):** `43 11-23,0-4 * * *`
+- **Cron actually stored on the routine, 2026-09-10:** `43 11-23,0-2 * * *`,
+  and the routine is **disabled**. It was created through the HTTP API, so no
+  agent session can change its cron, its prompt or its enabled state. The three
+  edits are Anthony's, by hand. See "Blocked: the sweep" in `docs/ROUTINES.md`.
+- **When (ET), once the target cron is in:** hourly on the :43. 7:43 AM to
+  12:43 AM during EDT, 6:43 AM to 11:43 PM during EST. See the cron note in
+  `docs/ROUTINES.md`.
 - **Connectors on the routine:** Gmail, Supabase.
 - **Write authority:** level B. Roster always. Money, identity, release and
   refund only on a `DECISION TNF:` mail from Anthony to Anthony. Everything

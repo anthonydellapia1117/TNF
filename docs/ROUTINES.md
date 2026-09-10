@@ -6,9 +6,16 @@ that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
-| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *` | yes, the only one | Gmail, Supabase |
+| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *` **target, not applied** | yes, the only one | Gmail, Supabase |
 | 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | files only, and a draft | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed |
+
+**The sweep is the one thing this rebuild could not finish.** It is still
+named `TNF Gmail Sweep`, still disabled, and still carries `43 11-23,0-2 * * *`
+and its old prompt. It was created through the HTTP API rather than by an agent,
+and the platform refuses an agent update on such a routine: `update_trigger:
+this routine was created via "http_api", not by an agent`. Three edits by hand
+finish it, and they are listed under **Blocked: the sweep** below.
 
 Retired the same day, disabled and kept for their run history:
 
@@ -21,6 +28,49 @@ Retired the same day, disabled and kept for their run history:
 Never delete one of these. A delete loses the run history and, for the three
 live ones, the repo source and the connectors, which `update_trigger` cannot
 put back.
+
+## Blocked: the sweep
+
+Three edits, in the UI, by hand. Nothing else in this file is waiting on
+anything.
+
+**claude.ai > Code > Routines > TNF Gmail Sweep**
+
+| Field | Set it to |
+|-------|-----------|
+| Name | `TNF Sweep` |
+| Schedule / cron | `43 11-23,0-4 * * *` |
+| Prompt | the whole fenced block in `docs/SWEEP_PROMPT.md`, replacing what is there |
+| Enabled | on |
+
+You should see the routine listed as `TNF Sweep`, enabled, next run within the
+hour, with Gmail and Supabase still on its connector list. Its connectors and
+its repo source are already correct and must not be re-added; **do not delete
+and recreate it**, because a delete loses the run history, the repo source and
+both connectors, and `update_trigger` cannot put any of those back.
+
+Until those edits are made: no mail is being swept, no payment candidate is
+being staged, nothing is being labelled `Pool-TNF-Done`, and there is no
+nightly digest. `Pool-TNF` has 0 unread today, so nothing is currently piling
+up, but a payment that arrives before the edits lands in mail and stays there.
+
+## How this file was verified
+
+Every line about a routine's live state was read back off the trigger record
+after the change, not assumed from the call that made it. The two prompts that
+a session could write are byte-identical to their source in this repo:
+
+| Routine | Stored prompt vs repo | Checked |
+|---------|----------------------|---------|
+| TNF Game Day | identical, 7,903 chars, against the fenced block below | 2026-09-10 |
+| TNF Draw Window | identical, 3,100 chars, against the fenced block below | 2026-09-10 |
+| TNF Sweep | not written, the update was refused | 2026-09-10 |
+
+The read-back is the same server-side record the Routines UI renders; there is
+no second store behind the screen. It was **not** confirmed by opening the UI in
+a browser: this rebuild ran in a Linux container with no claude.ai session, and
+signing one in would have meant typing a password, which is not something a
+session does.
 
 ## Standing rules, every routine
 
