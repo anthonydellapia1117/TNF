@@ -56,6 +56,7 @@ PERMISSIONS, both granted by hand once, in System Settings
 """
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -313,7 +314,17 @@ def main():
     # skipped, because fetch() requires m.ROWID > last_rowid. The wider scope
     # would silently start mid-stream and drop everything before its first run.
     # Two keys, so each scope only ever advances past what it actually looked at.
-    scope_key = "last_rowid_self_chat" if self_handles else "last_rowid"
+    # Keyed by the HANDLE SET, not just by "filtered or not". Two runs can both
+    # be --self-chat-only and still look at different threads: the default email
+    # handle and a --self-handle phone number are different chats. One shared
+    # key would let the first advance past a message only the second can see.
+    if self_handles:
+        digest = hashlib.sha256(
+            "\n".join(sorted(h.strip().lower() for h in self_handles)).encode("utf8")
+        ).hexdigest()[:12]
+        scope_key = f"last_rowid_self_chat_{digest}"
+    else:
+        scope_key = "last_rowid"
     last_rowid = int(state.get(scope_key, 0))
     since = datetime.now(timezone.utc) - timedelta(hours=args.since_hours)
     since_ns = apple_ns(since) if last_rowid == 0 else 0
