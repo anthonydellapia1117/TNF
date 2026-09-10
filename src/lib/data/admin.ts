@@ -152,6 +152,14 @@ export interface PendingQueue {
   /** Open items, oldest first. */
   items: PendingAction[];
   /**
+   * Rows resolved in the last week, newest first. They are here so an approve
+   * that applied NOTHING stays visible after the toast has faded. Before this,
+   * a resolved row simply left the list, so an approve that ran
+   * admin_record_payment and an approve that ran nothing looked identical a
+   * moment later. See `applied` on pending_actions (migration 26).
+   */
+  recent: PendingAction[];
+  /**
    * Set when the queue table is not there yet (migration 23 not applied).
    * The page says so instead of crashing the admin nav.
    */
@@ -159,6 +167,10 @@ export interface PendingQueue {
 }
 
 /** The NEEDS ANTHONY queue: every staged item not yet approved or dismissed. */
+/** How far back the resolved list reaches. Long enough to catch a bad approve
+ *  on the next admin visit, short enough that the page stays a work queue. */
+const RECENT_DAYS = 7;
+
 export async function getPendingActions(): Promise<PendingQueue> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
@@ -170,11 +182,29 @@ export async function getPendingActions(): Promise<PendingQueue> {
     // PGRST205: PostgREST has no such table in its schema cache. 42P01: the
     // relation does not exist. Both mean the migration has not landed.
     if (error.code === "PGRST205" || error.code === "42P01") {
-      return { items: [], unavailable: error.message };
+      return { items: [], recent: [], unavailable: error.message };
     }
     throw new Error(`pending_actions: ${error.message}`);
   }
-  return { items: (data ?? []) as PendingAction[], unavailable: null };
+
+  const since = new Date(
+    Date.now() - RECENT_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const { data: resolved, error: resolvedError } = await supabase
+    .from("pending_actions")
+    .select("*")
+    .not("resolved_at", "is", null)
+    .gte("resolved_at", since)
+    .order("resolved_at", { ascending: false });
+  if (resolvedError) {
+    throw new Error(`pending_actions resolved: ${resolvedError.message}`);
+  }
+
+  return {
+    items: (data ?? []) as PendingAction[],
+    recent: (resolved ?? []) as PendingAction[],
+    unavailable: null,
+  };
 }
 
 export {

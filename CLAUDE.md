@@ -28,7 +28,7 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
 - **Claim and payment deadline is Tuesday November 24, 2026** (`config.
   claim_deadline`). The September 4 deadline is history.
 - **Removing a participant at their own request** (precedent 2026-09-08,
-  nerdz on block 1 and F Chili on block 78): release the block the way
+  F Chili on block 78): release the block the way
   `admin_release_block` does, prior holder kept in the block's notes; the
   participant row is never deleted and the schema has no inactive flag, so
   the row stays with `blocks_requested = 0` and a dated note. A payment on
@@ -36,6 +36,32 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   `refund_needed` row at `/admin/queue` with the amount and the Venmo
   transaction id. Audit rows: `participant_removed` on the block and on the
   participant, `stage_pending` on the queue row.
+- **A release asked for by a THIRD PARTY is provisional until the person
+  whose money it is confirms it.** Ask them first. Until they answer, the
+  block stays where it is: do not release it, do not stage a refund, do not
+  let the roster move on somebody else's say-so.
+  - The precedent is nerdz, block 1, and it is why the line above no longer
+    names her. On 2026-09-08 Ray Vassallo, the `cc_email` on her
+    participant row, asked
+    Anthony to release "the box you were holding for us", believing there
+    were two blocks and one was his. There was only ever one and it was his
+    daughter's: **Raychel Neil**, whose own address is on her
+    participant row, asked for one
+    block under nerdz on 2026-09-03 and paid $500 the same day, venmo txn
+    4678217450148051522. Block 1 was released on 2026-09-09 and a
+    `refund_needed` row staged. She wrote on 2026-09-09 saying she never
+    went in with her father, and by then she had also been dropped from the
+    roster before the season-change announcement, so she was never told the
+    pool had changed. Reversed 2026-09-10: block 1 restored and assigned,
+    refund row dismissed, **no new payment row** (hers was never removed and
+    the ledger is append-only), and she was written to directly.
+  - Ray Vassallo is **not** a TNF participant and never was. He is her
+    `cc_email` and nothing more. **Two Rays are on that thread and they are
+    different people**: never merge them, and never read a request from the
+    cc as a request from the holder.
+  - The tell is money. The person who paid is the person whose block it is,
+    whatever the relationship. If the request comes from an address that is
+    not the payer's, that is a question, not an instruction.
 
 ## Owner codes and how money is actually collected
 
@@ -105,6 +131,29 @@ another *owner*, forwarding what he already collected, is that owner
 collecting and does not move the participant — it is the Konnor case
 arriving by Venmo instead of by hand. If the sender is an owner rather than
 the participant, ask Anthony rather than moving anyone.
+
+### Anthony tracks his own money only (2026-09-10)
+
+**The pool's money scope is Anthony's own money: what reaches or leaves his
+Venmo, cash in his hand, or a check made out to him. Nothing else.**
+
+- **An owner holding cash for his own book is that owner's business.** Do not
+  chase it, do not compute what an owner owes a participant, do not stage a
+  queue row about it, and do not put it in the digest. Assume every
+  owner-to-participant payment and refund has already happened.
+- Precedent, the row this rule retired: a queue row said Mike Pungitore owed
+  Billy Agnes $500 back after block 28 was released. Dismissed 2026-09-10,
+  "owner-held cash, out of scope per 2026-09-10". MAP's ledger was not touched
+  and no refund row was written. `owner_owes_refund` is no longer a kind the
+  sweep may stage.
+- **An owner code still does not decide whose money it is.** A Venmo receipt
+  into Anthony's account from a participant in ANY book is Anthony's money: it
+  gets recorded, and the participant moves to AVD under the rule above. That
+  behaviour is unchanged.
+- **Outstanding, due and collected stay whole-pool figures.** Never filter them
+  by owner code. What narrows is the chasing and the notifications, not the
+  arithmetic: `collected_cents` still means collected by the pool, cash an
+  owner holds included.
 
 Supersedes the confirm-with-the-owner-first version of this rule, set
 2026-09-03 and replaced the same evening. Anthony's reasoning for the
@@ -330,6 +379,21 @@ it does not move blocks.
   was deliberately not rewritten: audit rows still carry `DIRECT` in their
   `before` payloads, which is correct — the ledger records what was true at
   the time, and the constraint has never reached into jsonb.
+  **Every code now has a person attached** (migration 25, `owners` table,
+  2026-09-10). `NL` is Nolan Lawrence and `BG` is Billy Guyon, both named
+  2026-09-09; until then those two codes existed in the schema with no name
+  anywhere, so reconciling either book at season end meant asking Anthony who
+  the code belonged to. The table is the mapping only: what a code *means* is
+  the rule above it and is unchanged. `docs/OWNERS.md` is its readable copy.
+- **Owner email addresses live in the `owners` table, never in the repo.**
+  The repo is public, so eight addresses in a tracked file are eight addresses
+  published permanently, and deleting the file does not clear the git history.
+  The table is admin-only on the same footing as `pending_actions`: RLS on
+  `is_admin()`, `anon` holds no privilege, no `v_public_*` view selects from
+  it. `docs/OWNERS.md` carries the codes and the names and no addresses. The
+  standing rule that a public surface never exposes email applies to repo
+  files too; that is the thing to check before writing any contact detail into
+  one.
 - **A prior season is a source of identity, never of state.** Alias and
   email carry forward; owner group, block number, block count and payment
   status never do — each needs a 2026 source. A prior-season value can go in
