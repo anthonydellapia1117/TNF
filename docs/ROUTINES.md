@@ -14,9 +14,30 @@ against the live trigger:
 
 - **Its stored cron is `43 11-23,0-2 * * *` UTC, not `43 7-23 * * *`.** Read
   as EST that is 6:43 AM through 9:43 PM ET, sixteen firings a day.
-- **It is disabled**, along with every other TNF routine in the table below.
-  Nothing is firing. Enabling it is Anthony's click and nothing in this repo
-  does it for him.
+- **It is disabled.** Enabling it is Anthony's click and nothing in this repo
+  does it for him. Agent writes to this particular routine have been reported
+  to fail because it was created through the HTTP API rather than by an agent,
+  so hand-pasting is not a convenience here, it is the only known path. That
+  refusal is second-hand and was not reproduced from this session: reproducing
+  it would mean attempting to overwrite a prompt that cannot be read back
+  first.
+
+**The rest of the set is no longer all disabled**, corrected 2026-09-10 at
+03:03 UTC against the live triggers, after another session changed them:
+
+| Routine | Trigger | Stored cron (UTC) | Enabled | Next run |
+|---|---|---|---|---|
+| TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | **on** | 2026-11-01 |
+| TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | **on** | 2026-11-22 |
+| TNF Chase List | `trig_016ZLMsWxbcejrQK2XdJkTza` | `7 13 * * *` | off, renamed retired | - |
+| TNF Game Day Digits | `trig_01EptwvxHH2mdctyMzsaH9XC` | `20 13 * * 3-5` | off, renamed retired | - |
+| TNF Post-Game Check | `trig_01HJ81a3TUtwMozA32vaqMLN` | `7 15 * * 4-6` | off, renamed retired | - |
+| TNF Gmail Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-2 * * *` | off | - |
+
+The three retired ones carry `(retired 2026-09-10, absorbed by ...)` in their
+names. The table further down this file still describes the six-routine set
+those names came from; the rebuild that renamed them is a separate open pull
+request, and reconciling the two is Anthony's call, not a session's.
 
 ## Standing rules, every routine
 

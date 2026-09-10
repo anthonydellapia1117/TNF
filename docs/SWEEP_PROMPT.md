@@ -130,6 +130,12 @@ No preamble, no summary paragraph, no offer to do more.
 
 ## Pasting it
 
+By hand, and only by hand. Agent writes to this routine have been reported to
+fail because it was created through the HTTP API rather than by an agent, which
+makes the paste the only known path rather than merely the safer one. That
+refusal is second-hand and was not reproduced here: reproducing it would mean
+attempting to overwrite a prompt no session can read back first.
+
 claude.ai/code > Routines > TNF Gmail Sweep > the prompt field. Replace the
 whole prompt with everything inside the fenced block above, not including the
 fence lines. Leave the routine disabled; enabling it is a separate click.
