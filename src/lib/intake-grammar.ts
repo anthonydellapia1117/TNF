@@ -115,7 +115,7 @@ export const ACTIONS: Record<ActionName, ActionSpec> = {
     prefix: "DECISION",
     required: ["AMOUNT", "METHOD", "PAID_ON"],
     oneOf: ["NAME", "PARTICIPANT_ID"],
-    optional: ["TXN", "SOURCE_REF", "NOTE"],
+    optional: ["TXN", "SOURCE_REF", "COLLECTED_BY", "NOTE"],
     applies: "admin_record_payment",
     stages: null,
     what: "Money in, then promote, and move the book to AVD when it reached Anthony.",
@@ -367,6 +367,12 @@ export function parseIntake(
   const deferred: DeferredCheck[] = [];
 
   if ("OWNER" in fields) checkEnum("OWNER", fields.OWNER, OWNER_GROUPS, errors);
+  // payments.collected_by, migration 30. Absent means Anthony collected it, and
+  // migration 31 reads exactly that to decide the AVD move - so an owner holding
+  // his own participant's cash has to be sayable here, or the one case CLAUDE.md
+  // exempts is the one case the grammar cannot express. Not SOURCE_REF: that is
+  // free prose and nothing reads it at write time.
+  if ("COLLECTED_BY" in fields) checkEnum("COLLECTED_BY", fields.COLLECTED_BY, OWNER_GROUPS, errors);
   if ("SOURCE" in fields) checkEnum("SOURCE", fields.SOURCE, SOURCES, errors);
   if ("BLOCKS" in fields) parseBlockList("BLOCKS", fields.BLOCKS, errors);
   if ("BLOCK" in fields) {

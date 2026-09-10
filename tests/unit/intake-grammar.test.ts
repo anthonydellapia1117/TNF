@@ -314,3 +314,51 @@ describe("UPDATE never does a DECISION's job", () => {
     (n) => expect(ACTIONS[n as ActionName].prefix).toBe("DECISION"),
   );
 });
+
+/**
+ * Migration 31 made admin_record_payment move the participant to AVD whenever
+ * collected_by comes in null, so the grammar has to be able to say it is not.
+ * Without a COLLECTED_BY line the owner-held cash example in
+ * docs/INTAKE_GRAMMAR.md - JPOD holding McGrorty, code stays JPOD - parses
+ * clean, applies with a null collector, and moves him to AVD, which is the one
+ * thing CLAUDE.md says that case must never do. SOURCE_REF does not stand in
+ * for it: nothing reads that prose at write time, and the backfill that does
+ * read it is a one-off over history that was told not to guess.
+ */
+describe("the collector the AVD move reads", () => {
+  const cash = (extra: string[]) =>
+    parseIntake(
+      S.d,
+      ["ACTION: payment", "NAME: Konnor McGrorty", "AMOUNT: 500", "METHOD: cash",
+       `PAID_ON: ${TODAY}`, ...extra].join("\n"),
+      opts,
+    );
+
+  it("carries COLLECTED_BY on a payment", () => {
+    const r = cash(["COLLECTED_BY: JPOD"]);
+    expect(r.ok, r.ok ? "" : r.errors.join(" | ")).toBe(true);
+    if (r.ok) expect(r.intake.fields.COLLECTED_BY).toBe("JPOD");
+  });
+
+  it("still parses without one, which is Anthony collecting", () => {
+    const r = cash([]);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect("COLLECTED_BY" in r.intake.fields).toBe(false);
+  });
+
+  it("refuses a collector that is not an owner code", () => {
+    const r = cash(["COLLECTED_BY: DIRECT"]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.join(" | ")).toMatch(/COLLECTED_BY must be one of/);
+  });
+
+  it("keeps it off every other action", () => {
+    const r = parseIntake(
+      S.u,
+      ["ACTION: claim", "NAME: Konnor McGrorty", "BLOCKS: 51", "COLLECTED_BY: JPOD"].join("\n"),
+      opts,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errors.join(" | ")).toMatch(/COLLECTED_BY is not a key of claim/);
+  });
+});
