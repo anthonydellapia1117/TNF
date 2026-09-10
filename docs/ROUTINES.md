@@ -81,9 +81,16 @@ session does.
 - Only TNF Sweep writes to the database, and only within the authority in
   `docs/SWEEP_PROMPT.md`. The other two read the public projections through
   the anon key in `src/lib/env.ts`, RLS-bounded by design.
-- **No routine ever sends an email.** TNF Game Day creates a draft. TNF Sweep
-  creates a draft for the nightly digest. Pressing send is Anthony's, and it
-  is one of the three things he kept.
+- **Email is a closed list of two, and only TNF Sweep holds it.** It may send
+  a reply drawn verbatim from the T1-T7 allowlist to the sender only, and the
+  nightly digest to Anthony's own address alone (he authorised that one send on
+  2026-09-10, because it goes to him and he is not watching a screen). Nothing
+  else: no free-form mail, no reply outside the allowlist, no second recipient.
+  **TNF Game Day still sends nothing** - its pack is a draft Anthony presses
+  send on himself, and that is one of the three things he kept. Until
+  2026-09-10 this line read "no routine ever sends an email", which contradicted
+  the two sends the sweep prompt already authorised; `docs/SWEEP_PROMPT.md` 1d
+  is the same list and the two are meant to be read together.
 - No routine marks a payout Paid, moves money, draws or publishes digits,
   confirms a date, scores a game, or resolves an identity.
 - The Survivor pool is never read, referenced or mentioned.

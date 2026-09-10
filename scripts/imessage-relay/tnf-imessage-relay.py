@@ -123,19 +123,35 @@ def open_db():
         )
 
 
-def fetch(conn, since_ns, last_rowid, self_chat_only):
-    """His own outgoing messages, newest last, after the watermark."""
+def fetch(conn, since_ns, last_rowid, self_handles):
+    """His own outgoing messages, newest last, after the watermark.
+
+    self_handles: when non-empty, restrict to the note-to-self thread.
+
+    The first version of this filter accepted any handle that appeared in at
+    least one chat, which is every handle there is - so --self-chat-only let
+    through outgoing TNF-prefixed messages from ordinary one-to-one threads,
+    because in those chat_identifier is the CORRESPONDENT's handle and the
+    subquery matched it. A message he typed to somebody else could be relayed
+    as an instruction to himself. The filter has to name his own handle.
+    """
     where = ["m.is_from_me = 1", "m.date > ?", "m.ROWID > ?"]
     args = [since_ns, last_rowid]
-    if self_chat_only:
-        # The note-to-self thread: the only handle on the chat is his own.
+    if self_handles:
+        marks = ",".join("?" for _ in self_handles)
+        # Two conditions, and both are load-bearing. The chat must be
+        # identified by one of HIS OWN handles, which a one-to-one chat with
+        # anyone else is not; and nobody else may be a participant on it,
+        # which rules out a group chat that happens to carry his handle.
         where.append(
-            "c.chat_identifier IN ("
-            "  SELECT h.id FROM handle h"
-            "  JOIN chat_handle_join chj ON chj.handle_id = h.ROWID"
-            "  GROUP BY h.id HAVING COUNT(DISTINCT chj.chat_id) > 0"
+            f"c.chat_identifier IN ({marks}) AND NOT EXISTS ("
+            "  SELECT 1 FROM chat_handle_join chj"
+            "  JOIN handle h ON h.ROWID = chj.handle_id"
+            f" WHERE chj.chat_id = c.ROWID AND h.id NOT IN ({marks})"
             ")"
         )
+        args.extend(self_handles)
+        args.extend(self_handles)
     sql = f"""
         SELECT m.ROWID, m.date, COALESCE(m.text, ''), COALESCE(c.chat_identifier, '')
         FROM message m
@@ -227,7 +243,19 @@ def main():
                     help="on a first run with no watermark, look back this far (default 6)")
     ap.add_argument("--self-chat-only", action="store_true",
                     help="only the note-to-self thread, not every thread he types in")
+    ap.add_argument("--self-handle", action="append", default=[], metavar="HANDLE",
+                    help="a handle of his own, as Messages stores it (an Apple ID or a "
+                         "phone number in +1XXXXXXXXXX form). Repeatable. Defaults to "
+                         f"{ANTHONY}. Pass his number here at run time rather than "
+                         "committing it - the repo is public.")
     args = ap.parse_args()
+
+    # --self-chat-only is only meaningful against a known handle. Without one
+    # the filter cannot tell his note-to-self thread from any other thread, and
+    # silently relaying everything is the failure this guard exists to stop.
+    self_handles = []
+    if args.self_chat_only:
+        self_handles = args.self_handle or [ANTHONY]
 
     if sys.platform != "darwin":
         die(EXIT_NO_DISK, f"macOS only, this is {sys.platform}. Run it on the Mac.")
@@ -239,16 +267,36 @@ def main():
 
     conn = open_db()
     try:
-        rows = fetch(conn, since_ns, last_rowid, args.self_chat_only)
+        rows = fetch(conn, since_ns, last_rowid, self_handles)
     except sqlite3.DatabaseError as exc:
         die(EXIT_NO_DISK, f"chat.db read failed: {exc}")
     finally:
         conn.close()
 
+    # The watermark is persisted after EACH row, not once at the end.
+    #
+    # send-self calls osascript per message and die()s on the first refusal.
+    # With a single post-loop save, a run that sent four messages and then hit
+    # a refusal on the fifth exited having recorded none of them, so the next
+    # run re-sent all four. Each copy reaches the sweep as a new Gmail message
+    # with its own id, so source-message deduplication downstream cannot see
+    # they are the same iMessage - four duplicate queue items, or four repeated
+    # intake actions against the pool. Sending twice is the expensive failure
+    # here; skipping a row we already handled is not.
+    def advance(rowid):
+        nonlocal high
+        if rowid <= high:
+            return
+        high = rowid
+        state["last_rowid"] = high
+        state["last_run"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
+        if args.mode != "dry-run":
+            save_state(state)
+
     relayed, high = 0, last_rowid
     for rowid, date_ns, text, chat in rows:
-        high = max(high, rowid)
         if not text or not PREFIX.match(text):
+            advance(rowid)  # handled: it is not ours, and never will be
             continue
         subject, body = split(text)
         when = APPLE_EPOCH + timedelta(seconds=date_ns / 1_000_000_000)
@@ -264,15 +312,13 @@ def main():
         elif args.mode == "send-self":
             send_self(subject, body)
             print(f"  sent to {ANTHONY}")
+        # Only now, once the send or the draft actually succeeded. send_self
+        # die()s on failure, so reaching this line means this row is done.
+        advance(rowid)
         relayed += 1
 
-    if high > last_rowid:
-        state["last_rowid"] = high
-        state["last_run"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
-        if args.mode != "dry-run":
-            save_state(state)
-        else:
-            print(f"\ndry run, watermark NOT advanced (would be {high})")
+    if high > last_rowid and args.mode == "dry-run":
+        print(f"\ndry run, watermark NOT advanced (would be {high})")
 
     if relayed == 0:
         print("nothing to relay")

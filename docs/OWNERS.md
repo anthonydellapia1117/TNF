@@ -25,6 +25,26 @@ a participant's $500 and holds it, and nothing else.
 rejected on insert and on update. History was deliberately not rewritten:
 audit rows still carry `DIRECT` in their `before` payloads, which is correct.
 
+## How the addresses get into the table
+
+They are **provisioned out of band**, by hand, once. Migration 25 seeds the
+codes, the names and the notes and no contact detail at all, because a
+migration is a tracked file like any other and the repo is public. The first
+draft of that migration seeded all eight addresses ten lines below a comment
+saying they must never be in a repo file; seven of the eight were not in the
+repo anywhere before that, and it took a review to catch it.
+
+So, against the database directly and never committed:
+
+```
+update owners set email = '<address>' where code = 'AVD';
+```
+
+`tests/sql/19_owners.sql` asserts the migration seeds zero addresses, and
+`tests/unit/no-published-emails.test.ts` fails on any address added to any
+migration. Both were checked by putting an address back and confirming they
+go red.
+
 ## Why there are no email addresses on this page
 
 **This repository is public.** Eight real addresses in a tracked file are

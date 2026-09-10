@@ -37,10 +37,30 @@ begin
   if v_name is null then raise exception 'TEST FAILURE: BG has no name'; end if;
   if v_name <> 'Billy Guyon' then raise exception 'TEST FAILURE: BG reads %', v_name; end if;
 
-  -- 4. Every row carries a usable address, admin-side.
-  select count(*) into v_n from owners where email is null or position('@' in email) < 2;
-  if v_n is null then raise exception 'TEST FAILURE: bad-email count came back NULL'; end if;
-  if v_n <> 0 then raise exception 'TEST FAILURE: % owner rows have no usable email', v_n; end if;
+  -- 4. The migration seeds NO email address. This is the assertion that keeps
+  --    the addresses out of a public repo, and it is the one that matters: the
+  --    first draft of migration 25 seeded all eight, which published seven
+  --    addresses that were not previously in the repo at all. A fresh database
+  --    therefore has the codes and the names and no contact detail; an admin
+  --    provisions the addresses out of band, and they live only in this table.
+  --
+  --    Mutation check: put a real address back into the insert in migration 25
+  --    and this raises. If it still passes, the assertion is dead -- see the
+  --    CLAUDE.md rule about re-verifying an assertion, not just re-running it.
+  select count(*) into v_n from owners where email is not null or alt_email is not null;
+  if v_n is null then raise exception 'TEST FAILURE: seeded-address count came back NULL'; end if;
+  if v_n <> 0 then
+    raise exception 'TEST FAILURE: migration 25 seeds % owner rows with an email address. The repo is public: addresses are provisioned out of band, never in a tracked file.', v_n;
+  end if;
+
+  -- 4b. The column is nullable by design, so a fresh database can carry names
+  --     without contact detail. A NOT NULL here would force the migration to
+  --     seed the addresses, which is the whole thing being prevented.
+  select count(*) into v_n from information_schema.columns
+   where table_schema = 'public' and table_name = 'owners'
+     and column_name = 'email' and is_nullable = 'YES';
+  if v_n is null then raise exception 'TEST FAILURE: email nullability count came back NULL'; end if;
+  if v_n <> 1 then raise exception 'TEST FAILURE: owners.email is NOT NULL, which forces addresses into the migration'; end if;
 
   -- 5. The table is not reachable from any public projection. An owner email in
   --    a v_public_* view would publish it to anon, which is the whole reason
@@ -66,7 +86,7 @@ begin
   if v_n is null then raise exception 'TEST FAILURE: anon grant count came back NULL'; end if;
   if v_n <> 0 then raise exception 'TEST FAILURE: anon holds % grants on owners', v_n; end if;
 
-  raise notice 'owners: 8 codes, all named, admin-only, no public view, anon has nothing';
+  raise notice 'owners: 8 codes, all named, no seeded addresses, admin-only, no public view, anon has nothing';
 end $$;
 
 -- 7. With no admin claim, the RLS policy returns nothing. Proves the read is

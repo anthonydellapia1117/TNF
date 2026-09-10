@@ -13,15 +13,26 @@
 -- provenance. It records which owner collects a participant's $500 and holds
 -- it, and nothing else.
 --
--- WHY THE EMAIL ADDRESSES LIVE HERE AND NOT IN A REPO FILE.
--- The repo github.com/anthonydellapia1117/TNF is PUBLIC. Eight real email
--- addresses in a tracked file are eight addresses published to the open
--- internet, permanently, and a delete does not remove them from the history.
--- docs/OWNERS.md therefore carries the codes and the names only and points
--- here for contact detail. This table is admin-only, on the same footing as
+-- WHY THIS MIGRATION SEEDS NO EMAIL ADDRESSES.
+-- The repo github.com/anthonydellapia1117/TNF is PUBLIC. A real email address
+-- in a tracked file is an address published to the open internet permanently,
+-- and deleting the line later does not remove it from the git history. A
+-- migration is a tracked file like any other, so the addresses cannot be
+-- seeded here either -- the first draft of this migration seeded all eight and
+-- was wrong for exactly the reason its own comment gave.
+--
+-- The addresses are therefore provisioned OUT OF BAND, once, by an admin
+-- running the update below against the database directly. They live only in
+-- the owners table, which is admin-only on the same footing as
 -- pending_actions: RLS on is_admin(), anon holds no privilege at all, and no
--- v_public_* view selects from it. That also satisfies the standing rule that
--- a public surface never exposes email.
+-- v_public_* view selects from it. docs/OWNERS.md carries the codes and the
+-- names and no addresses, and points here.
+--
+--   -- Run by hand, never committed. One line per owner, real address inline:
+--   update owners set email = '<address>' where code = 'AVD';
+--
+-- tests/sql/19_owners.sql asserts this migration seeds zero addresses, so
+-- re-adding one to this file fails the suite rather than shipping quietly.
 --
 -- The table is a lookup, not a foreign key. participants.owner_group keeps its
 -- CHECK constraint: a FK here would let a delete or rename in this table
@@ -33,8 +44,12 @@ create table owners (
   code text primary key
     check (code = any (array['AVD','RM','MAP','JPOD','EJD','NL','GD','BG'])),
   full_name text not null check (length(btrim(full_name)) > 0),
-  email text not null check (position('@' in email) > 1),
-  alt_email text,
+  -- Nullable BY DESIGN. A fresh database has the codes and the names and no
+  -- contact detail until an admin provisions it out of band; NOT NULL here
+  -- would force this file to carry the addresses, which is the thing being
+  -- prevented. The check still rejects a malformed address when one is set.
+  email text check (email is null or position('@' in email) > 1),
+  alt_email text check (alt_email is null or position('@' in alt_email) > 1),
   notes text,
   added_on date not null default current_date
 );
@@ -42,24 +57,24 @@ create table owners (
 comment on table owners is
   'Who each owner code belongs to. Collection responsibility, not provenance: '
   'the owner named here collects from his own participants and holds that cash, and '
-  'pays his own winners out of it first. Admin-only, never in a public view; '
-  'the email addresses are here rather than in the public repo.';
+  'pays his own winners out of it first. Admin-only, never in a public view.';
 
 comment on column owners.email is
-  'Admin-only. Never copy into a repo file, a public view, or a report.';
+  'Admin-only, and provisioned out of band -- never seeded by a migration, and '
+  'never copied into a repo file, a public view, or a report. The repo is public.';
 
-insert into owners (code, full_name, email, alt_email, notes) values
-  ('AVD',  'Anthony DellaPia',   'anthonydellapia@gmail.com', 'anthony.dellapia@us.gt.com',
+insert into owners (code, full_name, notes) values
+  ('AVD',  'Anthony DellaPia',
    'Pool admin. AVD is his own book; DIRECT was folded into it in migration 13.'),
-  ('RM',   'Ronnie Malandro',    'ronmalandro@gmail.com',     null, null),
-  ('MAP',  'Michael Pungitore',  'michael.pungitore@gmail.com', null, null),
-  ('JPOD', 'Julian Podagrosi',   'jpodagrosi17@gmail.com',    null,
+  ('RM',   'Ronnie Malandro',    null),
+  ('MAP',  'Michael Pungitore',  null),
+  ('JPOD', 'Julian Podagrosi',
    'Precedent 2026-09-03: his word that he was holding Konnor McGrorty''s $500 is the payment record for his own book.'),
-  ('EJD',  'Ernie DellaPia Jr.', 'dellapia706@gmail.com',     null, null),
-  ('NL',   'Nolan Lawrence',     'nolan.a.lawrence@gmail.com', null,
+  ('EJD',  'Ernie DellaPia Jr.', null),
+  ('NL',   'Nolan Lawrence',
    'Named 2026-09-09. The code existed with no person attached until then.'),
-  ('GD',   'Gregory DellaPia',   'gregster88@aol.com',        null, null),
-  ('BG',   'Billy Guyon',        'wguyon215@gmail.com',       null,
+  ('GD',   'Gregory DellaPia',   null),
+  ('BG',   'Billy Guyon',
    'Added as a code in migration 19 on 2026-09-04, named 2026-09-09. Before the code existed his people were filed under another owner, which attributed his money to an owner who never touched it.');
 
 -- Admin-only, exactly as pending_actions: RLS on is_admin(), anon gets nothing.

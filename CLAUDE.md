@@ -41,10 +41,12 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   block stays where it is: do not release it, do not stage a refund, do not
   let the roster move on somebody else's say-so.
   - The precedent is nerdz, block 1, and it is why the line above no longer
-    names her. On 2026-09-08 Ray Vassallo (`ray@economydelivers.com`) asked
+    names her. On 2026-09-08 Ray Vassallo, the `cc_email` on her
+    participant row, asked
     Anthony to release "the box you were holding for us", believing there
     were two blocks and one was his. There was only ever one and it was his
-    daughter's: **Raychel Neil** (`rayplay1107@gmail.com`) asked for one
+    daughter's: **Raychel Neil**, whose own address is on her
+    participant row, asked for one
     block under nerdz on 2026-09-03 and paid $500 the same day, venmo txn
     4678217450148051522. Block 1 was released on 2026-09-09 and a
     `refund_needed` row staged. She wrote on 2026-09-09 saying she never
