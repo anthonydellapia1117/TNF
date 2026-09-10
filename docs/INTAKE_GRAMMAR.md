@@ -34,36 +34,69 @@ part of the prefix.
 
 ## The field set, per action
 
-`R` required, `O` optional. `WHO` means either `NAME:` (matched against the
-live roster by full name, then alias, then email) or `PARTICIPANT_ID:` (the
-uuid, exact).
+**The menu is `ACTIONS` in `src/lib/intake-grammar.ts`, and that file is the
+only copy.** It carries, per action: the prefix it is legal under, the required
+fields, the optional ones, the `oneOf` group that identifies the person, the
+`admin_*` RPC it applies or the queue kind it stages instead, and a one-line
+description. Read it there.
 
-### Under `UPDATE TNF:`
+This section used to restate all of that as three tables. They are gone
+deliberately. A second copy of a contract does not stay a copy: by the time the
+parser shipped, the tables had drifted into naming a field called `WHO` that the
+parser has never accepted - it identifies a person by `NAME` or
+`PARTICIPANT_ID` - and into putting `note` under `UPDATE TNF:` when the parser
+allows it only under `NOTE TNF:`. Both would have been read as the contract by
+anyone following this document, and neither would have parsed.
 
-| ACTION | Fields | Effect |
-|--------|--------|--------|
-| `participant` | `NAME` R, `ALIAS` O, `EMAIL` O, `CC_EMAIL` O, `PHONE` O, `OWNER` O, `SOURCE` O, `COUNT` O, `NOTE` O | `admin_upsert_participant`. A blank `OWNER` falls back to `AVD`. **`COUNT`, never `BLOCKS`.** `p_blocks_requested` is a scalar commitment, and `BLOCKS` is a list of block NUMBERS: `BLOCKS: 62` on this action reads either as block 62 or as sixty-two blocks requested, which is $31,000 due. The grammar carried that ambiguity until 2026-09-10 and gave no conversion rule. Numbers are chosen by a `claim`; this action only records how many. |
-| `claim` | `WHO` R, **`BLOCKS` R**, `METHOD` O, `NOTE` O | Stages a `reserve_blocks` row. A specific block number only goes to someone who specifically asked for it. `COUNT` is NOT an accepted alternative: `admin_reserve_blocks` raises `no block numbers given` on an empty array, so a `COUNT`-only claim stages a row whose Approve fails and leaves Anthony a dead button. Someone who wants a block without naming one gets T2 and picks from the board. |
-| `contact` | `WHO` R, and at least one of `EMAIL`, `CC_EMAIL`, `PHONE` | `admin_upsert_participant`, contact fields only. |
-| `block_name` | `BLOCK` R, `DISPLAY_NAME` R | `admin_set_block_name`. |
-| `note` | `WHO` R **or** `BLOCK` R, `NOTE` R | Appends a dated note. |
+What this document is for is the part the code cannot carry: why a rule exists,
+what it cost to learn, and what to do when a message does not fit.
 
-### Under `DECISION TNF:`
+### admin_upsert_participant is not a patch
 
-| ACTION | Fields | Effect |
-|--------|--------|--------|
-| `payment` | `WHO` R, `AMOUNT` R, `METHOD` R, `PAID_ON` R, `TXN` O, `SOURCE_REF` O, `COLLECTED_BY` O, `NOTE` O | `admin_record_payment`, then `admin_promote_if_paid`. Money that reached Anthony also moves the participant to `AVD` in the same operation, and `COLLECTED_BY` is the only thing that stops it. |
-| `owner` | `WHO` R, `OWNER` R, `REASON` R | `admin_upsert_participant`, owner code only. |
-| `release` | `BLOCK` R, `REASON` R | `admin_release_block`. Prior holder kept in the block's notes. The participant row is never deleted. **Set `blocks_requested` to what he still holds, not to 0.** Zero is right only when the released block was his last one. Seven people hold more than one today and Ed D holds three: releasing one of his and zeroing the count would erase $1,000 of his own remaining commitment and leave him holding two numbered blocks against a commitment of none, which is the state self-check 7b now reports as an error. |
-| `refund` | `WHO` R, `BLOCK` R, `AMOUNT` R, `TXN` R, `REASON` R | Stages a `refund_needed` row. **The app never moves money.** The Venmo is Anthony's, the ledger row is his, later. |
-| `queue` | `ID` R, `VERDICT` R (`approve` or `dismiss`), `NOTE` O | `admin_approve_pending` or `admin_dismiss_pending` on that row. This is how a queue row gets cleared from a phone. |
-| `identity` | `KEEP` R, `OTHER` R, `NOTE` R | Records the call as a dated note on both participants and dismisses the open `identity_conflict` row. Never merges or deletes a row. |
+Five actions call it: `participant`, `contact`, `owner`, `identity`, and a
+`note` that names a person. **Its UPDATE sets every column from its arguments**,
+so an argument left out is not "unchanged", it is overwritten:
 
-### Under `NOTE TNF:`
+| Column | What omitting it does |
+|---|---|
+| `email`, `cc_email`, `phone`, `display_alias`, `shared_group_id`, `source_ref`, `notes` | `nullif(arg,'')` - written as NULL, the value is gone |
+| `owner_group` | `coalesce(nullif(arg,''),'AVD')` - **silently moves them into Anthony's book** |
+| `blocks_requested` | `coalesce(arg,0)` - **sets the commitment to zero and wipes what they owe** |
+| `source` | defaults to `email` |
 
-| ACTION | Fields | Effect |
-|--------|--------|--------|
-| `note` | `WHO` R **or** `BLOCK` R, `NOTE` R | Appends a dated note. Nothing else, whatever else the body says. |
+So a `contact` message carrying only an email, or a `note` carrying only a note,
+would destroy the rest of that person's record - and the audit row would read as
+an ordinary `update_participant`, with the old values recoverable only from its
+`before` payload. **Read the row, change the one field, send all of them.**
+
+### `applies` is a default, not the whole routing
+
+`ACTIONS[...].applies` names ONE RPC per action. One action does not have one:
+
+**`queue` routes on `VERDICT`.** `applies` says `admin_approve_pending`
+unconditionally, and the parser never branches on the verdict - it only checks
+that the value is `approve` or `dismiss`. So a `VERDICT: dismiss` message,
+applied through `applies` as written, calls **approve**. On a `payment` or
+`reserve_blocks` row that records the payment or reserves the blocks: it does
+the exact thing Anthony sent the message to refuse.
+
+    VERDICT: approve  ->  admin_approve_pending
+    VERDICT: dismiss  ->  admin_dismiss_pending
+
+This is the one piece of routing the deleted action tables carried that
+`ACTIONS` cannot express, and deleting them lost it for one commit. The parser
+still wins on the field set; it just does not decide this.
+
+### The three checks the parser CANNOT make
+
+`parseIntake` returns them in `deferred` for the sweep to run against live data.
+**A caller that ignores `deferred` has not validated the message.**
+
+| Rule | Check | Why it cannot be static |
+|------|-------|------------------------|
+| 11 | `who_resolves_to_exactly_one` | Needs the roster. **What zero means depends on the action**: on `participant` with a `NAME` it means CREATE, and everywhere else - including a `participant` naming a `PARTICIPANT_ID` - it is malformed. Two matches is always malformed - never a guess, and never a new row created to make it fit. See rule 11. |
+| 5 | `amount_equals_due_cents` | Needs that participant's live balance. A multiple of $500 is not enough on its own: a two-block holder owes $1,000, and `AMOUNT: 500` for him is CLAUDE.md's second sweep outcome, a non-matching multiple that goes to Anthony as a question. |
+| 12 | `queue_row_is_open` | Needs the queue. A resolved row is malformed. |
 
 ## Validation rules
 
@@ -128,9 +161,24 @@ the whole message malformed.
 10. `EMAIL` and `CC_EMAIL` contain one address each. A shared email between
     two participants is worth noting and is never by itself a duplicate
     signal.
-11. `WHO` must resolve to exactly one live participant. Zero matches or two
-    matches is malformed, never a guess and never a new row created to make
-    it fit.
+11. The person named - `NAME`, or `PARTICIPANT_ID` where the parser accepts
+    it - must resolve to exactly one live participant, **except on
+    `participant` carrying a `NAME`, where zero matches means CREATE.** That
+    action exists to add someone: `admin_upsert_participant` takes a null id
+    and inserts. The parser emits `who_resolves_to_exactly_one` for every
+    action carrying a `NAME`, so it is the sweep that decides what zero means,
+    and it means different things on different actions. Read as a blanket rule
+    it made the creation path in `SWEEP_PROMPT.md` 1a unreachable through
+    intake, which is how it read until 2026-09-10. On every other action, zero
+    matches or two matches is malformed - never a guess, and never a new row
+    created to make it fit.
+    - **The exception is `NAME` only, and a `PARTICIPANT_ID` never creates
+      anything.** `admin_upsert_participant` inserts only when the id it is
+      handed is NULL; hand it a well-formed uuid that names no row and it
+      raises `participant not found`. So a `participant` action carrying a
+      `PARTICIPANT_ID` that resolves to nothing is malformed like any other -
+      reject it and stage `unparsed_intake`, rather than calling the RPC and
+      letting it throw.
 12. `ID` on a `queue` action is a uuid that is an open row in
     `pending_actions`. A resolved row is malformed.
 13. `VERDICT` is `approve` or `dismiss`, lower case.
