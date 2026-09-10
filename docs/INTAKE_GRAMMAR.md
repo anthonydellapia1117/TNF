@@ -51,6 +51,24 @@ anyone following this document, and neither would have parsed.
 What this document is for is the part the code cannot carry: why a rule exists,
 what it cost to learn, and what to do when a message does not fit.
 
+### admin_upsert_participant is not a patch
+
+Five actions call it: `participant`, `contact`, `owner`, `identity`, and a
+`note` that names a person. **Its UPDATE sets every column from its arguments**,
+so an argument left out is not "unchanged", it is overwritten:
+
+| Column | What omitting it does |
+|---|---|
+| `email`, `cc_email`, `phone`, `display_alias`, `shared_group_id`, `source_ref`, `notes` | `nullif(arg,'')` - written as NULL, the value is gone |
+| `owner_group` | `coalesce(nullif(arg,''),'AVD')` - **silently moves them into Anthony's book** |
+| `blocks_requested` | `coalesce(arg,0)` - **sets the commitment to zero and wipes what they owe** |
+| `source` | defaults to `email` |
+
+So a `contact` message carrying only an email, or a `note` carrying only a note,
+would destroy the rest of that person's record - and the audit row would read as
+an ordinary `update_participant`, with the old values recoverable only from its
+`before` payload. **Read the row, change the one field, send all of them.**
+
 ### The three checks the parser CANNOT make
 
 `parseIntake` returns them in `deferred` for the sweep to run against live data.
