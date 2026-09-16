@@ -92,3 +92,44 @@ describe("sweep prompt: the money scope", () => {
     expect(PROMPT).toMatch(/moves that participant to AVD as usual/);
   });
 });
+
+/**
+ * The mail search. 2a used to find threads by the Pool-TNF label alone, so a
+ * participant writing from an address the Gmail filter does not match was
+ * invisible to every run - no label, no read, no row. Venmo receipts were
+ * already safe because 2b catches them regardless of label; participant mail
+ * was not, and that asymmetry was the whole gap. These fail against the
+ * label-only wording.
+ */
+describe("sweep prompt: the mail search is not label-only", () => {
+  const stepA = PROMPT.split("\n").find((l) => l.trim().startsWith("2a."));
+
+  it("2a exists and still reads threads in full", () => {
+    expect(stepA).toBeDefined();
+    expect(stepA!).toMatch(/get_thread/);
+  });
+
+  it("2a searches participant addresses, both columns", () => {
+    expect(stepA!).toMatch(/participants\.email/);
+    expect(stepA!).toMatch(/participants\.cc_email/);
+  });
+
+  it("2a does not let the label be the only way in", () => {
+    // The regression shape: a 2a that names Label_112 and nothing else.
+    expect(stepA!).toMatch(/regardless of subject/);
+    expect(stepA!).toMatch(/regardless of label/);
+  });
+
+  it("2a reads the address list live rather than carrying a copy", () => {
+    expect(stepA!).toMatch(/never hardcode it/);
+  });
+
+  it("2a classifies what it newly catches the same as labelled mail", () => {
+    expect(stepA!).toMatch(/same actions, same staging kinds/);
+  });
+
+  it("2a keeps the season floor on both sources", () => {
+    expect(stepA!).toMatch(/2026-08-01/);
+    expect(stepA!).toMatch(/0e/);
+  });
+});
