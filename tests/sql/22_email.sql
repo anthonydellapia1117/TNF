@@ -275,6 +275,12 @@ begin
   if v_id is null then raise exception 'TEST FAILURE: claim returned NULL'; end if;
   select count(*) into v_n from audit_log where action = 'email_claim' and target_id = v_id::text;
   if v_n <> 1 then raise exception 'TEST FAILURE: the claim wrote % audit rows, expected 1', v_n; end if;
+  if (select after from audit_log where action = 'email_claim' and target_id = v_id::text) is null then
+    raise exception 'TEST FAILURE: the claim audit row has no after payload';
+  end if;
+  if (select after::text from audit_log where action = 'email_claim' and target_id = v_id::text) like '%@%' then
+    raise exception 'TEST FAILURE: the claim audit row carries an address; audit_log is never rewritten';
+  end if;
 
   begin
     perform admin_email_claim('recruit_t', 'a@tnf.test', repeat('b', 64), 'test');
@@ -447,6 +453,49 @@ begin
   exception when others then
     if sqlerrm not like '%already claimed%' then raise exception 'TEST FAILURE: wrong refusal for second reply: %', sqlerrm; end if;
   end;
+  -- A DIFFERENT template on the same thread, to the same or another address,
+  -- is still a second reply on that thread.
+  begin
+    perform admin_email_claim('reply_t2_abc123', 'nora@tnf.test', repeat('c', 64), 'test');
+    raise exception 'TEST FAILURE: T2 was claimed on a thread that already had T1';
+  exception when others then
+    if sqlerrm not like '%already replied on this thread%' then raise exception 'TEST FAILURE: wrong refusal for T2 after T1: %', sqlerrm; end if;
+  end;
+  begin
+    perform admin_email_claim('reply_t5_abc123', 'jane-cc@tnf.test', repeat('c', 64), 'test');
+    raise exception 'TEST FAILURE: a second reply on the thread was claimed for another address';
+  exception when others then
+    if sqlerrm not like '%already replied on this thread%' then raise exception 'TEST FAILURE: wrong refusal for another address on the thread: %', sqlerrm; end if;
+  end;
+  -- The index holds even if the function's own check is bypassed.
+  begin
+    insert into email_sends (event_key, recipient, rendered_sha) values ('reply_t3_abc123', 'nora@tnf.test', repeat('c', 64));
+    raise exception 'TEST FAILURE: the table accepted a second reply row for the thread';
+  exception when unique_violation then null;
+  end;
+  -- Another thread is a new reply.
+  if admin_email_claim('reply_t1_def456', 'nora@tnf.test', repeat('c', 64), 'test') is null then
+    raise exception 'TEST FAILURE: a reply on a different thread was refused';
+  end if;
+end $$;
+
+-- 12. No email address in any audit row the send ledger writes. audit_log is
+--     never rewritten, so an address written there is there for good; the
+--     email_sends row (admin-only, RLS) is where the address lives.
+do $$
+declare
+  v_claim int; v_sent int; v_mismatch int; v_leak int;
+begin
+  select count(*) filter (where action = 'email_claim'),
+         count(*) filter (where action = 'email_sent'),
+         count(*) filter (where action = 'email_sent_sha_mismatch'),
+         count(*) filter (where after::text like '%@%' or coalesce(before::text, '') like '%@%')
+    into v_claim, v_sent, v_mismatch, v_leak
+    from audit_log where action in ('email_claim', 'email_sent', 'email_sent_sha_mismatch');
+  if v_claim is null or v_claim = 0 or v_sent = 0 or v_mismatch = 0 then
+    raise exception 'TEST FAILURE: the suite did not exercise every ledger audit action (claim %, sent %, mismatch %)', v_claim, v_sent, v_mismatch;
+  end if;
+  if v_leak <> 0 then raise exception 'TEST FAILURE: % ledger audit rows carry an address', v_leak; end if;
 end $$;
 
 rollback;

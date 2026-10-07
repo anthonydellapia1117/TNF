@@ -104,6 +104,32 @@ export class Gmail {
     return { draftId: j.id, messageId: msg.id };
   }
 
+  /**
+   * The id of a message already in Sent to this address carrying this event
+   * key in its X-TNF-Event header, or null. The last guard against a second
+   * copy: it holds even when a claim id is reused or the ledger write after
+   * an accepted send was lost.
+   */
+  async sentWithEvent(to: string, eventKey: string): Promise<string | null> {
+    const q = encodeURIComponent(`in:sent to:${to}`);
+    const r = await fetch(`${API}/messages?q=${q}&maxResults=100`, {
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!r.ok) throw await failure("search sent", r);
+    const j = (await r.json()) as { messages?: { id: string }[] };
+    for (const m of j.messages ?? []) {
+      const h = await fetch(
+        `${API}/messages/${encodeURIComponent(m.id)}?format=metadata&metadataHeaders=X-TNF-Event`,
+        { headers: { Authorization: `Bearer ${this.token}` } },
+      );
+      if (!h.ok) throw await failure("sent headers", h);
+      const mj = (await h.json()) as { payload?: { headers?: { name: string; value: string }[] } };
+      const ev = mj.payload?.headers?.find((x) => x.name.toLowerCase() === "x-tnf-event")?.value;
+      if (ev === eventKey) return m.id;
+    }
+    return null;
+  }
+
   /** The message as sent, for reading back. */
   async getRaw(id: string): Promise<Buffer> {
     const r = await fetch(`${API}/messages/${encodeURIComponent(id)}?format=raw`, {

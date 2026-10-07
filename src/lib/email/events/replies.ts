@@ -3,8 +3,9 @@
 // and the numbers in it are read from the database instead of typed. The one
 // change to the words: no dollar sign anywhere, so "$500" is written "500".
 //
-// Event key: reply_t<1-7>_<gmail thread id>. The thread id makes the
-// email_sends unique key mean "never twice to the same thread".
+// Event key: reply_t<1-7>_<gmail thread id>. email_sends allows one reply
+// per thread whatever the template (index email_sends_one_reply_per_thread):
+// "never twice to the same thread".
 // Args: subject (their subject, for "Re:"), block (T1 and T2).
 
 import type { EmailContext, EmailSpec, EventArgs } from "../types.ts";

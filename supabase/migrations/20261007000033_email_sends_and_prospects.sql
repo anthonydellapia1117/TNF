@@ -64,6 +64,14 @@ create table prospects (
   constraint prospects_excluded_together check ((excluded_at is null) = (excluded_reason is null))
 );
 
+-- A sweep reply's event key is reply_t<n>_<gmail thread id>. The template
+-- number is in the key, so (event_key, recipient) alone would let T2 follow T1
+-- on the same thread. One reply per thread, whatever the template and
+-- whoever it goes to, is enforced here, where concurrent runs cannot race it.
+create unique index email_sends_one_reply_per_thread
+  on email_sends ((substring(event_key from '^reply_t[1-7]_(.+)$')))
+  where event_key ~ '^reply_t[1-7]_';
+
 alter table email_sends enable row level security;
 alter table prospects   enable row level security;
 
@@ -287,8 +295,8 @@ begin
     -- A sweep reply (T1-T6) goes to the sender, and only to an address on a
     -- participant row: the sweep writes the roster under its rule 1a before it
     -- replies, so a sender it has not filed cannot be replied to. The event key
-    -- carries the thread id, so the unique key on email_sends is "never twice
-    -- to the same thread".
+    -- carries the thread id, and email_sends_one_reply_per_thread allows one
+    -- reply per thread whatever the template: "never twice to the same thread".
     return query
       select distinct a.addr
         from participants p,
@@ -413,6 +421,13 @@ begin
     raise exception 'already sent: event %, recipient %, message %', p_event_key, v_r, v_row.gmail_message_id;
   end if;
 
+  if p_event_key ~ '^reply_t[1-7]_' and exists (
+       select 1 from email_sends
+        where event_key ~ '^reply_t[1-7]_'
+          and substring(event_key from '^reply_t[1-7]_(.+)$') = substring(p_event_key from '^reply_t[1-7]_(.+)$')) then
+    raise exception 'already replied on this thread: %. Never twice to the same thread.', p_event_key;
+  end if;
+
   if not exists (select 1 from admin_email_recipients(p_event_key) d where d.recipient = v_r) then
     raise exception 'refused: % is not a derived recipient of %', v_r, p_event_key;
   end if;
@@ -423,8 +438,8 @@ begin
 
   insert into audit_log (actor, action, target_table, target_id, after)
   values (p_actor, 'email_claim', 'email_sends', v_id::text,
-          jsonb_build_object('event_key', p_event_key, 'recipient', v_r,
-                             'rendered_sha', p_rendered_sha));
+          -- No address: target_id is the email_sends row, which keeps it under RLS.
+          jsonb_build_object('event_key', p_event_key, 'rendered_sha', p_rendered_sha));
   return v_id;
 end $$;
 
@@ -478,7 +493,7 @@ begin
           case when v_status = 'recorded' then 'email_sent' else 'email_sent_sha_mismatch' end,
           'email_sends', v_row.id::text,
           jsonb_build_object('gmail_message_id', null, 'rendered_sha', v_row.rendered_sha),
-          jsonb_build_object('event_key', p_event_key, 'recipient', v_r,
+          jsonb_build_object('event_key', p_event_key,
                              'gmail_message_id', v_mid, 'sent_sha', p_rendered_sha));
   return v_status;
 end $$;

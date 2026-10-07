@@ -30,8 +30,10 @@
 //
 // Event arguments: --subject, --block, --lines, --grid, --png-url, --pdf-url,
 // or --arg key=value. Refusals: any lint finding; a send to anyone but
-// ADMIN_EMAIL without --claim; a recipient not in the batch; a dated event
-// rendered on another day; --not-before in the future.
+// ADMIN_EMAIL without --claim (a uuid) and a matching --expect-sha; a message
+// already in Sent to that address with the same X-TNF-Event; a recipient not
+// in the batch; a dated event rendered on another day; --not-before in the
+// future.
 
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -51,7 +53,10 @@ const GAP_MS = 3000;
 const argv = process.argv.slice(2);
 function opt(name: string): string | undefined {
   const i = argv.indexOf(`--${name}`);
-  return i >= 0 ? argv[i + 1] : undefined;
+  if (i < 0) return undefined;
+  const v = argv[i + 1];
+  if (v === undefined || v.startsWith("--")) die(`--${name} needs a value`);
+  return v;
 }
 function opts(name: string): string[] {
   const out: string[] = [];
@@ -211,8 +216,14 @@ async function main() {
   }
 
   const claim = opt("claim");
-  if (to !== ADMIN_EMAIL && !claim) die(`a send to anyone but ADMIN_EMAIL needs --claim (admin_email_claim first)`);
   const expect = opt("expect-sha");
+  if (to !== ADMIN_EMAIL) {
+    if (!claim) die(`a send to anyone but ADMIN_EMAIL needs --claim (admin_email_claim first)`);
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(claim)) {
+      die(`--claim must be the uuid admin_email_claim returned, got "${claim}"`);
+    }
+    if (!expect) die("--claim needs --expect-sha, the sha that was claimed");
+  }
   if (expect && expect !== r.sha) die(`rendered sha ${r.sha} is not the claimed ${expect}; refusing`);
   notBefore();
 
@@ -222,9 +233,13 @@ async function main() {
     email: r.email,
     inReplyTo: opt("in-reply-to"),
     references: opt("in-reply-to"),
-    headers: { "X-TNF-Event": eventKey },
+    headers: { "X-TNF-Event": eventKey, ...(claim ? { "X-TNF-Claim": claim } : {}) },
   });
   const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
+  if (to !== ADMIN_EMAIL) {
+    const prior = await gmail.sentWithEvent(to, eventKey);
+    if (prior) die(`${eventKey} already went to ${to} (Gmail message ${prior}); refusing a second copy`);
+  }
   const sent = await gmail.send(mime, opt("thread"));
   console.log(JSON.stringify({ event_key: eventKey, recipient: to, message_id: sent.id, thread_id: sent.threadId, sha: r.sha }));
   await sleep(GAP_MS);
