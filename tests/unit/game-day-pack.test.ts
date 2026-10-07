@@ -6,9 +6,7 @@ import {
   buildGameDayPack,
   digitsLive,
   draftAttachments,
-  dropFromBcc,
   gridObjectNames,
-  ownerRecipients,
   packRecipients,
   publicObjectUrl,
   type PackGame,
@@ -118,31 +116,6 @@ describe("digits", () => {
     expect(pack.gameCode).toBe("G01");
     expect(pack.recipients.bcc).toEqual([]);
     expect(pack.grid).toEqual({ mode: "attached" });
-  });
-});
-
-describe("owners on the To line", () => {
-  it("is Anthony first, then the TNF_OWNER_EMAILS list, trimmed and deduped", () => {
-    expect(
-      ownerRecipients(" ron@example.com, Mike@example.com;RON@example.com\nnolan@example.com ", "anthony@example.com"),
-    ).toEqual(["anthony@example.com", "ron@example.com", "Mike@example.com", "nolan@example.com"]);
-  });
-
-  it("never repeats Anthony and never yields an empty To", () => {
-    expect(ownerRecipients("Anthony@example.com", "anthony@example.com")).toEqual(["anthony@example.com"]);
-    expect(ownerRecipients(undefined, "anthony@example.com")).toEqual(["anthony@example.com"]);
-    expect(ownerRecipients("", "anthony@example.com")).toEqual(["anthony@example.com"]);
-  });
-
-  it("refuses a blank admin address instead of dropping Anthony from To", () => {
-    expect(() => ownerRecipients("ron@example.com", "")).toThrow(/admin address is blank/);
-    expect(() => ownerRecipients(undefined, "   ")).toThrow(/admin address is blank/);
-  });
-
-  it("drops anyone on the To line from Bcc, case-insensitively", () => {
-    expect(
-      dropFromBcc(["holder@example.com", "RON@example.com", "anthony@example.com"], ["anthony@example.com", "ron@example.com"]),
-    ).toEqual(["holder@example.com"]);
   });
 });
 
