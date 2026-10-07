@@ -1,6 +1,6 @@
 // Admin command: the game-day pack for one game.
 //
-//   npm run game-day -- --game 1 --context ctx.json --participants p.json --upload --draft
+//   npm run game-day -- --game 1 --context ctx.json --participants p.json --owners o.json --upload --draft
 //
 // Renders /grid?g=N as a PNG and a one-page PDF, uploads both to the PUBLIC
 // storage bucket game-day (--upload), computes the To and Bcc lists, renders
@@ -11,10 +11,10 @@
 // and the MIME all come from src/lib/email, and the file names come from the
 // subject (attachmentBase), so the attachment and the subject always match.
 //
-// To is Anthony plus the owners (Anthony's rule, 2026-09-09): ADMIN_EMAIL
-// first, then every address in TNF_OWNER_EMAILS (comma separated, set on the
-// routine, never committed). Bcc is every holder's email and cc_email from
-// the participant export, minus anyone already on the To line.
+// It is a broadcast, so To is Anthony and then every other owner, one address
+// each, from the owners table (Anthony's rule, 2026-10-07), and Bcc is every
+// holder's email and cc_email from the participant export, minus anyone
+// already on To. Both are built by src/lib/email/envelope.ts.
 //
 // Inputs
 //   --game N              game number (required)
@@ -22,6 +22,10 @@
 //                         select admin_email_context('game_day_g<NN>', '<ADMIN_EMAIL>')::text
 //                         run through the Supabase connector as Anthony. Every
 //                         value the email states comes from it.
+//   --owners FILE         the owners table, exported through the Supabase
+//                         connector as Anthony with the query in
+//                         docs/ROUTINES.md under "The owners query". Admin-only
+//                         data: keep it out of the repo. Required.
 //   --participants FILE   JSON array of { full_name, display_alias, email,
 //                         cc_email, blocks:number[] } for every participant
 //                         holding a block. Admin-only data: keep it out of
@@ -62,8 +66,6 @@ import { ADMIN_EMAIL, SUPABASE_ANON_KEY, SUPABASE_URL } from "../src/lib/env.ts"
 import {
   buildGameDayPack,
   draftAttachments,
-  dropFromBcc,
-  ownerRecipients,
   gridObjectNames,
   publicObjectUrl,
   STORAGE_BUCKET,
@@ -74,6 +76,8 @@ import {
 import { renderEvent } from "../src/lib/email/registry.ts";
 import { buildMime } from "../src/lib/email/mime.ts";
 import { attachmentBase } from "../src/lib/email/events/game-day.ts";
+import { envelopeFor } from "../src/lib/email/registry.ts";
+import type { OwnerAddress } from "../src/lib/email/envelope.ts";
 import { Gmail, gmailEnvFromProcess } from "../src/lib/email/transport.ts";
 import type { EmailContext } from "../src/lib/email/types.ts";
 
@@ -311,6 +315,16 @@ function readContext(path: string, eventKey: string): EmailContext {
   return ctx;
 }
 
+function readOwners(path: string): OwnerAddress[] {
+  const raw = JSON.parse(readFileSync(path, "utf8")) as unknown;
+  if (!Array.isArray(raw)) fail("owners file must be a JSON array (the owners query in docs/ROUTINES.md)");
+  return raw.map((r, i) => {
+    const o = r as Partial<OwnerAddress>;
+    if (typeof o.code !== "string") fail(`owners[${i}] needs code`);
+    return { code: o.code, email: o.email ?? null, alt_email: o.alt_email ?? null };
+  });
+}
+
 function renderPack(ctx: EmailContext, grid: GridDelivery) {
   const r = renderEvent(ctx, {
     grid: grid.mode,
@@ -327,6 +341,9 @@ async function main() {
   if (!participantsPath) fail("--participants FILE is required");
   const contextPath = arg("context");
   if (!contextPath) fail("--context FILE is required (admin_email_context for game_day_g<NN>)");
+  const ownersPath = arg("owners");
+  if (!ownersPath) fail("--owners FILE is required (the owners query in docs/ROUTINES.md)");
+  const owners = readOwners(resolve(ownersPath));
   const base = arg("base") ?? DEFAULT_BASE;
   const outDir = resolve(arg("out") ?? "out/game-day");
   const scale = Number(arg("scale") ?? 2);
@@ -377,8 +394,7 @@ async function main() {
     content: new Uint8Array(readFileSync(f.path)),
   })));
 
-  const to = ownerRecipients(process.env.TNF_OWNER_EMAILS, ADMIN_EMAIL);
-  const bcc = dropFromBcc(pack.recipients.bcc, to);
+  const { to, bcc } = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: pack.recipients.bcc });
   // distinct is the Bcc actually written; an owner who also holds a block is
   // counted on the To line, not twice.
   const counts = {
@@ -434,7 +450,7 @@ async function main() {
       `distinct in bcc ${c.distinct}${c.movedToTo ? ` (${c.movedToTo} moved to To)` : ""}`,
   );
   console.log(
-    `to: ${to.length} (admin + owners from TNF_OWNER_EMAILS${to.length === 1 ? ", variable not set" : ""}), bcc: ${bcc.length}`,
+    `to: ${to.length} (Anthony and every owner, from the owners table), bcc: ${bcc.length}`,
   );
   if (pack.recipients.noEmail.length > 0) {
     console.log(

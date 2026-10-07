@@ -23,8 +23,10 @@
 //                             send one context (a sweep reply) after its claim
 //   --to-admin (or --sample)  send the rendered email to ADMIN_EMAIL only:
 //                             the digest, the status report, a sample
-//   --draft --batch f         a Gmail draft: To ADMIN_EMAIL plus
-//                             TNF_OWNER_EMAILS, Bcc every batch item
+//   --draft --batch f --owners o
+//                             a broadcast as a Gmail draft: To Anthony and
+//                             every owner from the owners table export, Bcc
+//                             every batch item not already on To
 //   --read-back <message id>  fetch a sent message and check it
 //   --subjects                print the subject stems the module writes
 //
@@ -38,13 +40,13 @@
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
-import { renderEvent, SUBJECT_STEMS } from "../src/lib/email/registry.ts";
+import { envelopeFor, familyOf, renderEvent, SUBJECT_STEMS } from "../src/lib/email/registry.ts";
 import { buildMime, type MimeAttachment } from "../src/lib/email/mime.ts";
 import { lintEmail } from "../src/lib/email/lint.ts";
 import { attachmentBase } from "../src/lib/email/events/game-day.ts";
 import { Gmail, gmailEnvFromProcess } from "../src/lib/email/transport.ts";
 import type { EmailBatch, EmailContext, EventArgs } from "../src/lib/email/types.ts";
-import { dropFromBcc, ownerRecipients } from "../src/lib/game-day-pack.ts";
+import type { OwnerAddress } from "../src/lib/email/envelope.ts";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "anthonydellapia@gmail.com").toLowerCase();
 const FROM = `Anthony DellaPia <${ADMIN_EMAIL}>`;
@@ -167,13 +169,19 @@ async function main() {
     return;
   }
 
-  // --draft: the game-day pack, To Anthony and the owners, Bcc the batch.
+  // --draft: a broadcast, To Anthony and every owner, Bcc the batch minus To.
   if (flag("draft")) {
+    if (!familyOf(eventKey).broadcast) die(`${eventKey} is per-recipient; --draft is for a broadcast`);
     if (!batch) die("--draft needs --batch (the holders it Bccs)");
+    const ownersPath = opt("owners") ?? die("--draft needs --owners, the owners table export");
     const ctx: EmailContext = { event_key: eventKey, recipient: ADMIN_EMAIL, common: batch.value.common };
     const r = renderOrDie(ctx, args);
-    const to = ownerRecipients(process.env.TNF_OWNER_EMAILS, ADMIN_EMAIL);
-    const bcc = dropFromBcc(batch.value.items.map((i) => i.recipient), to);
+    const owners = readJson<OwnerAddress[]>(ownersPath).value;
+    const { to, bcc } = envelopeFor(eventKey, {
+      adminEmail: ADMIN_EMAIL,
+      owners,
+      derived: batch.value.items.map((i) => i.recipient),
+    });
     const base = attachmentBase(r.email.subject);
     const attachments: MimeAttachment[] = opts("attach").map((path) => {
       const ext = path.split(".").pop()?.toLowerCase() ?? "";
@@ -193,6 +201,7 @@ async function main() {
   }
 
   // One email: from a batch item, or from a single context.
+  if (familyOf(eventKey).broadcast) die(`${eventKey} is a broadcast; it goes out as a --draft with every owner on To`);
   const sample = flag("sample") || flag("to-admin");
   const to = (sample ? ADMIN_EMAIL : (opt("to") ?? single?.value.recipient ?? die("--to <addr> is required"))).toLowerCase();
   let ctx: EmailContext;
@@ -227,9 +236,10 @@ async function main() {
   if (expect && expect !== r.sha) die(`rendered sha ${r.sha} is not the claimed ${expect}; refusing`);
   notBefore();
 
+  const envelope = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, recipient: to });
   const mime = buildMime({
     from: FROM,
-    to: [to],
+    to: envelope.to,
     email: r.email,
     inReplyTo: opt("in-reply-to"),
     references: opt("in-reply-to"),

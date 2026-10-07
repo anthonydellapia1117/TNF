@@ -211,28 +211,31 @@ that path matter and the older version of this file had both wrong.
 | Routine | Gmail | Supabase | Repo source | Environment |
 |---------|-------|----------|-------------|-------------|
 | TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | the three `GMAIL_OAUTH_*` variables are needed for it to send through `npm run email` (2026-10-07) |
-| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. `TNF_OWNER_EMAILS` is unset and now matters: the pack reads it. The three `GMAIL_OAUTH_*` variables are needed for `--draft` (2026-10-07) |
+| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. The three `GMAIL_OAUTH_*` variables are needed for `--draft` (2026-10-07). No owner addresses: the To line comes from the `owners` table |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
 TNF Game Day runs without either variable and says so in its report: no
 `ADMIN_PASSWORD` means the grid is not uploaded and the draft carries the live
 grid link instead of two file links.
 
-**`TNF_OWNER_EMAILS` stopped being a dead variable when the pack changed.**
-Until then no code read it, `scripts/game-day-pack.mts` built the Bcc from the
-participant query alone, and this file rightly sent anyone who set it away
-again. The pack now builds a To line from `ADMIN_EMAIL` plus that variable, so
-setting it is the whole of the change and no longer a wasted click.
+**The To line of every broadcast comes from the `owners` table, at send
+time.** Anthony's rule of 2026-10-07: every broadcast email (one body, many
+recipients in Bcc) carries every owner on To. `src/lib/email/envelope.ts`
+builds it: Anthony's address first, then each other owner's primary address
+(RM, MAP, JPOD, GD, EJD, NL, BG), eight in all today, never an owner's
+`alt_email`, so Anthony's work address is never on it. The routine exports the
+table through the Supabase connector with "The owners query" below and hands
+the file to the command; no environment variable and no repo file carries an
+owner address, and the routine variable that used to was retired the same
+day. The command refuses to build a broadcast if an owner has no address, if
+Anthony's row does not carry `ADMIN_EMAIL`, or if two owners share one.
 
-What has not changed is the Bcc. It is still the participant query, so an owner
-who holds no block is still absent from it whatever is set. He now rides on To
-instead, which is the point: Anthony's rule of 2026-09-09 is that every pool
-email where the holders are in Bcc carries Anthony and the owners in To,
-Anthony first, and `dropFromBcc` keeps anyone on To out of Bcc so nobody is
-listed twice.
+The Bcc is the participant query minus every address already on To, so an
+owner who also holds a block is listed once, on To. Per-recipient email (a
+holder check-in, the recruit send, a sweep reply, the digest, a status report)
+never carries an owner on To or Cc.
 
-The addresses never live in this repo. They live on the routine as
-`TNF_OWNER_EMAILS` and in Anthony's own list. That is not because the repo is
+The addresses never live in this repo. That is not because the repo is
 public, and it will not change when it stops being: git history is permanent
 and a delete does not reach it, visibility is a setting that can be changed
 back, and a repo has no row-level access control while the `owners` table has
@@ -271,7 +274,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 
 0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
 0a. The repo anthonydellapia1117/TNF is this routine's source. If it is not in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it, then npm ci. Live game state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views: v_public_games?order=game_no, v_public_blocks, v_public_payouts. Anon reads only, bounded by RLS. Never look for another key. If the clone, the install or a read fails, the report is one NEEDS ANTHONY line naming the failed step. Never guess state.
-0b. Hard limits: never send an email. The only mail this routine produces is the draft npm run game-day writes with --draft; never create, update or send mail any other way. Never write to the database. Never enter or correct a score, never create, void, settle or mark a payout Paid, never draw, publish or alter digits, never confirm a date, never resolve an identity conflict, never move, release or assign a block, never move money, never delete anything. Email addresses and ADMIN_PASSWORD are secrets: addresses go into the draft's BCC and nowhere else, never into the report and never into a file in the repo; the password is never printed or copied anywhere. The Survivor pool is a separate system: never read its mail, labels, repo or database, never mention it.
+0b. Hard limits: never send an email. The only mail this routine produces is the draft npm run game-day writes with --draft; never create, update or send mail any other way. Never write to the database. Never enter or correct a score, never create, void, settle or mark a payout Paid, never draw, publish or alter digits, never confirm a date, never resolve an identity conflict, never move, release or assign a block, never move money, never delete anything. Email addresses and ADMIN_PASSWORD are secrets: addresses go into the draft and the /tmp files the steps below name and nowhere else, never into the report and never into a file in the repo; the password is never printed or copied anywhere. The Survivor pool is a separate system: never read its mail, labels, repo or database, never mention it.
 0c. This run has two phases and does both. Phase A is for games whose kickoff, in America/New_York, falls on today's date. Phase B is for games whose final_scored_at or kickoff falls on yesterday's date. A date can have both, neither, or one. If both phases have nothing, the entire report is the words NO ACTION.
 
 PHASE A, games today.
@@ -279,9 +282,9 @@ A1. The 8:00 AM ET reveal has already passed, so row_digits and col_digits must 
     - digits null and digits_assigned false: "G<xx> <away> at <home> kicks off <time> ET today and digits are not drawn. Draw and publish now at /admin/digits."
     - digits null and digits_assigned true: "G<xx> kicks off <time> ET today and digits are not live. Publish now at /admin/digits, it goes out immediately."
     - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
-A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
-A3. For each game today, first fetch its email context through the Supabase connector: select admin_email_context('game_day_g<NN>', 'anthonydellapia@gmail.com')::text, with NN the two-digit game number, written exactly as returned to /tmp/ctx_<NN>.json. Then run: npm run game-day -- --game <N> --context /tmp/ctx_<NN>.json --participants /tmp/participants.json --upload --draft when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-A4. The draft is the command's, never yours: --draft writes it through src/lib/email, with the subject, the body, the To line and the Bcc line all built there. Never type a subject or a body, and never add or remove a recipient. The To line is ADMIN_EMAIL first, then TNF_OWNER_EMAILS, deduped, and it is never empty: a blank ADMIN_EMAIL makes the pack refuse to build rather than quietly drop Anthony off his own email. If TNF_OWNER_EMAILS is unset the To line is Anthony alone, which is valid: say so in the report. The Bcc line is the participant query alone, so an owner who holds no block is not on it however it is configured; he rides on To instead, and dropFromBcc keeps anyone on To out of Bcc so nobody is listed twice. Before passing --draft, search Drafts for the subject the command prints (a dry run without --draft prints it): if a draft with that subject is already there, do not write a second one, and say so. If the command cannot reach Gmail (no GMAIL_OAUTH_TOKEN_JSON in this routine's environment), it writes the .eml next to the manifest and exits non-zero; add "Gmail token missing on this routine, draft not created. The message is at <eml path>." and continue.
+A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. Then run the read-only SQL under "The owners query" and write its single value, exactly as returned, to /tmp/owners.json: that is the To line. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
+A3. For each game today, first fetch its email context through the Supabase connector: select admin_email_context('game_day_g<NN>', 'anthonydellapia@gmail.com')::text, with NN the two-digit game number, written exactly as returned to /tmp/ctx_<NN>.json. Then run: npm run game-day -- --game <N> --context /tmp/ctx_<NN>.json --participants /tmp/participants.json --owners /tmp/owners.json --upload --draft when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
+A4. The draft is the command's, never yours: --draft writes it through src/lib/email, with the subject, the body, the To line and the Bcc line all built there. Never type a subject or a body, and never add or remove a recipient. The To line is Anthony and then every other owner, one primary address each, from /tmp/owners.json: eight addresses today, and the command prints the count. It refuses to build when an owner has no address, when Anthony's row is not ADMIN_EMAIL, or when two owners share an address; if it refuses, add "Owners table incomplete, draft not created: <the message>. Fix the owners row at /admin." and continue. The Bcc line is the participant query minus every address on To, so an owner who holds a block is listed once, on To. Before passing --draft, search Drafts for the subject the command prints (a dry run without --draft prints it): if a draft with that subject is already there, do not write a second one, and say so. If the command cannot reach Gmail (no GMAIL_OAUTH_TOKEN_JSON in this routine's environment), it writes the .eml next to the manifest and exits non-zero; add "Gmail token missing on this routine, draft not created. The message is at <eml path>." and continue.
 A5. Phase A lines, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set, and "Links: none, the body carries the live grid link only" when it is null. Never invent a URL.
 
 PHASE B, the morning after.
@@ -294,6 +297,18 @@ B2. For every game with final_scored_at in the last 26 hours:
 B3. Older finals. For every game final more than 26 hours ago, run only B2c. A missing payout row for an assigned winner stays reported until it is fixed.
 
 REPORT. One section titled NEEDS ANTHONY: the phase A lines, then the phase B lines. Nothing else. Never print an email address or a password. If both phases are empty, the entire report is the words NO ACTION.
+```
+
+### The owners query
+
+Read-only, run through the Supabase connector as the admin. The single value
+goes to `/tmp/owners.json` exactly as returned and into the draft's To line,
+never into the report and never into the repo.
+
+```sql
+select coalesce(jsonb_agg(jsonb_build_object('code', code, 'email', email, 'alt_email', alt_email)
+                          order by code), '[]'::jsonb)::text
+from owners;
 ```
 
 ### The recipient query

@@ -417,24 +417,31 @@ it does not move blocks.
 
 ## Email to the pool
 
-- **Every email to the pool where the holders ride in Bcc carries Anthony
-  and the owners in To, Anthony first.** Anthony's rule, set 2026-09-09
-  after the restructure announcement went out with Anthony alone in To.
-  The same announcement was then sent again to the owners' addresses so
-  every owner could see exactly what the pool received. Nobody else goes in
-  To; nothing goes in Cc.
+- **Every broadcast email carries every owner in To.** A broadcast is one
+  body to many recipients in Bcc (the game-day pack today). Its To is
+  Anthony's address first, then each other owner's primary address, read at
+  send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL and
+  BG, eight addresses in all. Never an owner's `alt_email`, so Anthony's GT
+  address is never on it. Its Bcc is the derived recipient list minus every
+  address already on To, so an owner who also holds a block appears once.
+  Nothing goes in Cc. Anthony's rule, set 2026-10-07; it replaced the
+  2026-09-09 version, which read the owner addresses from a routine variable.
+  `src/lib/email/envelope.ts` builds it, and `tests/unit/email/envelope.test.ts`
+  holds it.
+- **Per-recipient email never carries an owner** on To or Cc: a holder
+  check-in, the recruit send, a T1-T7 reply, the digest, a status report. Its
+  To is its one recipient.
 - **The owners, by code.** AVD Anthony DellaPia (two addresses, personal and
   GT), RM Ronnie Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD
-  Gregory DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, TJA TJ
-  Auletto, BG Billy Guyon, DN Dom Novelli (no address on file yet). TJA and
-  DN are owners on this list but not yet `owner_group` codes in the
-  database, which still allows the eight in *Data* below; adding them is a
-  migration like migration 19 and Anthony's call.
-- **The addresses never live in this repo.** The repo is public. They live
-  on the routine as `TNF_OWNER_EMAILS` (see `docs/ROUTINES.md`, TNF Game
-  Day Pack) and in Anthony's own list. `ownerRecipients()` in
-  `src/lib/game-day-pack.ts` builds the To line from that variable and
-  `dropFromBcc()` keeps anyone on To out of Bcc.
+  Gregory DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon.
+  TJ Auletto (TJA) and Dom Novelli (DN, no address on file yet) are owners
+  Anthony has named but not yet rows on the `owners` table or `owner_group`
+  codes, so they are not on a broadcast's To until a migration like
+  migration 19 adds them; that is Anthony's call.
+- **The addresses live only on the `owners` table, never in this repo, an
+  environment variable or a routine setting.** A routine exports the table
+  through the Supabase connector at send time (the owners query in
+  `docs/ROUTINES.md`) and hands the file to the command.
 - **A link in a pool email is the bare URL and nothing else**, for example
   `https://ad-26-tnf.vercel.app/blocks`. No tracking wrapper, no second
   URL. The Gmail connector rewrites the href of any link it is handed into a

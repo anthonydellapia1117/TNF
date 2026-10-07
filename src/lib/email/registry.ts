@@ -13,6 +13,7 @@ import { digest } from "./events/digest.ts";
 import { status, STATUS_SUBJECT } from "./events/status.ts";
 import { gameDay, GAME_DAY_KEY } from "./events/game-day.ts";
 import { POOL_SUBJECT } from "./copy.ts";
+import { broadcastEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
 type Renderer = (ctx: EmailContext, args: EventArgs) => EmailSpec;
 
@@ -21,16 +22,18 @@ interface Family {
   match: RegExp;
   /** Group 1 of match is a YYYY-MM-DD that must equal common.as_of_et. */
   dated: boolean;
+  /** One body to many in Bcc, with every owner on To. Everything else is per-recipient. */
+  broadcast: boolean;
   render: Renderer;
 }
 
 export const FAMILIES: Family[] = [
-  { name: "holder_checkin", match: /^holder_checkin_(\d{4}-\d{2}-\d{2})$/, dated: true, render: holderCheckin },
-  { name: "recruit", match: /^recruit_(\d{4}-\d{2}-\d{2})$/, dated: true, render: recruit },
-  { name: "reply", match: REPLY_KEY, dated: false, render: reply },
-  { name: "digest", match: /^digest_(\d{4}-\d{2}-\d{2})$/, dated: true, render: digest },
-  { name: "status", match: /^status_[a-z0-9_-]+$/, dated: false, render: status },
-  { name: "game_day", match: GAME_DAY_KEY, dated: false, render: gameDay },
+  { name: "holder_checkin", match: /^holder_checkin_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: holderCheckin },
+  { name: "recruit", match: /^recruit_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: recruit },
+  { name: "reply", match: REPLY_KEY, dated: false, broadcast: false, render: reply },
+  { name: "digest", match: /^digest_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: digest },
+  { name: "status", match: /^status_[a-z0-9_-]+$/, dated: false, broadcast: false, render: status },
+  { name: "game_day", match: GAME_DAY_KEY, dated: false, broadcast: true, render: gameDay },
 ];
 
 /** The fixed start of every subject this module writes. The sweep skips mail whose subject begins with one. */
@@ -60,4 +63,21 @@ export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
   const spec = f.render(ctx, args);
   const email = render(spec);
   return { spec, email, sha: renderedSha(email), problems: lintEmail(email) };
+}
+
+/**
+ * The envelope for an event: a broadcast gets every owner on To and the
+ * derived list, minus To, in Bcc; a per-recipient event gets its one
+ * recipient and nothing else, whatever owners are passed.
+ */
+export function envelopeFor(
+  eventKey: string,
+  opts: { adminEmail: string; recipient?: string; owners?: OwnerAddress[]; derived?: string[] },
+): Envelope {
+  const f = familyOf(eventKey);
+  if (f.broadcast) {
+    if (!opts.owners) throw new Error(`${eventKey} is a broadcast: it needs the owners table export (--owners)`);
+    return broadcastEnvelope(opts.owners, opts.adminEmail, opts.derived ?? []);
+  }
+  return perRecipientEnvelope(opts.recipient ?? "");
 }
