@@ -1,21 +1,16 @@
 import { describe, expect, it } from "vitest";
+// The pack's recipient, storage and attachment logic. Its subject, body and
+// MIME moved to src/lib/email on 2026-10-07; those tests live in
+// tests/unit/email/.
 import {
-  buildDraftMime,
   buildGameDayPack,
   digitsLive,
   draftAttachments,
   dropFromBcc,
-  etDateStamp,
   gridObjectNames,
-  hyphenate,
   ownerRecipients,
-  packBody,
-  packFilenameBase,
   packRecipients,
-  packSubject,
-  packTemplateFields,
   publicObjectUrl,
-  usd,
   type PackGame,
   type PackParticipant,
 } from "@/lib/game-day-pack";
@@ -36,7 +31,6 @@ const G01: PackGame = {
   col_digits: DIGITS,
 };
 
-const BASE = "https://ad-26-tnf.vercel.app/";
 const SUPABASE = "https://bqisojzdwodwaznzwega.supabase.co";
 const LINKS = {
   mode: "links" as const,
@@ -50,157 +44,6 @@ const person = (over: Partial<PackParticipant> & { full_name: string }): PackPar
   cc_email: null,
   blocks: [1],
   ...over,
-});
-
-describe("file name and subject", () => {
-  it("stamps the game's ET date, not the UTC date and not the run date", () => {
-    expect(etDateStamp(G01.kickoff_at!)).toBe("2026-09-09");
-    expect(packFilenameBase(G01)).toBe("2026-09-09_TNF_G01_grid");
-  });
-
-  it("pads the game code and survives a missing kickoff", () => {
-    expect(packFilenameBase({ game_no: 13, kickoff_at: null })).toBe(
-      "0000-00-00_TNF_G13_grid",
-    );
-  });
-
-  it("reads like the template title: TNF | Week N | Away at Home", () => {
-    expect(packSubject(G01)).toBe("TNF | Week 1 | New England Patriots at Seattle Seahawks");
-  });
-
-  it("handles the clock change: a December game is EST", () => {
-    const g22: PackGame = {
-      ...G01,
-      game_no: 22,
-      week: 17,
-      kickoff_at: "2026-12-26T01:15:00+00:00",
-      holiday_label: "Christmas Day",
-    };
-    expect(packTemplateFields(g22, BASE).kickoff_time).toBe("8:15 PM ET");
-    expect(packFilenameBase(g22)).toBe("2026-12-25_TNF_G22_grid");
-  });
-});
-
-describe("template fields", () => {
-  it("fills the design-kit fields from the public game row", () => {
-    expect(packTemplateFields(G01, BASE)).toEqual({
-      live_grid_url: "https://ad-26-tnf.vercel.app/grid?g=1",
-      away_team: "New England Patriots",
-      home_team: "Seattle Seahawks",
-      game_date: "Wednesday, September 9",
-      kickoff_time: "8:20 PM ET",
-      network: "NBC",
-      week_number: "1",
-      broadcast_line: "G01 | NBC",
-      grid_image_url: null,
-    });
-  });
-
-  it("carries the holiday on the broadcast line and the PNG as the board image", () => {
-    const f = packTemplateFields({ ...G01, holiday_label: "Thanksgiving" }, BASE, LINKS);
-    expect(f.broadcast_line).toBe("G01 | NBC | Thanksgiving");
-    expect(f.grid_image_url).toBe(LINKS.pngUrl);
-  });
-
-  it("says TBD instead of inventing a date, time or network", () => {
-    const f = packTemplateFields({ ...G01, kickoff_at: null, network: null }, BASE);
-    expect(f.game_date).toBe("Date TBD");
-    expect(f.kickoff_time).toBe("Time TBD");
-    expect(f.network).toBe("TBD");
-    expect(f.broadcast_line).toBe("G01");
-  });
-});
-
-describe("body", () => {
-  it("carries the link, the game, kickoff and network, and the attached line by default", () => {
-    const body = packBody(G01, BASE);
-    expect(body).toContain("Live grid: https://ad-26-tnf.vercel.app/grid?g=1");
-    expect(body).toContain("New England Patriots at Seattle Seahawks");
-    expect(body).toContain("Date: Wednesday, September 9");
-    expect(body).toContain("Kickoff: 8:20 PM ET");
-    expect(body).toContain("Network: NBC");
-    expect(body).toContain("Week 1");
-    expect(body).toContain("The grid for this game is attached (PNG and PDF).");
-    expect(body).not.toMatch(/\$|paid|owe|claim/i);
-  });
-
-  it("links both files and drops the attached line when the grid is uploaded", () => {
-    const body = packBody(G01, BASE, { grid: LINKS });
-    expect(body).toContain(`Grid PNG: ${LINKS.pngUrl}`);
-    expect(body).toContain(`Grid PDF: ${LINKS.pdfUrl}`);
-    expect(body).not.toContain("attached");
-  });
-
-  it("points to the live grid alone when there are no files", () => {
-    const body = packBody(G01, BASE, { grid: { mode: "live-only" } });
-    expect(body).toContain("Live grid: https://ad-26-tnf.vercel.app/grid?g=1");
-    expect(body).not.toContain("attached");
-    expect(body).not.toContain("Grid PNG");
-  });
-
-  it("names the holiday when there is one", () => {
-    expect(packBody({ ...G01, holiday_label: "Thanksgiving" }, "https://x.test")).toContain(
-      "Thanksgiving",
-    );
-  });
-
-  it("follows the template module order: hero, board, notes, lock, payouts, footer", () => {
-    const body = packBody(G01, BASE, {
-      grid: LINKS,
-      notes: { headline: "Two contenders", paragraphs: ["First.", "Second."] },
-      lock: { pick: "Seahawks", odds: "-3", book: "DK", statusLine: "Locked at kickoff" },
-      payouts: { halftimeCents: 75000, finalCents: 100000 },
-    });
-    const at = (s: string) => {
-      const i = body.indexOf(s);
-      expect(i, `missing "${s}"`).toBeGreaterThanOrEqual(0);
-      return i;
-    };
-    const hero = at("New England Patriots at Seattle Seahawks");
-    const board = at("THE BOARD");
-    const notes = at("GAME NOTES");
-    const lock = at("THE LOCK");
-    const payouts = at("PAYOUTS THIS GAME");
-    const footer = at("Anthony DellaPia");
-    expect([hero, board, notes, lock, payouts, footer]).toEqual(
-      [hero, board, notes, lock, payouts, footer].slice().sort((a, b) => a - b),
-    );
-    expect(body).toContain("Halftime: $750");
-    expect(body).toContain("Final: $1,000");
-  });
-
-  it("omits notes, lock and payouts when they are not supplied, never invents them", () => {
-    const body = packBody(G01, BASE);
-    expect(body).not.toContain("GAME NOTES");
-    expect(body).not.toContain("THE LOCK");
-    expect(body).not.toContain("PAYOUTS");
-  });
-
-  it("never carries an em dash or an en dash, even when the data does", () => {
-    const dashed: PackGame = {
-      ...G01,
-      away_team: "New England Patriots — road",
-      holiday_label: "Thanksgiving – night",
-    };
-    const pack = buildGameDayPack(dashed, [], BASE, {
-      grid: LINKS,
-      notes: { headline: "A — B", paragraphs: ["x – y"] },
-    });
-    expect(pack.subject).not.toMatch(/[–—]/);
-    expect(pack.body).not.toMatch(/[–—]/);
-    expect(pack.subject).toContain("New England Patriots - road");
-    expect(hyphenate("a — b – c")).toBe("a - b - c");
-  });
-});
-
-describe("payout money", () => {
-  it("formats cents exactly like fmtUsd: whole dollars, cents only when present", () => {
-    expect(usd(75000)).toBe("$750");
-    expect(usd(100000)).toBe("$1,000");
-    expect(usd(150000)).toBe("$1,500");
-    expect(usd(75050)).toBe("$750.50");
-    expect(usd(4500000)).toBe("$45,000");
-  });
 });
 
 describe("storage names", () => {
@@ -303,82 +146,13 @@ describe("owners on the To line", () => {
   });
 });
 
-describe("draft MIME", () => {
+describe("attachments", () => {
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0, 1, 2, 3]);
-  const files = [{ filename: "2026-09-09_TNF_G01_grid.png", mimeType: "image/png", content: png }];
-  const msg = buildDraftMime({
-    from: "Anthony <a@example.com>",
-    to: ["a@example.com", "owner@example.com"],
-    bcc: ["one@example.com", "Two@example.com"],
-    subject: "TNF | Week 1 | New England Patriots at Seattle Seahawks",
-    body: "Live grid: https://x.test/grid?g=1\n\nThe grid for this game is attached (PNG and PDF).",
-    attachments: files,
-    boundary: "b0undary",
-    date: new Date("2026-09-09T11:30:00Z"),
-  }).toString("utf8");
-
-  it("puts Anthony and the owners in To and every holder in Bcc", () => {
-    expect(msg).toContain("\r\nTo: a@example.com, owner@example.com\r\n");
-    expect(msg).toContain("\r\nBcc: one@example.com, Two@example.com\r\n");
-    expect(msg.indexOf("\r\nTo: ")).toBeLessThan(msg.indexOf("\r\nBcc: "));
-  });
-
-  it("writes no To line when no owners are given", () => {
-    const bare = buildDraftMime({
-      from: "a@example.com",
-      bcc: ["one@example.com"],
-      subject: "x",
-      body: "y",
-      attachments: [],
-      date: new Date("2026-09-09T11:30:00Z"),
-    }).toString("utf8");
-    expect(bare).not.toMatch(/^To:/m);
-  });
-
-  it("is CRLF multipart/mixed with the body first and the file as an attachment", () => {
-    expect(msg.startsWith("From: Anthony <a@example.com>\r\n")).toBe(true);
-    expect(msg).toContain('Content-Type: multipart/mixed; boundary="b0undary"');
-    expect(msg).toContain('Content-Disposition: attachment; filename="2026-09-09_TNF_G01_grid.png"');
-    expect(msg.endsWith("--b0undary--\r\n")).toBe(true);
-    expect(msg.indexOf("text/plain")).toBeLessThan(msg.indexOf("image/png"));
-    expect(msg).not.toMatch(/[^\r]\n/); // every line ends CRLF
-  });
-
-  it("round-trips the attachment bytes and the body through base64", () => {
-    const section = msg.split("--b0undary")[2];
-    const encoded = section.split("\r\n\r\n")[1].replace(/\r\n/g, "");
-    expect(new Uint8Array(Buffer.from(encoded, "base64"))).toEqual(png);
-    const bodySection = msg.split("--b0undary")[1];
-    const bodyEncoded = bodySection.split("\r\n\r\n")[1].replace(/\r\n/g, "");
-    expect(Buffer.from(bodyEncoded, "base64").toString("utf8")).toContain("attached (PNG and PDF)");
-  });
+  const files = [{ filename: "TNF_Holiday_Pool_2026_G01_grid_Nov_25.png", mimeType: "image/png", content: png }];
 
   it("attaches the files only when the grid is not linked", () => {
     expect(draftAttachments({ mode: "attached" }, files)).toEqual(files);
     expect(draftAttachments(LINKS, files)).toEqual([]);
     expect(draftAttachments({ mode: "live-only" }, files)).toEqual([]);
-  });
-
-  it("is a plain single-part message with no attachment when the body carries the links", () => {
-    const pack = buildGameDayPack(G01, [person({ full_name: "A", email: "a@example.com" })], BASE, {
-      grid: LINKS,
-    });
-    const linked = buildDraftMime({
-      from: "a@example.com",
-      bcc: pack.recipients.bcc,
-      subject: pack.subject,
-      body: pack.body,
-      attachments: draftAttachments(pack.grid, files),
-      boundary: "b0undary",
-      date: new Date("2026-09-09T11:30:00Z"),
-    }).toString("utf8");
-    expect(linked).not.toContain("Content-Disposition: attachment");
-    expect(linked).not.toContain("multipart/mixed");
-    expect(linked).toContain('Content-Type: text/plain; charset="UTF-8"');
-    const encoded = linked.split("\r\n\r\n")[1].replace(/\r\n/g, "");
-    const decoded = Buffer.from(encoded, "base64").toString("utf8");
-    expect(decoded).toContain(LINKS.pngUrl);
-    expect(decoded).toContain(LINKS.pdfUrl);
-    expect(linked).not.toMatch(/[^\r]\n/);
   });
 });

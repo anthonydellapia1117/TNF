@@ -82,10 +82,18 @@ session does.
   `docs/SWEEP_PROMPT.md`. The other two read the public projections through
   the anon key in `src/lib/env.ts`, RLS-bounded by design.
 - **Email is a closed list of two, and only TNF Sweep holds it.** It may send
-  a reply drawn verbatim from the T1-T7 allowlist to the sender only, and the
-  nightly digest to Anthony's own address alone (he authorised that one send on
-  2026-09-10, because it goes to him and he is not watching a screen). Nothing
-  else: no free-form mail, no reply outside the allowlist, no second recipient.
+  a reply from the T1-T6 allowlist to the sender only, and the nightly digest
+  to Anthony's own address alone (he authorised that one send on 2026-09-10,
+  because it goes to him and he is not watching a screen). Nothing else: no
+  free-form mail, no reply outside the allowlist, no second recipient.
+- **Every TNF email renders through `src/lib/email` and goes out through
+  `npm run email`** (`scripts/email.mts`), since 2026-10-07. No routine prompt
+  carries a subject, a body or a Gmail send or draft call;
+  `tests/unit/email/bypass.test.ts` fails if one does. The command sends as
+  Anthony's mailbox through the Gmail API, so a routine that sends or drafts
+  needs `GMAIL_OAUTH_TOKEN_JSON`, `GMAIL_OAUTH_CLIENT_ID` and
+  `GMAIL_OAUTH_CLIENT_SECRET` in its environment; without them the command
+  refuses and says so.
   **TNF Game Day still sends nothing** - its pack is a draft Anthony presses
   send on himself, and that is one of the three things he kept. Until
   2026-09-10 this line read "no routine ever sends an email", which contradicted
@@ -202,8 +210,8 @@ that path matter and the older version of this file had both wrong.
 
 | Routine | Gmail | Supabase | Repo source | Environment |
 |---------|-------|----------|-------------|-------------|
-| TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | - |
-| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. `TNF_OWNER_EMAILS` is unset and now matters: the pack reads it |
+| TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | the three `GMAIL_OAUTH_*` variables are needed for it to send through `npm run email` (2026-10-07) |
+| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. `TNF_OWNER_EMAILS` is unset and now matters: the pack reads it. The three `GMAIL_OAUTH_*` variables are needed for `--draft` (2026-10-07) |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
 TNF Game Day runs without either variable and says so in its report: no
@@ -263,7 +271,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 
 0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
 0a. The repo anthonydellapia1117/TNF is this routine's source. If it is not in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it, then npm ci. Live game state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views: v_public_games?order=game_no, v_public_blocks, v_public_payouts. Anon reads only, bounded by RLS. Never look for another key. If the clone, the install or a read fails, the report is one NEEDS ANTHONY line naming the failed step. Never guess state.
-0b. Hard limits: never send an email, only create a draft. Never write to the database. Never enter or correct a score, never create, void, settle or mark a payout Paid, never draw, publish or alter digits, never confirm a date, never resolve an identity conflict, never move, release or assign a block, never move money, never delete anything. Email addresses and ADMIN_PASSWORD are secrets: addresses go into the draft's BCC and nowhere else, never into the report and never into a file in the repo; the password is never printed or copied anywhere. The Survivor pool is a separate system: never read its mail, labels, repo or database, never mention it.
+0b. Hard limits: never send an email. The only mail this routine produces is the draft npm run game-day writes with --draft; never create, update or send mail any other way. Never write to the database. Never enter or correct a score, never create, void, settle or mark a payout Paid, never draw, publish or alter digits, never confirm a date, never resolve an identity conflict, never move, release or assign a block, never move money, never delete anything. Email addresses and ADMIN_PASSWORD are secrets: addresses go into the draft's BCC and nowhere else, never into the report and never into a file in the repo; the password is never printed or copied anywhere. The Survivor pool is a separate system: never read its mail, labels, repo or database, never mention it.
 0c. This run has two phases and does both. Phase A is for games whose kickoff, in America/New_York, falls on today's date. Phase B is for games whose final_scored_at or kickoff falls on yesterday's date. A date can have both, neither, or one. If both phases have nothing, the entire report is the words NO ACTION.
 
 PHASE A, games today.
@@ -272,8 +280,8 @@ A1. The 8:00 AM ET reveal has already passed, so row_digits and col_digits must 
     - digits null and digits_assigned true: "G<xx> kicks off <time> ET today and digits are not live. Publish now at /admin/digits, it goes out immediately."
     - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
 A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
-A3. For each game today run: npm run game-day -- --game <N> --participants /tmp/participants.json --upload when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-A4. One Gmail DRAFT per game, never a send: subject and body verbatim from the manifest, To as the manifest's to list, Bcc as its bcc list, no Cc, no attachments. THE MANIFEST NOW HAS BOTH FIELDS: scripts/game-day-pack.mts writes recipients.to and recipients.bcc. Read them; never invent a recipient that is not in one of those two lists. The to list is ADMIN_EMAIL first, then TNF_OWNER_EMAILS, deduped, and it is never empty: a blank ADMIN_EMAIL makes the pack refuse to build rather than quietly drop Anthony off his own email. If TNF_OWNER_EMAILS is unset the to list is Anthony alone, which is valid: say so in the report and create the draft anyway, and it is worth one line telling him the variable is now read, because until 2026-09-10 nothing read it and this file rightly said so. The bcc list is still the participant query alone, so an owner who holds no block is not on it however it is configured; he rides on To instead, and dropFromBcc keeps anyone on To out of Bcc so nobody is listed twice. If recipients.bcc is Anthony alone, say so and create the draft anyway. When the body carries a link, write it as the bare URL and nothing else: no tracking wrapper, no second URL. If a draft with that subject already exists in Drafts, update it in place instead of creating a second one. If Gmail is not available, add "Gmail connector missing on this routine, draft not created. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors." and report the manifest path instead.
+A3. For each game today, first fetch its email context through the Supabase connector: select admin_email_context('game_day_g<NN>', 'anthonydellapia@gmail.com')::text, with NN the two-digit game number, written exactly as returned to /tmp/ctx_<NN>.json. Then run: npm run game-day -- --game <N> --context /tmp/ctx_<NN>.json --participants /tmp/participants.json --upload --draft when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
+A4. The draft is the command's, never yours: --draft writes it through src/lib/email, with the subject, the body, the To line and the Bcc line all built there. Never type a subject or a body, and never add or remove a recipient. The To line is ADMIN_EMAIL first, then TNF_OWNER_EMAILS, deduped, and it is never empty: a blank ADMIN_EMAIL makes the pack refuse to build rather than quietly drop Anthony off his own email. If TNF_OWNER_EMAILS is unset the To line is Anthony alone, which is valid: say so in the report. The Bcc line is the participant query alone, so an owner who holds no block is not on it however it is configured; he rides on To instead, and dropFromBcc keeps anyone on To out of Bcc so nobody is listed twice. Before passing --draft, search Drafts for the subject the command prints (a dry run without --draft prints it): if a draft with that subject is already there, do not write a second one, and say so. If the command cannot reach Gmail (no GMAIL_OAUTH_TOKEN_JSON in this routine's environment), it writes the .eml next to the manifest and exits non-zero; add "Gmail token missing on this routine, draft not created. The message is at <eml path>." and continue.
 A5. Phase A lines, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set, and "Links: none, the body carries the live grid link only" when it is null. Never invent a URL.
 
 PHASE B, the morning after.
@@ -378,11 +386,11 @@ this section as "handled" until that is done:
    number written into this file goes stale the next time Anthony presses a
    button, which is exactly how this line came to be wrong.
 2. **The nightly digest**, section 9 of `docs/SWEEP_PROMPT.md`. At the 10:43 PM
-   ET run the sweep drafts one email covering every Reserved block with no
-   payment recorded, every open queue row, every thread it could not classify,
-   every write it made that day, and the three self-checks below. It is a
-   draft, so it waits in Drafts rather than arriving; the routine's own push
-   notification is what reaches his phone.
+   ET run the sweep sends Anthony one email, rendered by `npm run email` from
+   `email_digest_facts()` (migration 33): every AVD Reserved block with no
+   payment recorded, every open queue row, every write it made that day, and
+   the three self-checks below. It has been a send to him alone since
+   2026-09-10; before that it was a draft.
 
 What is still only a transcript: the read-only lines from TNF Game Day and
 TNF Draw Window. Those two never write, so they cannot stage. A digits problem
@@ -417,7 +425,7 @@ mail in Pool-TNF is not.
 - Releasing a block stays `admin_release_block`, case by case, never triggered
   by a date. Unpaid Reserved blocks are not released at the claim deadline.
 - Sending email is a closed list of two, and only TNF Sweep holds it: a
-  verbatim T1-T7 reply to the sender, and the nightly digest to Anthony
-  alone, which he authorised on 2026-09-10. Everything else, the game-day
+  T1-T6 reply to the sender, and the nightly digest to Anthony alone, which
+  he authorised on 2026-09-10, both rendered and sent by `npm run email`. Everything else, the game-day
   pack included, stays Anthony pressing send. This line said the digest was
   his to send until 2026-09-10 and contradicted the prompt that governs it.

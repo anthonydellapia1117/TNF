@@ -1,0 +1,63 @@
+// Event key -> renderer. The key's family decides the words; the database
+// context decides every value. A dated key must match the database's own date,
+// so a batch pulled on one day cannot be sent on another.
+
+import type { EmailContext, EmailSpec, EventArgs, RenderedEmail } from "./types.ts";
+import { render } from "./layout.ts";
+import { lintEmail } from "./lint.ts";
+import { renderedSha } from "./sha.ts";
+import { holderCheckin } from "./events/holder-checkin.ts";
+import { recruit } from "./events/recruit.ts";
+import { reply, REPLY_KEY } from "./events/replies.ts";
+import { digest } from "./events/digest.ts";
+import { status, STATUS_SUBJECT } from "./events/status.ts";
+import { gameDay, GAME_DAY_KEY } from "./events/game-day.ts";
+import { POOL_SUBJECT } from "./copy.ts";
+
+type Renderer = (ctx: EmailContext, args: EventArgs) => EmailSpec;
+
+interface Family {
+  name: string;
+  match: RegExp;
+  /** Group 1 of match is a YYYY-MM-DD that must equal common.as_of_et. */
+  dated: boolean;
+  render: Renderer;
+}
+
+export const FAMILIES: Family[] = [
+  { name: "holder_checkin", match: /^holder_checkin_(\d{4}-\d{2}-\d{2})$/, dated: true, render: holderCheckin },
+  { name: "recruit", match: /^recruit_(\d{4}-\d{2}-\d{2})$/, dated: true, render: recruit },
+  { name: "reply", match: REPLY_KEY, dated: false, render: reply },
+  { name: "digest", match: /^digest_(\d{4}-\d{2}-\d{2})$/, dated: true, render: digest },
+  { name: "status", match: /^status_[a-z0-9_-]+$/, dated: false, render: status },
+  { name: "game_day", match: GAME_DAY_KEY, dated: false, render: gameDay },
+];
+
+/** The fixed start of every subject this module writes. The sweep skips mail whose subject begins with one. */
+export const SUBJECT_STEMS = [POOL_SUBJECT, "TNF DIGEST", STATUS_SUBJECT] as const;
+
+export function familyOf(eventKey: string): Family {
+  const f = FAMILIES.find((x) => x.match.test(eventKey));
+  if (!f) throw new Error(`no email event "${eventKey}"; known: ${FAMILIES.map((x) => x.name).join(", ")}`);
+  return f;
+}
+
+export interface Rendered {
+  spec: EmailSpec;
+  email: RenderedEmail;
+  sha: string;
+  problems: string[];
+}
+
+export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
+  const f = familyOf(ctx.event_key);
+  if (f.dated) {
+    const day = f.match.exec(ctx.event_key)?.[1];
+    if (day !== ctx.common.as_of_et) {
+      throw new Error(`${ctx.event_key}: the database date is ${ctx.common.as_of_et}; a dated event renders only on its own day`);
+    }
+  }
+  const spec = f.render(ctx, args);
+  const email = render(spec);
+  return { spec, email, sha: renderedSha(email), problems: lintEmail(email) };
+}
