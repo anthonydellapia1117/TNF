@@ -59,6 +59,25 @@ async function accessToken(env: GmailEnv): Promise<string> {
   return j.access_token;
 }
 
+/** What a reply needs from the message it answers. */
+export interface InboundMeta {
+  id: string;
+  threadId: string;
+  internalDate: number;
+  labelIds: string[];
+  /** The bare sender address, lowercased. */
+  from: string;
+  subject: string;
+  messageId: string;
+  references: string;
+}
+
+/** "Name <a@b.c>" or "a@b.c" -> "a@b.c", lowercased. */
+export function bareAddress(header: string): string {
+  const m = /<([^<>\s]+@[^<>\s]+)>/.exec(header);
+  return (m ? m[1] : header).trim().toLowerCase();
+}
+
 export class Gmail {
   private readonly token: string;
   readonly mailbox: string;
@@ -89,6 +108,74 @@ export class Gmail {
     });
     if (!r.ok) throw await failure(path, r);
     return (await r.json()) as Record<string, unknown>;
+  }
+
+  private async get(path: string): Promise<Record<string, unknown>> {
+    const r = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${this.token}` } });
+    if (!r.ok) throw await failure(path.split("?")[0], r);
+    return (await r.json()) as Record<string, unknown>;
+  }
+
+  /** The headers a reply needs, from the message it answers. */
+  async inbound(id: string): Promise<InboundMeta> {
+    const hs = ["From", "Subject", "Message-ID", "References"].map((h) => `metadataHeaders=${h}`).join("&");
+    const j = await this.get(`/messages/${encodeURIComponent(id)}?format=metadata&${hs}`);
+    const headers = ((j.payload as { headers?: { name: string; value: string }[] } | undefined)?.headers) ?? [];
+    const h = (name: string) => headers.find((x) => x.name.toLowerCase() === name.toLowerCase())?.value ?? "";
+    return {
+      id: String(j.id),
+      threadId: String(j.threadId ?? ""),
+      internalDate: Number(j.internalDate ?? 0),
+      labelIds: (j.labelIds as string[] | undefined) ?? [],
+      from: bareAddress(h("From")),
+      subject: h("Subject"),
+      messageId: h("Message-ID"),
+      references: h("References"),
+    };
+  }
+
+  /** Every message in a thread: id, time and labels (a draft carries DRAFT, a sent message SENT). */
+  async threadMessages(threadId: string): Promise<{ id: string; internalDate: number; labelIds: string[] }[]> {
+    const j = await this.get(`/threads/${encodeURIComponent(threadId)}?format=minimal`);
+    return ((j.messages as { id: string; internalDate?: string; labelIds?: string[] }[] | undefined) ?? []).map((m) => ({
+      id: m.id,
+      internalDate: Number(m.internalDate ?? 0),
+      labelIds: m.labelIds ?? [],
+    }));
+  }
+
+  /** The ids of every unsent draft in a thread. */
+  async draftsInThread(threadId: string): Promise<string[]> {
+    const out: string[] = [];
+    let page = "";
+    do {
+      const j = await this.get(`/drafts?maxResults=500${page ? `&pageToken=${encodeURIComponent(page)}` : ""}`);
+      for (const d of (j.drafts as { id: string; message?: { threadId?: string } }[] | undefined) ?? []) {
+        if (d.message?.threadId === threadId) out.push(d.id);
+      }
+      page = typeof j.nextPageToken === "string" ? j.nextPageToken : "";
+    } while (page);
+    return out;
+  }
+
+  async deleteDraft(draftId: string): Promise<void> {
+    const r = await fetch(`${API}/drafts/${encodeURIComponent(draftId)}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${this.token}` },
+    });
+    if (!r.ok) throw await failure("draft delete", r);
+  }
+
+  /** A user label's id by its exact name. */
+  async labelId(name: string): Promise<string> {
+    const j = await this.get("/labels");
+    const l = ((j.labels as { id: string; name: string }[] | undefined) ?? []).find((x) => x.name === name);
+    if (!l) throw new Error(`gmail: no label named ${name}`);
+    return l.id;
+  }
+
+  async modifyLabels(messageId: string, add: string[], remove: string[]): Promise<void> {
+    await this.post(`/messages/${encodeURIComponent(messageId)}/modify`, { addLabelIds: add, removeLabelIds: remove });
   }
 
   async send(raw: Buffer, threadId?: string): Promise<{ id: string; threadId: string }> {

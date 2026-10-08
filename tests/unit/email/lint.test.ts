@@ -39,5 +39,7 @@ describe("the lint itself", () => {
     expect(lintEmail({ ...ok, text: `${"x".repeat(MAX_LINE + 1)}\n` })[0]).toMatch(/text line 1: 70 characters/);
     expect(lintEmail({ ...ok, text: "see you tomorrow\n" })[0]).toMatch(/relative date/);
     expect(lintEmail({ ...ok, html: '<img src="x">' })).toContain("html: an image");
+    expect(lintEmail({ ...ok, text: "Done. Let me know if that works.\n" })).toContain('text: filler ("Let me know if")');
+    expect(lintEmail({ ...ok, text: "Hope this helps\n" })[0]).toMatch(/filler/);
   });
 });

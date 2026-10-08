@@ -36,10 +36,10 @@ import {
 
 type Method = Payment["method"];
 
-// The eight owner codes, same list as the participants and payments CHECK
+// The ten owner codes, same list as the participants and payments CHECK
 // constraints. Picking one records that owner as holding the cash, which is
 // what stops admin_record_payment moving the participant to AVD.
-const OWNER_CODES = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG"] as const;
+const OWNER_CODES = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG", "TJA", "DN"] as const;
 
 const METHODS: { value: Method; label: string }[] = [
   { value: "venmo", label: "Venmo" },

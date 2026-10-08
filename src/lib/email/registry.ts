@@ -12,6 +12,8 @@ import { reply, REPLY_KEY } from "./events/replies.ts";
 import { digest } from "./events/digest.ts";
 import { status, STATUS_SUBJECT } from "./events/status.ts";
 import { gameDay, GAME_DAY_KEY } from "./events/game-day.ts";
+import { gameList, GAME_LIST_KEY } from "./events/game-list.ts";
+import { answer, ANSWER_KEY } from "./events/answer.ts";
 import { POOL_SUBJECT } from "./copy.ts";
 import { broadcastEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
@@ -34,7 +36,12 @@ export const FAMILIES: Family[] = [
   { name: "digest", match: /^digest_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: digest },
   { name: "status", match: /^status_[a-z0-9_-]+$/, dated: false, broadcast: false, render: status },
   { name: "game_day", match: GAME_DAY_KEY, dated: false, broadcast: true, render: gameDay },
+  { name: "game_list", match: GAME_LIST_KEY, dated: false, broadcast: false, render: gameList },
+  { name: "answer", match: ANSWER_KEY, dated: false, broadcast: false, render: answer },
 ];
+
+/** Families that answer one inbound message; the key ends in that message's Gmail id. */
+export const REPLY_TO_MESSAGE = /^(?:game_list|answer)_([0-9a-f]+)$/;
 
 /** The fixed start of every subject this module writes. The sweep skips mail whose subject begins with one. */
 export const SUBJECT_STEMS = [POOL_SUBJECT, "TNF DIGEST", STATUS_SUBJECT] as const;

@@ -38,6 +38,11 @@ export function digest(ctx: EmailContext): EmailSpec {
   const c = ctx.common;
   const rows: Row[] = [];
 
+  // First, because it blocks a send: a broadcast's To must carry every owner.
+  for (const o of d.owners_missing_email ?? []) {
+    rows.push(["NEEDS ANTHONY", `${o.code} ${hyphenate(o.full_name)} has no address; the next broadcast refuses until it is set.`]);
+  }
+
   for (const b of d.avd_reserved) {
     rows.push([`Block ${b.block_number}`, `Reserved, no payment recorded by the pool, ${hyphenate(b.name)}`]);
   }

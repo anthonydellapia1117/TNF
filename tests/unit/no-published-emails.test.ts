@@ -21,12 +21,13 @@ import { describe, expect, it } from "vitest";
 
 const ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
-// Anthony's own addresses. He is the sole admin and these are already the
+// Anthony's own address. He is the sole admin and this is already the
 // documented admin identity in src/lib/env.ts and every SQL suite's admin
-// claim. Publishing his own address is his call and he has already made it.
+// claim. Publishing it is his call and he has already made it. He has ONE
+// address on this pool (2026-10-08): no second one is exempt, so any other
+// address of his in a tracked file fails like anyone else's.
 const OWN_ADDRESSES = new Set([
   "anthonydellapia@gmail.com",
-  "anthony.dellapia@us.gt.com",
 ]);
 
 // Fixture domains. RFC 2606 reserves example.com; the rest are local inventions
@@ -80,6 +81,13 @@ function thirdPartyAddresses(file: string): string[] {
   }
   return [...found];
 }
+
+describe("Anthony's own address", () => {
+  it("is exactly one", () => {
+    expect([...OWN_ADDRESSES]).toEqual(["anthonydellapia@gmail.com"]);
+    expect(OWN_ADDRESSES.size).toBe(1);
+  });
+});
 
 describe("no third-party email addresses in the repo", () => {
   const offenders = new Map<string, number>();
