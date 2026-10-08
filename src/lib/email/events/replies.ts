@@ -15,7 +15,8 @@ import { BOARD_URL, SIGNOFF, VENMO } from "../copy.ts";
 
 export const REPLY_KEY = /^reply_t([1-7])_([a-z0-9]+)$/;
 
-function reSubject(theirs: string | undefined): string {
+/** "Re: <their subject>", once. Shared by every reply to an inbound message. */
+export function reSubject(theirs: string | undefined): string {
   const s = (theirs ?? "").trim();
   if (!s) throw new Error("reply: --subject (their subject line) is required");
   return /^re:/i.test(s) ? s : `Re: ${s}`;

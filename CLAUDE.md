@@ -65,7 +65,7 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
 
 ## Owner codes and how money is actually collected
 
-**The eight owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD, BG — are
+**The ten owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD, BG, TJA, DN — are
 collection responsibility, not provenance.** They do not record who introduced someone
 or who they emailed. They record *which owner collects that participant's
 $500 and holds it*.
@@ -363,8 +363,10 @@ it does not move blocks.
     Tuesday November 24, G06-G09 (week 16) Tuesday December 22, G10 (week
     17) Tuesday December 29. Thanksgiving week is five games in three days
     and Christmas week four in two; each game is still its own draw.
-- **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD and BG.** Nothing else.
-  `BG` is Billy Guyon, added 2026-09-04 (migration 19). He is an owner on the
+- **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD, BG, TJA and DN.**
+  Nothing else. `TJA` is TJ Auletto and `DN` is Dom Novelli, both added
+  2026-10-08 (migration 34), code and name only, the way migration 19 added
+  BG. `BG` is Billy Guyon, added 2026-09-04 (migration 19). He is an owner on the
   same footing as the rest: he collects from his own participants and holds
   that cash. Before this existed his people had to be filed under someone
   else's code, which attributed his money to an owner who never touched it —
@@ -420,9 +422,9 @@ it does not move blocks.
 - **Every broadcast email carries every owner in To.** A broadcast is one
   body to many recipients in Bcc (the game-day pack today). Its To is
   Anthony's address first, then each other owner's primary address, read at
-  send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL and
-  BG, eight addresses in all. Never an owner's `alt_email`, so Anthony's GT
-  address is never on it. Its Bcc is the derived recipient list minus every
+  send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL,
+  BG, TJA and DN, ten addresses in all. Never an owner's `alt_email`. Its Bcc
+  is the derived recipient list minus every
   address already on To, so an owner who also holds a block appears once.
   Nothing goes in Cc. Anthony's rule, set 2026-10-07; it replaced the
   2026-09-09 version, which read the owner addresses from a routine variable.
@@ -431,13 +433,21 @@ it does not move blocks.
 - **Per-recipient email never carries an owner** on To or Cc: a holder
   check-in, the recruit send, a T1-T7 reply, the digest, a status report. Its
   To is its one recipient.
-- **The owners, by code.** AVD Anthony DellaPia (two addresses, personal and
-  GT), RM Ronnie Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD
-  Gregory DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon.
-  TJ Auletto (TJA) and Dom Novelli (DN, no address on file yet) are owners
-  Anthony has named but not yet rows on the `owners` table or `owner_group`
-  codes, so they are not on a broadcast's To until a migration like
-  migration 19 adds them; that is Anthony's call.
+- **The owners, by code.** AVD Anthony DellaPia, one address, RM Ronnie
+  Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
+  DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ
+  Auletto, DN Dom Novelli. DN has no address on file yet (2026-10-08), so
+  every broadcast refuses until it is set, and the nightly digest carries one
+  NEEDS ANTHONY line saying so.
+- **Anthony's work email is never stored, written, or addressed anywhere in
+  this pool.** Anthony, 2026-10-08. He has one address on this pool. AVD's
+  `alt_email` was cleared that day and nothing replaced it. Migration 35 makes
+  the database refuse it: `blocked_address_hashes` holds its sha256, seeded by
+  hand and never committed, and a trigger on `owners`, `participants` and
+  `prospects` rejects any write that hashes to a row.
+- **An owner is never a prospect.** The recruit send excludes every owner's
+  address (migration 34); an owner's prospect row is removed with
+  `admin_remove_prospect`, audited without the address.
 - **The addresses live only on the `owners` table, never in this repo, an
   environment variable or a routine setting.** A routine exports the table
   through the Supabase connector at send time (the owners query in
@@ -448,6 +458,53 @@ it does not move blocks.
   google.com/url redirect and rewrites the plain-text part the same way; the
   only control left is the visible text, so hand it an HTML anchor whose
   text is the bare URL. Verified 2026-09-09 on two test drafts.
+
+## Replies (Anthony, 2026-10-08)
+
+**Claude has full authority to answer pool mail as Anthony.** The standing
+rule, for any session or routine that reads the mail:
+
+- **Read every inbound reply in full** (`get_thread`, never a search
+  preview): every thread whose message id is in `email_sends`, everything
+  labelled Pool-TNF, and any message from a participant, prospect or owner
+  address, whatever its label. A reply to a pool send carries that send's own
+  label and not Pool-TNF: the Pool-TNF filter's negated terms match Anthony's
+  address quoted in every reply, so the filter skips it.
+- **A question or an ask gets an in-thread reply in Anthony's voice, with the
+  task done in the same run.** Do the write, confirm it committed, then reply
+  that it is done.
+- **An acknowledgement gets no reply.** Mark it read and label it
+  Pool-TNF-Done (`npm run email -- --no-reply <message id>`).
+- **Voice: a text to a buddy.** First name and a comma, one to three short
+  sentences, a small table only when listing data, signed Anthony. Hyphens
+  only, no emojis, no dollar sign, no filler, never "let me know if". The
+  lint in `src/lib/email/lint.ts` refuses the mechanical ones.
+- **Allowed without asking:** reserve, assign or release blocks; record a
+  payment, only from a Venmo receipt; update contacts; add a prospect; answer
+  rules and schedule questions from the database.
+- **NEEDS ANTHONY only for:** money going out, a payment claimed with no
+  receipt, an identity that could be two people, or a change to rules or
+  payouts. A release asked for by a third party is the identity case (see
+  *The season* above).
+- **Every reply goes through the email module**, is claimed in `email_sends`
+  before it goes and recorded after, and is audited: `npm run email --
+  --reply-to <message id>`, as `game_list_<message id>` for the game list,
+  `answer_<message id>` for anything else, or a T1-T6 sweep template. The
+  database allows one game_list or answer reply per inbound message and one
+  template reply per thread; across the two, the command's check for a later
+  message from Anthony to the sender is the guard, so every reply goes out
+  with `--reply-to`.
+- **Before each send**, skip if Anthony already wrote to the holder in the
+  thread after the holder's message, and delete every unsent draft in the
+  thread first. The command does both, and refuses on the first.
+- **Pool-TNF-Done goes on only after the reply is sent or the message is
+  classed no-reply.** Never on a question still waiting for an answer: a
+  labelled thread is not read again. The command applies it after the send.
+- **What the live sweep runs** (found 2026-10-08): an older inline prompt,
+  not `docs/SWEEP_PROMPT.md`, with no repo source. It labels every message it
+  processes Pool-TNF-Done and may not reply, which is how two holders'
+  questions were closed unanswered on Oct 8. Its digest is inline too. Moving
+  the routine onto `docs/SWEEP_PROMPT.md` is Anthony's, by hand.
 
 ## Isolation
 

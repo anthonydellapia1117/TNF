@@ -1,4 +1,4 @@
--- The owners lookup: admin-only, eight codes, no leak to anon.
+-- The owners lookup: admin-only, ten codes, no leak to anon.
 --
 -- Every assertion that reads a value guards for NULL and raises, per the
 -- CLAUDE.md rule learned from migrations 15 and 16: a conditionally-visible
@@ -11,20 +11,21 @@ declare
   v_name text;
   v_email text;
 begin
-  -- 1. All eight codes are present, and only those eight.
+  -- 1. All ten codes are present, and only those ten. TJA and DN were added
+  --    2026-10-08 (migration 34).
   select count(*) into v_n from owners;
   if v_n is null then raise exception 'TEST FAILURE: owners count came back NULL'; end if;
-  if v_n <> 8 then raise exception 'TEST FAILURE: expected 8 owners, found %', v_n; end if;
+  if v_n <> 10 then raise exception 'TEST FAILURE: expected 10 owners, found %', v_n; end if;
 
   select count(*) into v_n from owners
-   where code not in ('AVD','RM','MAP','JPOD','EJD','NL','GD','BG');
+   where code not in ('AVD','RM','MAP','JPOD','EJD','NL','GD','BG','TJA','DN');
   if v_n is null then raise exception 'TEST FAILURE: stray-code count came back NULL'; end if;
   if v_n <> 0 then raise exception 'TEST FAILURE: % owner rows carry an unknown code', v_n; end if;
 
   -- 2. Every code in the participants CHECK has a person attached. This is the
   --    gap NL and BG were: a code in the schema with no name anywhere.
   select count(*) into v_n from (
-    select unnest(array['AVD','RM','MAP','JPOD','EJD','NL','GD','BG']) as code
+    select unnest(array['AVD','RM','MAP','JPOD','EJD','NL','GD','BG','TJA','DN']) as code
   ) c where not exists (select 1 from owners o where o.code = c.code);
   if v_n is null then raise exception 'TEST FAILURE: unmatched-code count came back NULL'; end if;
   if v_n <> 0 then raise exception 'TEST FAILURE: % owner codes have no person attached', v_n; end if;
@@ -36,6 +37,14 @@ begin
   select full_name into v_name from owners where code = 'BG';
   if v_name is null then raise exception 'TEST FAILURE: BG has no name'; end if;
   if v_name <> 'Billy Guyon' then raise exception 'TEST FAILURE: BG reads %', v_name; end if;
+
+  -- 3b. The two codes added 2026-10-08, names only.
+  select full_name into v_name from owners where code = 'TJA';
+  if v_name is null then raise exception 'TEST FAILURE: TJA has no name'; end if;
+  if v_name <> 'TJ Auletto' then raise exception 'TEST FAILURE: TJA reads %', v_name; end if;
+  select full_name into v_name from owners where code = 'DN';
+  if v_name is null then raise exception 'TEST FAILURE: DN has no name'; end if;
+  if v_name <> 'Dom Novelli' then raise exception 'TEST FAILURE: DN reads %', v_name; end if;
 
   -- 4. The migration seeds NO email address. This is the assertion that keeps
   --    the addresses out of a public repo, and it is the one that matters: the
@@ -86,7 +95,7 @@ begin
   if v_n is null then raise exception 'TEST FAILURE: anon grant count came back NULL'; end if;
   if v_n <> 0 then raise exception 'TEST FAILURE: anon holds % grants on owners', v_n; end if;
 
-  raise notice 'owners: 8 codes, all named, no seeded addresses, admin-only, no public view, anon has nothing';
+  raise notice 'owners: 10 codes, all named, no seeded addresses, admin-only, no public view, anon has nothing';
 end $$;
 
 -- 7. With no admin claim, the RLS policy returns nothing. Proves the read is

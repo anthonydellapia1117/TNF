@@ -3,7 +3,7 @@
 // or new data fails here before it can reach a mailbox.
 
 import { describe, expect, it } from "vitest";
-import { lintEmail, renderEvent } from "@/lib/email";
+import { lintEmail, lintVoice, renderEvent } from "@/lib/email";
 import { FAMILIES } from "@/lib/email/registry";
 import { MAX_LINE } from "@/lib/email/wrap";
 import { ALL_EVENTS } from "./fixtures";
@@ -39,5 +39,10 @@ describe("the lint itself", () => {
     expect(lintEmail({ ...ok, text: `${"x".repeat(MAX_LINE + 1)}\n` })[0]).toMatch(/text line 1: 70 characters/);
     expect(lintEmail({ ...ok, text: "see you tomorrow\n" })[0]).toMatch(/relative date/);
     expect(lintEmail({ ...ok, html: '<img src="x">' })).toContain("html: an image");
+  });
+  it("keeps the reply voice to replies: filler fails a reply, never the digest or a status report", () => {
+    expect(lintVoice({ ...ok, text: "Done. Let me know if that works.\n" })).toEqual(['text: filler ("Let me know if")']);
+    expect(lintVoice({ ...ok, text: "Hope this helps\n" })[0]).toMatch(/filler/);
+    expect(lintEmail({ ...ok, text: "Done. Let me know if that works.\n" })).toEqual([]);
   });
 });

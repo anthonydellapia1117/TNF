@@ -3,6 +3,8 @@
 export const BOARD = "ad-26-tnf.vercel.app/blocks";
 export const BOARD_URL = "https://ad-26-tnf.vercel.app/blocks";
 export const SITE_URL = "https://ad-26-tnf.vercel.app";
+/** The site as a reply writes it: the bare host, which the layout links. */
+export const SITE = "ad-26-tnf.vercel.app";
 export const VENMO = "@AnthonyDellaPia";
 export const SIGNOFF = "Anthony";
 export const HOW_A_BLOCK_WINS =

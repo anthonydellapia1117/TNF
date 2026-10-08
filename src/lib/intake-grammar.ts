@@ -22,7 +22,7 @@ export const PREFIXES = ["UPDATE", "DECISION", "NOTE"] as const;
 export type Prefix = (typeof PREFIXES)[number];
 
 /** participants.owner_group. DIRECT was retired 2026-08-28 and is rejected. */
-export const OWNER_GROUPS = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG"] as const;
+export const OWNER_GROUPS = ["AVD", "RM", "MAP", "JPOD", "EJD", "NL", "GD", "BG", "TJA", "DN"] as const;
 /** participants.source. */
 export const SOURCES = ["email", "text", "in_person", "import"] as const;
 /**

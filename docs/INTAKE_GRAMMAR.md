@@ -103,7 +103,7 @@ still wins on the field set; it just does not decide this.
 Every one of these is checked before anything is applied. A failure makes
 the whole message malformed.
 
-1. `OWNER` is one of `AVD` `RM` `MAP` `JPOD` `EJD` `NL` `GD` `BG`, upper
+1. `OWNER` is one of `AVD` `RM` `MAP` `JPOD` `EJD` `NL` `GD` `BG` `TJA` `DN`, upper
    case, exact. `DIRECT` was retired 2026-08-28 and is rejected.
    - `COLLECTED_BY` on a `payment` is from that same list and means **who is
      holding the $500**, never who introduced anyone. Leave it out when the

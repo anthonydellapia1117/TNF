@@ -8,23 +8,26 @@ import { envelopeFor, FAMILIES } from "@/lib/email/registry";
 import { broadcastTo, type OwnerAddress } from "@/lib/email/envelope";
 
 const ADMIN = "avd-primary@tnf.test";
-// Shaped as the owners query returns it. AVD alone carries an alt address, as
-// on the live table (Anthony's work address); here a reserved-domain stand-in.
+// Shaped as the owners query returns it. No alt address is on the live table
+// since 2026-10-08; AVD carries a reserved-domain one here so the rule that an
+// alt is never addressed stays under test.
 const OWNERS: OwnerAddress[] = [
   { code: "BG", email: "bg@tnf.test", alt_email: null },
-  { code: "AVD", email: "AVD-Primary@tnf.test ", alt_email: "avd-work@tnf.test" },
+  { code: "AVD", email: "AVD-Primary@tnf.test ", alt_email: "avd-alt@tnf.test" },
+  { code: "DN", email: "dn@tnf.test", alt_email: null },
   { code: "EJD", email: "ejd@tnf.test", alt_email: null },
   { code: "GD", email: "gd@tnf.test", alt_email: null },
   { code: "JPOD", email: "jpod@tnf.test", alt_email: null },
   { code: "MAP", email: "map@tnf.test", alt_email: null },
   { code: "NL", email: "nl@tnf.test", alt_email: null },
   { code: "RM", email: "rm@tnf.test", alt_email: null },
+  { code: "TJA", email: "tja@tnf.test", alt_email: null },
 ];
-const EIGHT = [
+const TEN = [
   "avd-primary@tnf.test", "rm@tnf.test", "map@tnf.test", "jpod@tnf.test",
-  "gd@tnf.test", "ejd@tnf.test", "nl@tnf.test", "bg@tnf.test",
+  "gd@tnf.test", "ejd@tnf.test", "nl@tnf.test", "bg@tnf.test", "tja@tnf.test", "dn@tnf.test",
 ];
-const ALT = "avd-work@tnf.test";
+const ALT = "avd-alt@tnf.test";
 const HOLDERS = ["holder1@tnf.test", "Holder2@TNF.test", "holder2@tnf.test"];
 
 const SAMPLE_KEY: Record<string, string> = {
@@ -34,14 +37,16 @@ const SAMPLE_KEY: Record<string, string> = {
   digest: "digest_2026-10-07",
   status: "status_2026-10-07",
   game_day: "game_day_g01",
+  game_list: "game_list_1a116ebc30d629eb",
+  answer: "answer_1a116ebc30d629eb",
 };
 
 describe("a broadcast", () => {
   const env = envelopeFor("game_day_g01", { adminEmail: ADMIN, owners: OWNERS, derived: HOLDERS });
 
-  it("carries exactly the eight owner addresses on To, Anthony first", () => {
-    expect(env.to).toEqual(EIGHT);
-    expect(env.to).toHaveLength(8);
+  it("carries exactly the ten owner addresses on To, Anthony first, TJA then DN last", () => {
+    expect(env.to).toEqual(TEN);
+    expect(env.to).toHaveLength(10);
     expect(env.cc).toEqual([]);
   });
 
@@ -55,8 +60,8 @@ describe("a broadcast", () => {
     expect(e.bcc).toEqual(["holder1@tnf.test", "holder2@tnf.test"]);
   });
 
-  it("never carries Anthony's work address, on To or in Bcc", () => {
-    const e = envelopeFor("game_day_g01", { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, ALT, " AVD-WORK@tnf.test"] });
+  it("never carries an owner's alt address, on To or in Bcc", () => {
+    const e = envelopeFor("game_day_g01", { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, ALT, " AVD-ALT@tnf.test"] });
     expect([...e.to, ...e.cc, ...e.bcc]).not.toContain(ALT);
   });
 
@@ -70,11 +75,33 @@ describe("a broadcast", () => {
   });
 });
 
+describe("an owner with no address on the owners table", () => {
+  // The live table on 2026-10-08: DN has none. The refusal names DN and only DN.
+  const dnMissing = OWNERS.map((o) => (o.code === "DN" ? { ...o, email: null } : o));
+
+  it("refuses the broadcast, naming that owner and no other", () => {
+    let msg = "";
+    try {
+      broadcastTo(dnMissing, ADMIN);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg).toMatch(/owner DN has no address/);
+    const named = OWNERS.map((o) => o.code).filter((c) => c !== "DN" && new RegExp(`\\b${c}\\b`).test(msg));
+    expect(named).toEqual([]);
+  });
+
+  it("names every owner with no address in one refusal", () => {
+    const two = dnMissing.map((o) => (o.code === "TJA" ? { ...o, email: " " } : o));
+    expect(() => broadcastTo(two, ADMIN)).toThrow(/owners TJA, DN have no address/);
+  });
+});
+
 describe("a per-recipient email", () => {
   const perRecipient = FAMILIES.filter((f) => !f.broadcast);
 
   it("is every family but the game-day pack", () => {
-    expect(perRecipient.map((f) => f.name).sort()).toEqual(["digest", "holder_checkin", "recruit", "reply", "status"]);
+    expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "recruit", "reply", "status"]);
     expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name)).toEqual(["game_day"]);
   });
 
@@ -82,7 +109,7 @@ describe("a per-recipient email", () => {
     it(`${f.name} carries its one recipient and no owner, even when owners are passed`, () => {
       const e = envelopeFor(SAMPLE_KEY[f.name], { adminEmail: ADMIN, recipient: "Holder1@tnf.test", owners: OWNERS, derived: HOLDERS });
       expect(e).toEqual({ to: ["holder1@tnf.test"], cc: [], bcc: [] });
-      const owners = new Set([...EIGHT, ALT]);
+      const owners = new Set([...TEN, ALT]);
       expect([...e.to, ...e.cc, ...e.bcc].some((a) => owners.has(a))).toBe(false);
     });
   }

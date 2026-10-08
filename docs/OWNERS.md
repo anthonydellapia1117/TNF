@@ -1,4 +1,4 @@
-# The eight owner codes
+# The ten owner codes
 
 Who each code belongs to. **There is no owner table in the schema** was true
 until 2026-09-10; `owner_group` was a bare `CHECK` constraint on
@@ -20,6 +20,8 @@ a participant's $500 and holds it, and nothing else.
 | NL | Nolan Lawrence | named 2026-09-09 |
 | GD | Gregory DellaPia | |
 | BG | Billy Guyon | code added 2026-09-04 (migration 19), named 2026-09-09 |
+| TJA | TJ Auletto | code and name added 2026-10-08 (migration 34) |
+| DN | Dom Novelli | code and name added 2026-10-08 (migration 34); no address on file yet |
 
 `DIRECT` was retired 2026-08-28 (migration 13) and folded into AVD. It is
 rejected on insert and on update. History was deliberately not rewritten:
@@ -34,11 +36,30 @@ seeded all eight addresses ten lines below a comment saying they must never be
 in a repo file; seven of the eight were not in the repo anywhere before that,
 and it took a review to catch it.
 
-So, against the database directly and never committed:
+So, against the database as the admin and never committed, through the
+audited RPC (migration 34), one column at a time; a null clears it:
 
 ```
-update owners set email = '<address>' where code = 'AVD';
+select admin_set_owner_contact('TJA', 'email', '<address>', 'claude:<task>-<date>');
 ```
+
+The audit row says which column changed and whether it was set before and
+after, never the address. The RPC refuses an address another owner already
+has and an `alt_email` that repeats the owner's own `email`.
+
+**Anthony has one address on this pool.** AVD's `alt_email` was cleared
+2026-10-08 and his work email is never stored, written or addressed anywhere
+in the pool. Migration 35 enforces it: `blocked_address_hashes` holds the
+sha256 of each such address, seeded by hand and never committed, and a trigger
+on `owners`, `participants` and `prospects` rejects any write that hashes to
+one.
+
+**An owner is never a prospect.** The recruit send excludes every owner's
+address, and an owner's prospect row, where one exists, is removed with
+`admin_remove_prospect`.
+
+**While any owner has no address, a broadcast refuses** (its To line must
+carry every owner), and the nightly digest says so in one NEEDS ANTHONY line.
 
 `tests/sql/19_owners.sql` asserts the migration seeds zero addresses, and
 `tests/unit/no-published-emails.test.ts` fails on any address added to any
@@ -62,7 +83,7 @@ admin:
 select code, full_name, email, alt_email from owners order by code;
 ```
 
-You should see eight rows. A non-admin session sees zero, which
+You should see ten rows. A non-admin session sees zero, which
 `tests/sql/19_owners.sql` asserts by actually dropping to the `authenticated`
 role rather than by declaring it.
 

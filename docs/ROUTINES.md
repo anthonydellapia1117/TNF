@@ -222,13 +222,15 @@ grid link instead of two file links.
 time.** Anthony's rule of 2026-10-07: every broadcast email (one body, many
 recipients in Bcc) carries every owner on To. `src/lib/email/envelope.ts`
 builds it: Anthony's address first, then each other owner's primary address
-(RM, MAP, JPOD, GD, EJD, NL, BG), eight in all today, never an owner's
-`alt_email`, so Anthony's work address is never on it. The routine exports the
+(RM, MAP, JPOD, GD, EJD, NL, BG, TJA, DN), ten in all, never an owner's
+`alt_email`. Anthony has one address on this pool. The routine exports the
 table through the Supabase connector with "The owners query" below and hands
 the file to the command; no environment variable and no repo file carries an
 owner address, and the routine variable that used to was retired the same
-day. The command refuses to build a broadcast if an owner has no address, if
-Anthony's row does not carry `ADMIN_EMAIL`, or if two owners share one.
+day. The command refuses to build a broadcast if an owner has no address
+(naming every such owner; DN has none on 2026-10-08, so every broadcast
+refuses until it is set, and the nightly digest says so), if Anthony's row
+does not carry `ADMIN_EMAIL`, or if two owners share one.
 
 The Bcc is the participant query minus every address already on To, so an
 owner who also holds a block is listed once, on To. Per-recipient email (a

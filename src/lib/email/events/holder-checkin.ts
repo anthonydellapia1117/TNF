@@ -3,7 +3,7 @@
 
 import type { EmailContext, EmailSpec, Row } from "../types.ts";
 import { amount, andList, hourLabel, longDate, monthDay } from "../format.ts";
-import { claimDeadline, firstGame, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
+import { claimDeadline, firstGame, gameDatesLine, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
 import { greetingFor } from "../greeting.ts";
 import { BOARD, HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, VENMO } from "../copy.ts";
 import { REVEAL_TIME_ET } from "../../format.ts";
@@ -33,6 +33,7 @@ export function holderCheckin(ctx: EmailContext): EmailSpec {
   });
 
   rows.push(
+    ["Games", `${c.games.length}, ${gameDatesLine(c)}`],
     ["Halftime", `${amount(pay.halftimeCents)}, every game`],
     ["Final", `${amount(pay.finalCents)}, every game`],
     ["How a block wins", HOW_A_BLOCK_WINS],

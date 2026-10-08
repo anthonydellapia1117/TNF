@@ -44,6 +44,12 @@ export function monthDay(ymd: string): string {
   return `${p.month} ${p.day}`;
 }
 
+/** "Wed Nov 25" from YYYY-MM-DD. */
+export function shortDate(ymd: string): string {
+  const p = parts(civil(ymd), { weekday: "short", month: "short", day: "numeric" }, "UTC");
+  return `${p.weekday} ${p.month} ${p.day}`;
+}
+
 /** "Wed 11/25" from YYYY-MM-DD: the sweep replies' own style. */
 export function weekdaySlash(ymd: string): string {
   const p = parts(civil(ymd), { weekday: "short", month: "numeric", day: "numeric" }, "UTC");

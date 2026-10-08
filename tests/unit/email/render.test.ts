@@ -6,7 +6,7 @@ import { firstNameOf, greetingFor } from "@/lib/email/greeting";
 import { wrap, wrapRow } from "@/lib/email/wrap";
 import { gameDatesLine, seasonPayoutCents, uniformPayouts } from "@/lib/email/facts";
 import type { HolderFacts } from "@/lib/email/types";
-import { ALL_BLOCKS, COMMON, ctx, DIGEST, SAMPLE_HOLDER } from "./fixtures";
+import { ALL_BLOCKS, ASKER, COMMON, ctx, DIGEST, SAMPLE_HOLDER } from "./fixtures";
 
 const holder = (h: HolderFacts) => renderEvent(ctx("holder_checkin_2026-10-07", { holder: h }));
 
@@ -22,6 +22,7 @@ describe("C1 holder check-in", () => {
         "",
         "Block 3: Paid",
         "Block 5: Reserved, 500 owed",
+        "Games: 10, Nov 25, 26, 27 / Dec 24, 25 / Dec 31",
         "Halftime: 1,500, every game",
         "Final: 3,000, every game",
         "How a block wins: Last digit of each team's score. Away digit picks",
@@ -231,22 +232,97 @@ describe("registry", () => {
 
 describe("digest", () => {
   const r = renderEvent(ctx("digest_2026-10-07", { digest: DIGEST }));
-  it("lists the AVD chase, the queue and the writes, then the three checks", () => {
+  it("leads with each owner who has no address, then the AVD chase, the queue and the writes, then the three checks", () => {
     expect(r.email.subject).toBe("TNF DIGEST 2026-10-07");
-    expect(r.spec.rows[0]).toEqual(["Block 5", "Reserved, no payment recorded by the pool, Anthony DellaPia"]);
+    expect(r.spec.rows[0]).toEqual(["NEEDS ANTHONY", "DN Dom Novelli has no address; the next broadcast refuses until it is set."]);
+    expect(r.spec.rows[1]).toEqual(["Block 5", "Reserved, no payment recorded by the pool, Anthony DellaPia"]);
     expect(r.spec.rows.map((x) => x[0])).toEqual([
-      "Block 5", "Queue unclassified_mail", "Queue payment", "Write 7:43 PM", "Check 7a", "Check 7b", "Check 7c",
+      "NEEDS ANTHONY", "Block 5", "Queue unclassified_mail", "Queue payment", "Write 7:43 PM", "Check 7a", "Check 7b", "Check 7c",
     ]);
-    expect(r.spec.rows[2][1]).toBe("Jane Holder, 500");
+    expect(r.spec.rows[3][1]).toBe("Jane Holder, 500");
     expect(r.spec.next).toBe("Next digest: Thu Oct 8, 2026, 10:43 PM ET.");
   });
   it("never prints a dollar sign or an address out of a payload", () => {
     expect(r.email.text).not.toMatch(/\$|@tnf\.test/);
     expect(r.problems).toEqual([]);
   });
+  it("quotes a queue row's own words without the reply-voice lint refusing the digest", () => {
+    const q = { id: "q9", kind: "unclassified_mail", payload: { subject: "let me know if 30 is open" } };
+    const quoted = renderEvent(ctx("digest_2026-10-07", { digest: { ...DIGEST, open_queue: [q] } }));
+    expect(quoted.email.text).toMatch(/let me know if 30 is open/);
+    expect(quoted.problems).toEqual([]);
+  });
+  it("carries no NEEDS ANTHONY line once every owner has an address", () => {
+    const ok = renderEvent(ctx("digest_2026-10-07", { digest: { ...DIGEST, owners_missing_email: [] } }));
+    expect(ok.spec.rows.some((x) => x[0] === "NEEDS ANTHONY")).toBe(false);
+  });
   it("fails 7a on a broken total", () => {
     const bad = renderEvent(ctx("digest_2026-10-07", { digest: { ...DIGEST, block_counts: { ...DIGEST.block_counts, held: 1 } } }));
     expect(bad.spec.rows.find((x) => x[0] === "Check 7a")?.[1]).toMatch(/^FAIL/);
+  });
+});
+
+describe("game list reply", () => {
+  const r = renderEvent(ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7", thanks: "yes" });
+  it("is a first name, three short sentences, one row per game, signed Anthony", () => {
+    expect(r.email.subject).toBe("Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7");
+    expect(r.email.text).toBe(
+      [
+        "Dan,",
+        "",
+        "Thanks for pushing it. Here are all 10 games, kickoffs ET. 42 blocks",
+        "still open, ad-26-tnf.vercel.app",
+        "",
+        "Wed Nov 25: 8:00 PM ET, Packers at Rams",
+        "Thu Nov 26: 1:00 PM ET, Bears at Lions",
+        "Thu Nov 26: 4:30 PM ET, Eagles at Cowboys",
+        "Thu Nov 26: 8:20 PM ET, Chiefs at Bills",
+        "Fri Nov 27: 3:00 PM ET, Broncos at Steelers",
+        "Thu Dec 24: 8:15 PM ET, Texans at Eagles",
+        "Fri Dec 25: 1:00 PM ET, Packers at Bears",
+        "Fri Dec 25: 4:30 PM ET, Bills at Broncos",
+        "Fri Dec 25: 8:15 PM ET, Rams at Seahawks",
+        "Thu Dec 31: 8:15 PM ET, Ravens at Bengals",
+        "",
+        "Anthony",
+        "",
+      ].join("\n"),
+    );
+    expect(r.problems).toEqual([]);
+  });
+  it("thanks only someone who said they are selling blocks", () => {
+    const plain = renderEvent(ctx("game_list_ab", { people: ASKER }), { subject: "x" });
+    expect(plain.spec.prose).toEqual(["Here are all 10 games, kickoffs ET. 42 blocks still open, ad-26-tnf.vercel.app"]);
+    expect(() => renderEvent(ctx("game_list_ab"), { subject: "x", thanks: "sure" })).toThrow(/thanks=yes or nothing/);
+  });
+  it("links the site as the bare URL and nothing else", () => {
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+  });
+  it("refuses a game with no confirmed date rather than state one", () => {
+    const games = COMMON.games.map((g, i) => (i === 3 ? { ...g, date_confirmed: false } : g));
+    expect(() => renderEvent({ ...ctx("game_list_ab"), common: { ...COMMON, games } }, { subject: "x" })).toThrow(/G4 has no confirmed date/);
+  });
+  it("greets no one when the address reaches a cc", () => {
+    const cc = renderEvent(ctx("game_list_ab", { people: [{ ...ASKER[0], via: "cc" }] }), { subject: "x" });
+    expect(cc.spec.greeting).toBeNull();
+  });
+});
+
+describe("answer reply", () => {
+  it("is the caller's sentences, first name first, signed Anthony", () => {
+    const r = renderEvent(ctx("answer_ab12", { people: ASKER }), { subject: "q", lines: "Block 30 is yours. Paid in full." });
+    expect(r.email.subject).toBe("Re: q");
+    expect(r.email.text).toBe("Dan,\n\nBlock 30 is yours. Paid in full.\n\nAnthony\n");
+    expect(r.problems).toEqual([]);
+  });
+  it("refuses more than three sentences, and no lines", () => {
+    expect(() => renderEvent(ctx("answer_ab12"), { subject: "q", lines: "One. Two. Three. Four." })).toThrow(/4 sentences/);
+    expect(() => renderEvent(ctx("answer_ab12"), { subject: "q" })).toThrow(/--lines is required/);
+  });
+  it("is refused by lint for filler or a dollar sign", () => {
+    expect(renderEvent(ctx("answer_ab12"), { subject: "q", lines: "Done. Let me know if you need anything." }).problems)
+      .toContain('text: filler ("Let me know if")');
+    expect(renderEvent(ctx("answer_ab12"), { subject: "q", lines: "It is $500." }).problems.join()).toMatch(/dollar sign/);
   });
 });
 

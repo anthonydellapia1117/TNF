@@ -10,8 +10,8 @@
 // Per-recipient (holder check-in, recruit, T1-T7 replies, the digest, status):
 // To is the one recipient. No owner is ever added, no Cc, no Bcc.
 //
-// An owner's alt_email (Anthony's work address is the only one on file) is
-// never a recipient of either shape.
+// An owner's alt_email is never a recipient of either shape. None is on file
+// since 2026-10-08; the column stays, and the rule with it.
 
 export interface OwnerAddress {
   code: string;
@@ -25,8 +25,8 @@ export interface Envelope {
   bcc: string[];
 }
 
-/** To order: Anthony first, then the order Anthony named them on 2026-10-07; any later code after, by code. */
-export const OWNER_ORDER = ["AVD", "RM", "MAP", "JPOD", "GD", "EJD", "NL", "BG"] as const;
+/** To order: Anthony first, then the order Anthony named them on 2026-10-07, then TJA and DN (2026-10-08); any later code after, by code. */
+export const OWNER_ORDER = ["AVD", "RM", "MAP", "JPOD", "GD", "EJD", "NL", "BG", "TJA", "DN"] as const;
 
 const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
 
@@ -37,7 +37,8 @@ export function neverAddressed(owners: OwnerAddress[]): Set<string> {
 
 /**
  * Anthony, then each other owner's primary address. Refuses rather than
- * sending short: an owner with no address, Anthony's row not carrying
+ * sending short: an owner with no address (every such owner is named, so one
+ * refusal says everything that has to be set), Anthony's row not carrying
  * ADMIN_EMAIL, two owners sharing an address, or a primary that is someone's
  * alt address.
  */
@@ -52,11 +53,17 @@ export function broadcastTo(owners: OwnerAddress[], adminEmail: string): string[
   const avd = rows.find((o) => o.code === "AVD");
   if (!avd) throw new Error("broadcast: the owners export has no AVD row");
   if (norm(avd.email) !== admin) throw new Error("broadcast: AVD's address on the owners table is not ADMIN_EMAIL");
+  const missing = rows.filter((o) => !norm(o.email)).map((o) => o.code);
+  if (missing.length === 1) {
+    throw new Error(`broadcast: owner ${missing[0]} has no address on the owners table; every broadcast refuses until it is set`);
+  }
+  if (missing.length > 1) {
+    throw new Error(`broadcast: owners ${missing.join(", ")} have no address on the owners table; every broadcast refuses until they are set`);
+  }
   const never = neverAddressed(owners);
   const to: string[] = [];
   for (const o of rows) {
     const a = norm(o.email);
-    if (!a) throw new Error(`broadcast: owner ${o.code} has no address on the owners table`);
     if (never.has(a)) throw new Error(`broadcast: owner ${o.code}'s address is an alt address`);
     if (to.includes(a)) throw new Error(`broadcast: owner ${o.code} shares an address with another owner`);
     to.push(a);

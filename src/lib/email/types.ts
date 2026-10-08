@@ -65,6 +65,8 @@ export interface DigestFacts {
   block_counts: { total: number; available: number; reserved: number; assigned: number; held: number };
   over_committed: { name: string; numbered: number; requested: number }[];
   last_sweep_activity: string | null;
+  /** Owners with no address on the owners table (migration 34): every broadcast refuses while any is listed. */
+  owners_missing_email: { code: string; full_name: string }[];
 }
 
 export interface BlockStatus {
@@ -80,6 +82,8 @@ export interface EmailContext {
   holder?: HolderFacts;
   digest?: DigestFacts;
   blocks?: BlockStatus[];
+  /** game_list and answer: who the address reaches, for the greeting (migration 34). */
+  people?: HolderPerson[];
 }
 
 /** admin_email_batch(event_key): the common facts once, one item per recipient. */
