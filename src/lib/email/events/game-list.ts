@@ -6,7 +6,9 @@
 // Event key: game_list_<Gmail id of the message being answered>. One reply per
 // inbound message (index email_sends_one_reply_per_message). Recipients: any
 // participant, prospect or owner address; the command checks it is the sender.
-// Args: subject (their subject, for "Re:"), filled in by --reply-to.
+// Args: subject (their subject, for "Re:"), filled in by --reply-to; thanks
+// ("yes" when the asker said they are selling blocks for the pool, which adds
+// "Thanks for pushing it." and is a claim only true of them).
 
 import type { EmailContext, EmailSpec, EventArgs, Row } from "../types.ts";
 import { clock, shortDate, teamShort } from "../format.ts";
@@ -32,11 +34,13 @@ export function gameListRows(ctx: EmailContext): Row[] {
 export function gameList(ctx: EmailContext, args: EventArgs): EmailSpec {
   const c = ctx.common;
   const n = c.games.length;
+  if (args.thanks !== undefined && args.thanks !== "yes") throw new Error(`game_list: --arg thanks=yes or nothing, got "${args.thanks}"`);
+  const thanks = args.thanks === "yes" ? "Thanks for pushing it. " : "";
   return {
     subject: reSubject(args.subject),
     greeting: greetingFor(ctx.people ?? []),
     opening: null,
-    prose: [`Thanks for pushing it. Here are all ${n} games, kickoffs ET. ${c.open_count} blocks still open, ${SITE}`],
+    prose: [`${thanks}Here are all ${n} games, kickoffs ET. ${c.open_count} blocks still open, ${SITE}`],
     rows: gameListRows(ctx),
     next: null,
     deadline: null,

@@ -81,6 +81,6 @@ export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("status_2026-10-07"), { lines: "SESSION: x\nRAN: y" }],
   [ctx("game_day_g01"), { grid: "attached" }],
   [ctx("game_day_g10"), { grid: "links", png_url: "https://x.test/a.png", pdf_url: "https://x.test/a.pdf" }],
-  [ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7" }],
+  [ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7", thanks: "yes" }],
   [ctx("answer_1a116ebc30d629eb", { people: ASKER }), { subject: "question", lines: "Block 30 is yours. Paid in full." }],
 ];

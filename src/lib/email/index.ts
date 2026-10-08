@@ -7,7 +7,7 @@ export type * from "./types.ts";
 export { renderEvent, familyOf, envelopeFor, FAMILIES, SUBJECT_STEMS } from "./registry.ts";
 export { broadcastEnvelope, broadcastTo, perRecipientEnvelope, OWNER_ORDER, type Envelope, type OwnerAddress } from "./envelope.ts";
 export { render, renderText, renderHtml } from "./layout.ts";
-export { lintEmail } from "./lint.ts";
+export { lintEmail, lintVoice } from "./lint.ts";
 export { renderedSha } from "./sha.ts";
 export { buildMime, type MimeAttachment, type MimeMessage } from "./mime.ts";
 export { attachmentBase, gameCode } from "./events/game-day.ts";

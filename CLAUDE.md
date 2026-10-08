@@ -490,10 +490,13 @@ rule, for any session or routine that reads the mail:
   before it goes and recorded after, and is audited: `npm run email --
   --reply-to <message id>`, as `game_list_<message id>` for the game list,
   `answer_<message id>` for anything else, or a T1-T6 sweep template. The
-  database allows one reply per inbound message.
-- **Before each send**, skip if Anthony already wrote in the thread after the
-  holder's message, and delete every unsent draft in the thread first. The
-  command does both, and refuses on the first.
+  database allows one game_list or answer reply per inbound message and one
+  template reply per thread; across the two, the command's check for a later
+  message from Anthony to the sender is the guard, so every reply goes out
+  with `--reply-to`.
+- **Before each send**, skip if Anthony already wrote to the holder in the
+  thread after the holder's message, and delete every unsent draft in the
+  thread first. The command does both, and refuses on the first.
 - **Pool-TNF-Done goes on only after the reply is sent or the message is
   classed no-reply.** Never on a question still waiting for an answer: a
   labelled thread is not read again. The command applies it after the send.

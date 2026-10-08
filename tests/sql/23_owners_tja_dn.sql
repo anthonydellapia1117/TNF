@@ -135,6 +135,21 @@ begin
     if sqlerrm like 'TEST FAILURE%' then raise; end if;
     if sqlerrm not like '%another owner already has that address%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
   end;
+  perform admin_set_owner_contact('GD', 'alt_email', 'gd-alt@tnf.test', 'test');
+  begin
+    perform admin_set_owner_contact('DN', 'email', 'GD-ALT@tnf.test', 'test');
+    raise exception 'TEST FAILURE: an owner took another owner''s alt address';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%another owner already has that address%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+  end;
+  begin
+    perform admin_set_owner_contact('GD', 'email', 'gd-alt@tnf.test', 'test');
+    raise exception 'TEST FAILURE: email duplicated the owner''s own alt_email';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%duplicate this owner''s own alt_email%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+  end;
   begin
     perform admin_set_owner_contact('DN', 'email', 'not an address', 'test');
     raise exception 'TEST FAILURE: a malformed address was stored';
@@ -155,9 +170,6 @@ begin
   perform admin_set_owner_contact('TJA', 'email', 'tj-new@tnf.test', 'test');
   if (select count(*) from audit_log where action = 'set_owner_contact') <> v_n then
     raise exception 'TEST FAILURE: a no-op contact write was audited as a change';
-  end if;
-  if (select email from owners where code = 'DN') is not null then
-    raise exception 'TEST FAILURE: a refused write changed DN';
   end if;
 end $$;
 

@@ -36,14 +36,17 @@
 //                             game_list_<id>, answer_<id> or reply_t<n>_<thread>.
 //                             Refuses unless the message came from the
 //                             recipient, and refuses if Anthony already wrote
-//                             in the thread after it. Subject is theirs, "Re:".
+//                             to that sender in the thread after it. Subject
+//                             is theirs, "Re:".
 //                             Deletes every unsent draft in the thread first,
 //                             then sends with In-Reply-To and References, then
 //                             marks the message read and labels it
 //                             Pool-TNF-Done. --dry-run reports all of it and
 //                             changes nothing.
-//   --no-reply <message id>   an acknowledgement: mark it read and label it
-//                             Pool-TNF-Done, and send nothing
+//   --no-reply <message id> [--dry-run]
+//                             an acknowledgement: mark it read and label it
+//                             Pool-TNF-Done, and send nothing. Refuses
+//                             Anthony's own mail.
 //
 // Event arguments: --subject, --block, --lines, --grid, --png-url, --pdf-url,
 // or --arg key=value. Refusals: any lint finding; a send to anyone but
@@ -160,10 +163,14 @@ async function planReply(gmail: Gmail, eventKey: string, replyTo: string, to: st
   if (t && t[2] !== inbound.threadId) die(`${eventKey} is for thread ${t[2]}; message ${replyTo} is in ${inbound.threadId}`);
   if (!own && !t) die(`${eventKey} is not a reply to a message (game_list_<id>, answer_<id>, reply_t<n>_<thread>)`);
   if (inbound.from !== to) die(`message ${replyTo} is not from ${to}; a reply goes to the sender`);
+  // Anthony already replied when a message he sent after M went to M's sender.
+  // A later message to someone else in the same thread is not an answer to M.
   const thread = await gmail.threadMessages(inbound.threadId);
-  const laterFromAnthony = thread
-    .filter((m) => m.internalDate > inbound.internalDate && m.labelIds.includes("SENT") && !m.labelIds.includes("DRAFT"))
-    .map((m) => m.id);
+  const laterFromAnthony: string[] = [];
+  for (const m of thread) {
+    if (m.internalDate <= inbound.internalDate || !m.labelIds.includes("SENT") || m.labelIds.includes("DRAFT")) continue;
+    if ((await gmail.recipientsOf(m.id)).includes(inbound.from)) laterFromAnthony.push(m.id);
+  }
   const drafts = await gmail.draftsInThread(inbound.threadId);
   return { inbound, laterFromAnthony, drafts };
 }
@@ -199,7 +206,11 @@ async function main() {
   if (noReply) {
     const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
     const m = await gmail.inbound(noReply);
-    if (m.from === ADMIN_EMAIL) die(`message ${noReply} is Anthony's own; nothing to acknowledge`);
+    if (m.from === ADMIN_EMAIL || m.labelIds.includes("SENT")) die(`message ${noReply} is Anthony's own; nothing to acknowledge`);
+    if (flag("dry-run")) {
+      console.log(JSON.stringify({ message_id: noReply, thread_id: m.threadId, would_mark_read: true, would_label: DONE_LABEL }));
+      return;
+    }
     await markDone(gmail, noReply);
     console.log(JSON.stringify({ message_id: noReply, thread_id: m.threadId, read: true, label: DONE_LABEL }));
     return;

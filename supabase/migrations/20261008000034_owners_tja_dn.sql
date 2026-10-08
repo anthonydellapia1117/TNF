@@ -22,8 +22,11 @@
 --    refuses until each owner has one.
 --
 -- 6. game_list_<message id> and answer_<message id>: a reply to one inbound
---    message, to the address that wrote it. One reply per inbound message,
---    enforced by a unique index, whatever the event and whoever it goes to.
+--    message, to the address that wrote it. One game_list or answer reply per
+--    inbound message, enforced by a unique index whoever it goes to. A
+--    T-template reply (reply_t<n>_<thread>) is keyed by thread in its own
+--    index; the command's check for a later message from Anthony in the
+--    thread is what stops the two families answering the same message.
 
 -- ---------------------------------------------------------------------------
 -- 1. The codes.
@@ -172,8 +175,8 @@ revoke execute on function email_people_for(text)    from public, anon, authenti
 revoke execute on function email_digest_facts()      from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
--- One reply per inbound message. The key carries the Gmail id of the message
--- being answered; game_list and answer share the one slot.
+-- One game_list or answer reply per inbound message. The key carries the
+-- Gmail id of the message being answered; the two events share the one slot.
 -- ---------------------------------------------------------------------------
 
 create unique index email_sends_one_reply_per_message
@@ -302,6 +305,9 @@ declare
   v_old text;
 begin
   perform assert_admin();
+  -- One contact write at a time across all owners: the duplicate check below
+  -- reads OTHER owners' rows, which a row lock on this one does not cover.
+  perform pg_advisory_xact_lock(hashtext('admin_set_owner_contact'));
   if nullif(btrim(coalesce(p_actor, '')), '') is null then
     raise exception 'actor required';
   end if;

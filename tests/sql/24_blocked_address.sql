@@ -140,9 +140,9 @@ begin
     if sqlerrm not like 'blocked address: prospects.email%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
     v_ok := v_ok + 1;
   end;
-  if exists (select 1 from prospects where email = 'fine@tnf.test') then
-    raise exception 'TEST FAILURE: an import with a blocked address half-applied';
-  end if;
+  -- No half-applied check here: the caught block above rolled back whatever
+  -- the import wrote, so one would pass whatever the import did. The import's
+  -- all-or-nothing property is migration 33's and tested in 22_email.sql.
 
   if v_ok <> 7 then raise exception 'TEST FAILURE: % of 7 refusals fired', v_ok; end if;
 
@@ -167,6 +167,34 @@ begin
     if sqlerrm not like '%still hold that address%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
   end;
   perform admin_remove_prospect('held@tnf.test', 'never stored', 'test');
+
+  -- Every other address column holds the seed back too, one at a time.
+  declare
+    v_pid uuid;
+    v_col text;
+    v_n int := 0;
+  begin
+    insert into participants (full_name, owner_group) values ('Held Probe', 'AVD') returning id into v_pid;
+    foreach v_col in array array['participants.email', 'participants.cc_email', 'owners.email', 'owners.alt_email'] loop
+      if v_col = 'participants.email' then update participants set email = 'held@tnf.test' where id = v_pid;
+      elsif v_col = 'participants.cc_email' then update participants set cc_email = 'held@tnf.test' where id = v_pid;
+      elsif v_col = 'owners.email' then update owners set email = 'held@tnf.test' where code = 'DN';
+      else update owners set alt_email = 'held@tnf.test' where code = 'DN';
+      end if;
+      begin
+        perform admin_block_address_hash(v_h, 'test', 'test');
+        raise exception 'TEST FAILURE: a hash was seeded while % still held the address', v_col;
+      exception when others then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        if sqlerrm not like '%still hold that address%' then raise exception 'TEST FAILURE: wrong refusal for %: %', v_col, sqlerrm; end if;
+        v_n := v_n + 1;
+      end;
+      update participants set email = null, cc_email = null where id = v_pid;
+      update owners set email = null, alt_email = null where code = 'DN';
+    end loop;
+    if v_n <> 4 then raise exception 'TEST FAILURE: % of 4 column checks held the seed back', v_n; end if;
+  end;
+
   perform admin_block_address_hash(v_h, 'test', 'test');
   if not exists (select 1 from blocked_address_hashes where hash = v_h) then
     raise exception 'TEST FAILURE: seeding after cleanup did not store the hash';

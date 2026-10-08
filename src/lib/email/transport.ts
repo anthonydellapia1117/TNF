@@ -144,6 +144,17 @@ export class Gmail {
     }));
   }
 
+  /** Every address on a message's To and Cc, bare and lowercased. */
+  async recipientsOf(id: string): Promise<string[]> {
+    const j = await this.get(`/messages/${encodeURIComponent(id)}?format=metadata&metadataHeaders=To&metadataHeaders=Cc`);
+    const headers = ((j.payload as { headers?: { name: string; value: string }[] } | undefined)?.headers) ?? [];
+    return headers
+      .filter((h) => /^(to|cc)$/i.test(h.name))
+      .flatMap((h) => h.value.split(","))
+      .map(bareAddress)
+      .filter(Boolean);
+  }
+
   /** The ids of every unsent draft in a thread. */
   async draftsInThread(threadId: string): Promise<string[]> {
     const out: string[] = [];

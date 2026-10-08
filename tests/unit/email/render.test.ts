@@ -246,6 +246,12 @@ describe("digest", () => {
     expect(r.email.text).not.toMatch(/\$|@tnf\.test/);
     expect(r.problems).toEqual([]);
   });
+  it("quotes a queue row's own words without the reply-voice lint refusing the digest", () => {
+    const q = { id: "q9", kind: "unclassified_mail", payload: { subject: "let me know if 30 is open" } };
+    const quoted = renderEvent(ctx("digest_2026-10-07", { digest: { ...DIGEST, open_queue: [q] } }));
+    expect(quoted.email.text).toMatch(/let me know if 30 is open/);
+    expect(quoted.problems).toEqual([]);
+  });
   it("carries no NEEDS ANTHONY line once every owner has an address", () => {
     const ok = renderEvent(ctx("digest_2026-10-07", { digest: { ...DIGEST, owners_missing_email: [] } }));
     expect(ok.spec.rows.some((x) => x[0] === "NEEDS ANTHONY")).toBe(false);
@@ -257,7 +263,7 @@ describe("digest", () => {
 });
 
 describe("game list reply", () => {
-  const r = renderEvent(ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7" });
+  const r = renderEvent(ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7", thanks: "yes" });
   it("is a first name, three short sentences, one row per game, signed Anthony", () => {
     expect(r.email.subject).toBe("Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7");
     expect(r.email.text).toBe(
@@ -283,6 +289,11 @@ describe("game list reply", () => {
       ].join("\n"),
     );
     expect(r.problems).toEqual([]);
+  });
+  it("thanks only someone who said they are selling blocks", () => {
+    const plain = renderEvent(ctx("game_list_ab", { people: ASKER }), { subject: "x" });
+    expect(plain.spec.prose).toEqual(["Here are all 10 games, kickoffs ET. 42 blocks still open, ad-26-tnf.vercel.app"]);
+    expect(() => renderEvent(ctx("game_list_ab"), { subject: "x", thanks: "sure" })).toThrow(/thanks=yes or nothing/);
   });
   it("links the site as the bare URL and nothing else", () => {
     expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
