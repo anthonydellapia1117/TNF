@@ -132,4 +132,13 @@ describe("sweep prompt: the mail search is not label-only", () => {
     expect(stepA!).toMatch(/2026-08-01/);
     expect(stepA!).toMatch(/0e/);
   });
+
+  // Gmail's label: operator takes the label's NAME. label:Label_112 matches
+  // nothing and says nothing, so a run that searched by id saw an empty label
+  // door (verified 2026-10-09: by id 0 threads, by name 13). The id is only
+  // for adding or removing the label.
+  it("2a searches the label by its name, never by its id", () => {
+    expect(stepA!).toMatch(/search label:pool-tnf is:unread/);
+    expect(stepA!).toMatch(/Never search by the id/);
+  });
 });
