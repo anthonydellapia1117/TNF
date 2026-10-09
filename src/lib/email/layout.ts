@@ -1,6 +1,6 @@
 // The one place the look lives. Every TNF email is laid out here from an
 // EmailSpec: greeting, opening, one table, the next line, the deadline line,
-// the sign-off. Plain text that stands on its own, and HTML that is the same
+// the closing line, the sign-off. Plain text that stands on its own, and HTML that is the same
 // words in a single two-column table. No logo, no image, no footer, nothing
 // that competes with the table.
 
@@ -15,6 +15,7 @@ export function renderText(spec: EmailSpec): string {
   if (spec.rows.length) blocks.push(spec.rows.flatMap(([k, v]) => wrapRow(k, v)).join("\n"));
   if (spec.next) blocks.push(wrap(spec.next).join("\n"));
   if (spec.deadline) blocks.push(wrap(spec.deadline).join("\n"));
+  if (spec.closing) blocks.push(wrap(spec.closing).join("\n"));
   if (spec.signoff) blocks.push(spec.signoff);
   return `${blocks.join("\n\n")}\n`;
 }
@@ -76,6 +77,7 @@ export function renderHtml(spec: EmailSpec): string {
   }
   if (spec.next) body.push(`<p style="${P}">${inline(spec.next)}</p>`);
   if (spec.deadline) body.push(`<p style="${P}">${inline(spec.deadline)}</p>`);
+  if (spec.closing) body.push(`<p style="${P}">${inline(spec.closing)}</p>`);
   if (spec.signoff) body.push(`<p style="${P}">${esc(spec.signoff)}</p>`);
   return (
     `<!doctype html><html><head><meta charset="utf-8">` +

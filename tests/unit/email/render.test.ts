@@ -35,6 +35,8 @@ describe("C1 holder check-in", () => {
         "500 owed on block 5. Venmo @AnthonyDellaPia by Tue Nov 24, 2026. Only",
         "a paid block wins.",
         "",
+        "If anything here is off, reply and I'll fix it.",
+        "",
         "Anthony",
         "",
       ].join("\n"),
@@ -42,10 +44,63 @@ describe("C1 holder check-in", () => {
     expect(r.problems).toEqual([]);
   });
 
+  // E4 (Anthony, 2026-10-08): Paid comes from the ledger, never from the block's
+  // status. The database decides ledger_paid (migration 36): the participant's
+  // payment rows total at least 500 per assigned block that is not comped, and a
+  // comped block counts as paid. The renderer only reads it.
+  const one = (b: { block_number: number; status: "reserved" | "assigned"; ledger_paid?: boolean }) =>
+    holder({
+      people: [{ full_name: "Jane Holder", display_alias: "JH", via: "primary", owner_group: "RM" }],
+      blocks: [{ owner_group: "RM", owner_full_name: "Ronnie Malandro", ...b } as HolderFacts["blocks"][number]],
+    });
+
+  it("says Paid for an assigned block only when the ledger backs it, block by block", () => {
+    const r = holder({
+      people: [{ full_name: "Jane Holder", display_alias: "JH", via: "primary", owner_group: "RM" }],
+      blocks: [
+        { block_number: 12, status: "assigned", owner_group: "RM", owner_full_name: "Ronnie Malandro", ledger_paid: true },
+        { block_number: 50, status: "assigned", owner_group: "RM", owner_full_name: "Ronnie Malandro", ledger_paid: false },
+      ],
+    });
+    expect(r.spec.rows.slice(0, 2)).toEqual([
+      ["Block 12", "Paid"],
+      ["Block 50", "On file, payment not found - reply if that's wrong"],
+    ]);
+  });
+
+  it("says the payment was not found for an assigned block the ledger does not back", () => {
+    const r = one({ block_number: 50, status: "assigned", ledger_paid: false });
+    expect(r.spec.rows[0]).toEqual(["Block 50", "On file, payment not found - reply if that's wrong"]);
+    expect(r.email.text).not.toMatch(/Block 50: Paid/);
+    expect(r.email.text).toContain("Block 50: On file, payment not found - reply if that's wrong");
+    expect(r.problems).toEqual([]);
+  });
+
+  it("refuses an assigned block that carries no ledger fact rather than fall back to its status", () => {
+    expect(() => one({ block_number: 12, status: "assigned" })).toThrow(/ledger_paid/);
+  });
+
+  it("closes every check-in with the same line, after the deadline and before the sign-off", () => {
+    const close = "If anything here is off, reply and I'll fix it.";
+    for (const r of [
+      holder(SAMPLE_HOLDER),
+      one({ block_number: 12, status: "assigned", ledger_paid: true }),
+      one({ block_number: 50, status: "assigned", ledger_paid: false }),
+      one({ block_number: 7, status: "reserved", ledger_paid: false }),
+    ]) {
+      expect(r.spec.closing).toBe(close);
+      const t = r.email.text;
+      expect(t.indexOf(close)).toBeGreaterThan(-1);
+      expect(t.indexOf(close)).toBeLessThan(t.lastIndexOf("Anthony"));
+      if (r.spec.deadline) expect(t.indexOf(close)).toBeGreaterThan(t.indexOf(r.spec.deadline.slice(0, 20)));
+      expect(r.email.html).toContain(close);
+    }
+  });
+
   it("names the other owner for a block in his book, never the word owed, and no deadline", () => {
     const r = holder({
       people: [{ full_name: "Jane Holder", display_alias: "JH", via: "primary", owner_group: "RM" }],
-      blocks: [{ block_number: 12, status: "reserved", owner_group: "RM", owner_full_name: "Ronnie Malandro" }],
+      blocks: [{ block_number: 12, status: "reserved", owner_group: "RM", owner_full_name: "Ronnie Malandro", ledger_paid: false }],
     });
     expect(r.spec.rows[0]).toEqual(["Block 12", "Reserved, through Ronnie Malandro"]);
     expect(r.email.text).not.toMatch(/owed/);
@@ -57,9 +112,9 @@ describe("C1 holder check-in", () => {
     const r = holder({
       people: [{ full_name: "Ed D", display_alias: null, via: "primary", owner_group: "AVD" }],
       blocks: [
-        { block_number: 9, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia" },
-        { block_number: 5, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia" },
-        { block_number: 40, status: "assigned", owner_group: "AVD", owner_full_name: "Anthony DellaPia" },
+        { block_number: 9, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia", ledger_paid: false },
+        { block_number: 5, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia", ledger_paid: false },
+        { block_number: 40, status: "assigned", owner_group: "AVD", owner_full_name: "Anthony DellaPia", ledger_paid: true },
       ],
     });
     expect(r.spec.rows.slice(0, 3).map((x) => x[0])).toEqual(["Block 5", "Block 9", "Block 40"]);
@@ -70,7 +125,7 @@ describe("C1 holder check-in", () => {
 
   it("refuses a block in a book with no owner name rather than printing a blank", () => {
     expect(() =>
-      holder({ people: [], blocks: [{ block_number: 1, status: "reserved", owner_group: "NL", owner_full_name: null }] }),
+      holder({ people: [], blocks: [{ block_number: 1, status: "reserved", owner_group: "NL", owner_full_name: null, ledger_paid: false }] }),
     ).toThrow(/no owner name/);
   });
 

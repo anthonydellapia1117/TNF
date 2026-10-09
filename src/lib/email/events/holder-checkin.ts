@@ -1,11 +1,16 @@
 // C1: what is on file for one address, as of the day it is sent.
 // Event key: holder_checkin_YYYY-MM-DD. Recipients: admin_email_recipients.
+//
+// Paid comes from the ledger, never from the block's status (Anthony,
+// 2026-10-08, Part E4): an assigned block is Paid only when the database marks
+// it ledger_paid (migration 36), and otherwise says the payment was not found.
+// Every check-in closes by asking the holder to say if anything is off.
 
 import type { EmailContext, EmailSpec, Row } from "../types.ts";
 import { amount, andList, hourLabel, longDate, monthDay } from "../format.ts";
 import { claimDeadline, firstGame, gameDatesLine, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
 import { greetingFor } from "../greeting.ts";
-import { BOARD, HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, VENMO } from "../copy.ts";
+import { BOARD, CHECKIN_CLOSING, HOW_A_BLOCK_WINS, PAYMENT_NOT_FOUND, POOL_SUBJECT, SIGNOFF, VENMO } from "../copy.ts";
 import { REVEAL_TIME_ET } from "../../format.ts";
 
 export function holderCheckin(ctx: EmailContext): EmailSpec {
@@ -21,7 +26,12 @@ export function holderCheckin(ctx: EmailContext): EmailSpec {
   const owed: number[] = [];
   const rows: Row[] = blocks.map((b) => {
     const id = `Block ${b.block_number}`;
-    if (b.status === "assigned") return [id, "Paid"] as const;
+    if (b.status === "assigned") {
+      if (typeof b.ledger_paid !== "boolean") {
+        throw new Error(`holder_checkin: block ${b.block_number} carries no ledger_paid; render from admin_email_context (migration 36), never from status`);
+      }
+      return [id, b.ledger_paid ? "Paid" : PAYMENT_NOT_FOUND] as const;
+    }
     if (b.owner_group === "AVD") {
       owed.push(b.block_number);
       return [id, `Reserved, ${amount(price)} owed`] as const;
@@ -55,6 +65,7 @@ export function holderCheckin(ctx: EmailContext): EmailSpec {
       `Numbers are drawn at random and posted ${hourLabel(REVEAL_TIME_ET)} the morning of each game, ` +
       `starting ${longDate(ymdOfGame(c, firstGame(c)))}.`,
     deadline,
+    closing: CHECKIN_CLOSING,
     signoff: SIGNOFF,
   };
 }
