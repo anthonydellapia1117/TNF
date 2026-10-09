@@ -2,9 +2,14 @@
 --
 -- Anthony, 2026-10-08 (Part E4). Until now the holder check-in rendered
 -- "Paid" for every assigned block, reading blocks.status. Status is not a
--- payment record: block 50 went out as Paid on Oct 7 to a holder who had never
--- paid Anthony (the row behind it was an owner's cash confirmation, since
--- reversed). Paid must come from the ledger.
+-- payment record; Paid must come from the ledger.
+--
+-- What this does and does not catch. It catches an assigned block with no
+-- money row behind it. It does NOT catch an owner's cash confirmation: that is
+-- a payment row, and it counts, because an owner's word is the payment record
+-- for his own book (CLAUDE.md). Block 50 is the case that prompted this, and
+-- under this rule its Oct 7 check-in would still have read Paid: RM's
+-- confirmation was on file. It was released and the row reversed on Oct 8.
 --
 -- email_holder_facts() now marks each committed block ledger_paid:
 --   true  when the block is assigned and either comped (a comp is reconciled,

@@ -64,12 +64,19 @@ export const DIGEST = {
   owners_missing_email: [{ code: "DN", full_name: "Dom Novelli" }],
 };
 
+/** An assigned block the ledger does not back: renders the not-found line (Part E4). */
+export const UNBACKED_HOLDER: HolderFacts = {
+  people: [{ full_name: "Jane Holder", display_alias: "JH", via: "primary", owner_group: "RM" }],
+  blocks: [{ block_number: 50, status: "assigned", owner_group: "RM", owner_full_name: "Ronnie Malandro", ledger_paid: false }],
+};
+
 /** A participant asking a question from his own address. */
 export const ASKER = [{ full_name: "Dan Asker", display_alias: "DA", via: "primary" as const, owner_group: "MAP" }];
 
 /** One context and argument set per event family: what the render-lint test renders. */
 export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("holder_checkin_2026-10-07", { holder: SAMPLE_HOLDER }), {}],
+  [ctx("holder_checkin_2026-10-07", { holder: UNBACKED_HOLDER }), {}],
   [ctx("recruit_2026-10-07"), {}],
   [ctx("reply_t1_abc123", { blocks: ALL_BLOCKS }), { subject: "TNF", block: "7" }],
   [ctx("reply_t2_abc123", { blocks: ALL_BLOCKS }), { subject: "TNF", block: "8" }],

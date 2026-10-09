@@ -441,9 +441,14 @@ it does not move blocks.
   comp (Part F2; block 3 is Anthony's standing comp). Any other assigned block
   renders "On file, payment not found - reply if that's wrong". Status alone
   never makes a block Paid. Every check-in closes with "If anything here is
-  off, reply and I'll fix it." The reason is block 50: it went out as Paid on
-  Oct 7 on an owner's cash confirmation, for a holder who told Anthony he had
-  never paid; he was released and the row reversed on Oct 8.
+  off, reply and I'll fix it."
+  - **An owner's cash confirmation is a payment row and counts.** The rule
+    catches an assigned block with nothing behind it; it does not second-guess
+    an owner's word about his own book. Block 50, the case that prompted it,
+    would still have read Paid on Oct 7: RM's confirmation was on file, for a
+    holder who told Anthony he had never paid. He was released and the row
+    reversed on Oct 8. Whether an owner-held row should read differently in a
+    holder's email is Anthony's call, not yet made.
 - **The owners, by code.** AVD Anthony DellaPia, one address, RM Ronnie
   Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
   DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ

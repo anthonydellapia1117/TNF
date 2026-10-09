@@ -63,6 +63,7 @@ export function bodyPhrases(): string[] {
       spec.opening,
       spec.next,
       spec.deadline,
+      spec.closing,
       ...spec.rows.map(([k, v]) => `${k}: ${v}`),
     ].filter((x): x is string => !!x);
     for (const line of lines) {
@@ -120,6 +121,8 @@ describe("no email bypasses src/lib/email", () => {
       "docs/SWEEP_PROMPT.md": "10c. Body:\nGot it, thanks.  I'll confirm once\nI see it land.",
       "docs/ROUTINES.md": "A4. One Gmail DRAFT per game, subject TNF Holiday Pool 2026",
       "src/x.ts": "You're in on block 7. $500, Venmo @AnthonyDellaPia, or cash or check works.",
+      "scripts/c.mts": "const close = \"If anything here is off, reply and I'll fix it.\";",
+      "src/y.ts": "Block 50: On file, payment not found - reply if that's wrong",
     };
     const hits = findBypasses(Object.keys(planted), (f) => planted[f]);
     for (const f of Object.keys(planted)) expect(hits.some((h) => h.startsWith(f))).toBe(true);
