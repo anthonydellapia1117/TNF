@@ -37,8 +37,8 @@ export const COMMON: CommonFacts = {
 export const SAMPLE_HOLDER: HolderFacts = {
   people: [{ full_name: "Anthony DellaPia", display_alias: "AD", via: "primary", owner_group: "AVD" }],
   blocks: [
-    { block_number: 5, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia" },
-    { block_number: 3, status: "assigned", owner_group: "AVD", owner_full_name: "Anthony DellaPia" },
+    { block_number: 5, status: "reserved", owner_group: "AVD", owner_full_name: "Anthony DellaPia", ledger_paid: false },
+    { block_number: 3, status: "assigned", owner_group: "AVD", owner_full_name: "Anthony DellaPia", ledger_paid: true },
   ],
 };
 

@@ -45,6 +45,13 @@ export interface HolderBlock {
   status: "reserved" | "assigned";
   owner_group: string;
   owner_full_name: string | null;
+  /**
+   * Migration 36: the block is assigned and the ledger backs it (the
+   * participant's payment rows total at least the price of each assigned block
+   * that is not comped), or it is comped. The only thing that makes a block
+   * Paid in an email; status alone never does.
+   */
+  ledger_paid: boolean;
 }
 
 export interface HolderFacts {
@@ -120,6 +127,8 @@ export interface EmailSpec {
   next: string | null;
   /** Only when something is genuinely owed. */
   deadline: string | null;
+  /** One line after the deadline and before the sign-off (the holder check-in's invitation to correct it). */
+  closing?: string | null;
   /** "Anthony", or null for the status report. */
   signoff: string | null;
 }
