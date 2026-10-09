@@ -516,11 +516,11 @@ rule, for any session or routine that reads the mail:
 - **Pool-TNF-Done goes on only after the reply is sent or the message is
   classed no-reply.** Never on a question still waiting for an answer: a
   labelled thread is not read again. The command applies it after the send.
-- **What the live sweep runs** (found 2026-10-08): an older inline prompt,
-  not `docs/SWEEP_PROMPT.md`, with no repo source. It labels every message it
-  processes Pool-TNF-Done and may not reply, which is how two holders'
-  questions were closed unanswered on Oct 8. Its digest is inline too. Moving
-  the routine onto `docs/SWEEP_PROMPT.md` is Anthony's, by hand.
+- **What the live sweep runs:** `docs/SWEEP_PROMPT.md`, since 2026-10-09.
+  The routine's prompt is a pointer to the file and each run reads it from
+  main, so a merge to main changes the next run. Until then it ran an older
+  inline prompt that labelled every message Pool-TNF-Done and could not reply,
+  which is how two holders' questions were closed unanswered on Oct 8.
 
 ## Isolation
 

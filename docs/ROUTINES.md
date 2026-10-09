@@ -6,16 +6,18 @@ that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
-| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *` **target, not applied** | yes, the only one | Gmail, Supabase |
+| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, the only one | Gmail, Supabase |
 | 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | files only, and a draft | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed |
 
-**The sweep is the one thing this rebuild could not finish.** It is still
-named `TNF Gmail Sweep`, still disabled, and still carries `43 11-23,0-2 * * *`
-and its old prompt. It was created through the HTTP API rather than by an agent,
-and the platform refuses an agent update on such a routine: `update_trigger:
-this routine was created via "http_api", not by an agent`. Three edits by hand
-finish it, and they are listed under **Blocked: the sweep** below.
+**The sweep has been live on `docs/SWEEP_PROMPT.md` since 2026-10-09.** It is
+still named `TNF Gmail Sweep`, enabled, on the cron above, with Gmail and
+Supabase its only connectors. Its stored prompt is the pointer under **The
+sweep's hand edits** below. It was created through the HTTP API rather than by
+an agent, and the platform refuses an agent update on such a routine:
+`update_trigger: this routine was created via "http_api", not by an agent`. So
+a change to the trigger is Anthony's, by hand, and a change to what the sweep
+does is a merge to main.
 
 Retired the same day, disabled and kept for their run history:
 
@@ -29,30 +31,29 @@ Never delete one of these. A delete loses the run history and, for the three
 live ones, the repo source and the connectors, which `update_trigger` cannot
 put back.
 
-## Blocked: the sweep
+## The sweep's hand edits
 
-Three edits, in the UI, by hand. Nothing else in this file is waiting on
+Made by Anthony in the UI (claude.ai > Code > Routines > TNF Gmail Sweep) and
+read back off the trigger on 2026-10-09. Nothing in this file is waiting on
 anything.
 
-**claude.ai > Code > Routines > TNF Gmail Sweep**
-
-| Field | Set it to |
-|-------|-----------|
-| Name | `TNF Sweep` |
+| Field | Stored |
+|-------|--------|
+| Name | `TNF Gmail Sweep`; the rename to `TNF Sweep` was never made and is not needed |
 | Schedule / cron | `43 11-23,0-4 * * *` |
-| Prompt | the whole fenced block in `docs/SWEEP_PROMPT.md`, replacing what is there |
+| Prompt | the pointer below, since 10:47 AM ET 2026-10-09 |
+| Connectors | Gmail, Supabase; Vercel removed 2026-10-09 |
 | Enabled | on |
 
-You should see the routine listed as `TNF Sweep`, enabled, next run within the
-hour, with Gmail and Supabase still on its connector list. Its connectors and
-its repo source are already correct and must not be re-added; **do not delete
-and recreate it**, because a delete loses the run history, the repo source and
-both connectors, and `update_trigger` cannot put any of those back.
+The pointer, verbatim. If the routine's prompt is ever lost, this is what goes
+back:
 
-Until those edits are made: no mail is being swept, no payment candidate is
-being staged, nothing is being labelled `Pool-TNF-Done`, and there is no
-nightly digest. `Pool-TNF` has 0 unread today, so nothing is currently piling
-up, but a payment that arrives before the edits lands in mail and stays there.
+```
+Your prompt is in this repo, anthonydellapia1117/TNF, at docs/SWEEP_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/SWEEP_PROMPT.md. Hyphens only.
+```
+
+**Do not delete and recreate it**: a delete loses the run history, the repo
+source and both connectors, and `update_trigger` cannot put any of those back.
 
 ## How this file was verified
 
@@ -247,9 +248,9 @@ exactly that.
 
 - **When:** hourly on the :43. See the cron table above.
 - **Trigger:** `trig_017vcw3ADZHPVpKVXS1s1B7X`
-- **Prompt:** `docs/SWEEP_PROMPT.md` is the source of truth. The copy stored
-  on the routine is a copy. Edit the file, commit it, then push the same text
-  onto the routine.
+- **Prompt:** `docs/SWEEP_PROMPT.md`. The routine stores only the pointer
+  above and reads the file from main at every run (since 2026-10-09), so a
+  merge to main is a deploy.
 - **Write authority:** level B. Roster always. Money, identity, release and
   refund only on mail from `anthonydellapia@gmail.com` to
   `anthonydellapia@gmail.com` with a subject beginning `DECISION TNF:`.
