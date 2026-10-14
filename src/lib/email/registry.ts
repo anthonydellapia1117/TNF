@@ -8,6 +8,7 @@ import { lintEmail, lintVoice } from "./lint.ts";
 import { renderedSha } from "./sha.ts";
 import { holderCheckin } from "./events/holder-checkin.ts";
 import { recruit } from "./events/recruit.ts";
+import { recruitBroadcast, RECRUIT_BROADCAST_KEY } from "./events/recruit-broadcast.ts";
 import { reply, REPLY_KEY } from "./events/replies.ts";
 import { digest } from "./events/digest.ts";
 import { status, STATUS_SUBJECT } from "./events/status.ts";
@@ -34,6 +35,7 @@ interface Family {
 export const FAMILIES: Family[] = [
   { name: "holder_checkin", match: /^holder_checkin_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: holderCheckin },
   { name: "recruit", match: /^recruit_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: recruit },
+  { name: "recruit_broadcast", match: RECRUIT_BROADCAST_KEY, dated: true, broadcast: true, render: recruitBroadcast },
   { name: "reply", match: REPLY_KEY, dated: false, broadcast: false, voice: true, render: reply },
   { name: "digest", match: /^digest_(\d{4}-\d{2}-\d{2})$/, dated: true, broadcast: false, render: digest },
   { name: "status", match: /^status_[a-z0-9_-]+$/, dated: false, broadcast: false, render: status },
@@ -81,12 +83,13 @@ export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
  */
 export function envelopeFor(
   eventKey: string,
-  opts: { adminEmail: string; recipient?: string; owners?: OwnerAddress[]; derived?: string[] },
+  opts: { adminEmail: string; recipient?: string; owners?: OwnerAddress[]; derived?: string[]; omit?: string[] },
 ): Envelope {
   const f = familyOf(eventKey);
   if (f.broadcast) {
     if (!opts.owners) throw new Error(`${eventKey} is a broadcast: it needs the owners table export (--owners)`);
-    return broadcastEnvelope(opts.owners, opts.adminEmail, opts.derived ?? []);
+    return broadcastEnvelope(opts.owners, opts.adminEmail, opts.derived ?? [], { omit: opts.omit });
   }
+  if (opts.omit?.length) throw new Error(`${eventKey} is per-recipient: leaving an owner off To applies only to a broadcast`);
   return perRecipientEnvelope(opts.recipient ?? "");
 }

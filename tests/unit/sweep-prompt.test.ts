@@ -142,3 +142,29 @@ describe("sweep prompt: the mail search is not label-only", () => {
     expect(stepA!).toMatch(/Never search by the id/);
   });
 });
+
+/**
+ * The admin claim. is_admin() is true only when the request carries Anthony's
+ * email in request.jwt.claims, and the Supabase connector sends none. From the
+ * move to this prompt (2026-10-09) every admin_* call the sweep made was
+ * refused "not authorized": step 9a could not build the digest, and nothing
+ * could be staged, recorded or replied to. Found and fixed 2026-10-13.
+ */
+describe("sweep prompt: every admin call carries the admin claim", () => {
+  const CLAIM = `set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true)`;
+  const line = (prefix: string) => PROMPT.split("\n").find((l) => l.trim().startsWith(prefix));
+
+  it("0c sets the claim, in the same call, before any admin_* function", () => {
+    const step = line("0c.");
+    expect(step).toBeDefined();
+    expect(step!).toContain(CLAIM);
+    expect(step!).toMatch(/same execute_sql call/);
+    expect(step!).toMatch(/not authorized/);
+  });
+
+  it("9a builds the digest context in a call that sets it", () => {
+    const step = line("9a.");
+    expect(step).toBeDefined();
+    expect(step!).toContain(CLAIM);
+  });
+});

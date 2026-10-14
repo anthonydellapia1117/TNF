@@ -35,14 +35,25 @@ export function neverAddressed(owners: OwnerAddress[]): Set<string> {
   return new Set(owners.map((o) => norm(o.alt_email)).filter(Boolean));
 }
 
+export interface BroadcastOptions {
+  /**
+   * A one-time override (Anthony, 2026-10-13, G4): each owner named here has
+   * no address and is left off To for this one send. Every owner with no
+   * address must be named, a named owner may not have one, and AVD is never
+   * left off. The claim before the send writes one audit row per owner left
+   * off (admin_email_claim_broadcast). Without it a broadcast refuses, as always.
+   */
+  omit?: string[];
+}
+
 /**
  * Anthony, then each other owner's primary address. Refuses rather than
  * sending short: an owner with no address (every such owner is named, so one
- * refusal says everything that has to be set), Anthony's row not carrying
- * ADMIN_EMAIL, two owners sharing an address, or a primary that is someone's
- * alt address.
+ * refusal says everything that has to be set) unless a one-time override names
+ * it, Anthony's row not carrying ADMIN_EMAIL, two owners sharing an address,
+ * or a primary that is someone's alt address.
  */
-export function broadcastTo(owners: OwnerAddress[], adminEmail: string): string[] {
+export function broadcastTo(owners: OwnerAddress[], adminEmail: string, opts: BroadcastOptions = {}): string[] {
   const admin = norm(adminEmail);
   if (!admin) throw new Error("broadcast: ADMIN_EMAIL is blank");
   const rank = (code: string) => {
@@ -53,7 +64,14 @@ export function broadcastTo(owners: OwnerAddress[], adminEmail: string): string[
   const avd = rows.find((o) => o.code === "AVD");
   if (!avd) throw new Error("broadcast: the owners export has no AVD row");
   if (norm(avd.email) !== admin) throw new Error("broadcast: AVD's address on the owners table is not ADMIN_EMAIL");
-  const missing = rows.filter((o) => !norm(o.email)).map((o) => o.code);
+  const omit = [...new Set((opts.omit ?? []).map((c) => c.trim().toUpperCase()).filter(Boolean))];
+  for (const code of omit) {
+    const o = rows.find((r) => r.code === code);
+    if (!o) throw new Error(`broadcast: the override names ${code}, and there is no owner ${code}`);
+    if (code === "AVD") throw new Error("broadcast: AVD is never left off; Anthony is first on To");
+    if (norm(o.email)) throw new Error(`broadcast: the override names ${code}, but ${code} has an address; only an owner with none is left off`);
+  }
+  const missing = rows.filter((o) => !norm(o.email) && !omit.includes(o.code)).map((o) => o.code);
   if (missing.length === 1) {
     throw new Error(`broadcast: owner ${missing[0]} has no address on the owners table; every broadcast refuses until it is set`);
   }
@@ -63,6 +81,7 @@ export function broadcastTo(owners: OwnerAddress[], adminEmail: string): string[
   const never = neverAddressed(owners);
   const to: string[] = [];
   for (const o of rows) {
+    if (omit.includes(o.code)) continue;
     const a = norm(o.email);
     if (never.has(a)) throw new Error(`broadcast: owner ${o.code}'s address is an alt address`);
     if (to.includes(a)) throw new Error(`broadcast: owner ${o.code} shares an address with another owner`);
@@ -71,8 +90,13 @@ export function broadcastTo(owners: OwnerAddress[], adminEmail: string): string[
   return to;
 }
 
-export function broadcastEnvelope(owners: OwnerAddress[], adminEmail: string, derived: string[]): Envelope {
-  const to = broadcastTo(owners, adminEmail);
+export function broadcastEnvelope(
+  owners: OwnerAddress[],
+  adminEmail: string,
+  derived: string[],
+  opts: BroadcastOptions = {},
+): Envelope {
+  const to = broadcastTo(owners, adminEmail, opts);
   const onTo = new Set(to);
   const never = neverAddressed(owners);
   const bcc = [...new Set(derived.map(norm))]

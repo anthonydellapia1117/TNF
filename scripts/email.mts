@@ -27,6 +27,24 @@
 //                             a broadcast as a Gmail draft: To Anthony and
 //                             every owner from the owners table export, Bcc
 //                             every batch item not already on To
+//
+// A broadcast that goes out as one message (G4, Anthony 2026-10-13):
+//   --context f --sample      the rendered broadcast to ADMIN_EMAIL alone
+//   --context f --owners o --broadcast-plan p --min-bcc n --max-bcc n
+//     [--omit-owner CODE] --dry-run
+//                             prints the arithmetic (P + H - O - T - X = Bcc),
+//                             the counts, the sha and the envelope md5, and
+//                             refuses if the plan and the envelope are not the
+//                             same people, Bcc is outside the range, or a Bcc
+//                             address is an owner's. p is the export of
+//                             admin_email_broadcast_plan(key). --omit-owner is
+//                             the one-time override for an owner with no
+//                             address; the claim writes its audit row.
+//   ... --send-broadcast --expect-sha s --expect-envelope m
+//                             sends it, after admin_email_claim_broadcast
+//                             returned that envelope md5 for that sha; prints
+//                             the Gmail message id for
+//                             admin_email_record_sent_broadcast
 //   --read-back <message id>  fetch a sent message and check it
 //   --subjects                print the subject stems the module writes
 //
@@ -66,6 +84,7 @@ import { attachmentBase } from "../src/lib/email/events/game-day.ts";
 import { Gmail, gmailEnvFromProcess, type InboundMeta } from "../src/lib/email/transport.ts";
 import type { EmailBatch, EmailContext, EventArgs } from "../src/lib/email/types.ts";
 import type { OwnerAddress } from "../src/lib/email/envelope.ts";
+import { checkBroadcast, envelopeMd5, planArithmetic, type BroadcastPlan } from "../src/lib/email/broadcast.ts";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "anthonydellapia@gmail.com").toLowerCase();
 const FROM = `Anthony DellaPia <${ADMIN_EMAIL}>`;
@@ -180,6 +199,72 @@ async function markDone(gmail: Gmail, messageId: string): Promise<void> {
   await gmail.modifyLabels(messageId, [done], ["UNREAD"]);
 }
 
+/** Whole number from --name, or die. */
+function intOpt(name: string): number {
+  const v = opt(name) ?? die(`--${name} is required for a broadcast send`);
+  if (!/^\d+$/.test(v)) die(`--${name} wants a whole number, got "${v}"`);
+  return Number(v);
+}
+
+/**
+ * A broadcast as one message: a sample to Anthony alone, or the real thing to
+ * every owner with an address on To and the plan's Bcc, after the claim.
+ */
+async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArgs): Promise<void> {
+  if (ctx.recipient !== ADMIN_EMAIL) die(`a broadcast context is fetched for ADMIN_EMAIL, not ${ctx.recipient}`);
+  const r = renderOrDie(ctx, args);
+
+  if (flag("sample") || flag("to-admin")) {
+    const mime = buildMime({ from: FROM, to: [ADMIN_EMAIL], email: r.email, headers: { "X-TNF-Event": `${eventKey}_sample` } });
+    if (flag("dry-run")) {
+      console.log(JSON.stringify({ to: ADMIN_EMAIL, subject: r.email.subject, sha: r.sha, sample: true }, null, 2));
+      console.log(r.email.text);
+      return;
+    }
+    const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
+    const sent = await gmail.send(mime);
+    console.log(JSON.stringify({ event_key: eventKey, sample: true, recipient: ADMIN_EMAIL, message_id: sent.id, sha: r.sha }));
+    return;
+  }
+
+  const owners = readJson<OwnerAddress[]>(opt("owners") ?? die("--owners, the owners table export, is required")).value;
+  const plan = readJson<BroadcastPlan>(opt("broadcast-plan") ?? die("--broadcast-plan, the export of admin_email_broadcast_plan, is required")).value;
+  if (plan.event_key !== eventKey) die(`the plan is for ${plan.event_key}, not ${eventKey}`);
+  const omit = opts("omit-owner");
+  const range = { min: intOpt("min-bcc"), max: intOpt("max-bcc") };
+  const envelope = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: plan.bcc, omit });
+  checkBroadcast(plan, envelope, owners, omit, range);
+  const md5 = envelopeMd5(envelope);
+  console.log(JSON.stringify({
+    event_key: eventKey, subject: r.email.subject, sha: r.sha,
+    arithmetic: planArithmetic(plan), to: envelope.to.length, bcc: envelope.bcc.length,
+    omitted: omit.map((c) => c.trim().toUpperCase()), envelope_md5: md5,
+  }, null, 2));
+  if (flag("dry-run")) {
+    console.log(r.email.text);
+    return;
+  }
+  if (!flag("send-broadcast")) die("a broadcast goes out with --send-broadcast, after its claim; --dry-run shows it");
+  const expect = opt("expect-sha") ?? die("--send-broadcast needs --expect-sha, the sha that was claimed");
+  if (expect !== r.sha) die(`rendered sha ${r.sha} is not the claimed ${expect}; refusing`);
+  const expectEnv = opt("expect-envelope") ?? die("--send-broadcast needs --expect-envelope, the md5 admin_email_claim_broadcast returned");
+  if (expectEnv !== md5) die(`envelope md5 ${md5} is not the claimed ${expectEnv}; refusing`);
+  notBefore();
+
+  const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
+  const prior = await gmail.sentWithEvent(ADMIN_EMAIL, eventKey);
+  if (prior) die(`${eventKey} already went out (Gmail message ${prior}); refusing a second copy`);
+  const mime = buildMime({
+    from: FROM, to: envelope.to, bcc: envelope.bcc, email: r.email,
+    headers: { "X-TNF-Event": eventKey, "X-TNF-Claim": md5 },
+  });
+  const sent = await gmail.send(mime);
+  console.log(JSON.stringify({
+    event_key: eventKey, message_id: sent.id, thread_id: sent.threadId, sha: r.sha,
+    to: envelope.to.length, bcc: envelope.bcc.length, envelope_md5: md5,
+  }));
+}
+
 async function main() {
   if (flag("subjects")) {
     for (const s of SUBJECT_STEMS) console.log(s);
@@ -267,8 +352,12 @@ async function main() {
     return;
   }
 
+  if (familyOf(eventKey).broadcast) {
+    if (!single) die(`${eventKey} is a broadcast: --draft --batch, or --context for a sample or a send`);
+    return broadcastSend(eventKey, single.value, args);
+  }
+
   // One email: from a batch item, or from a single context.
-  if (familyOf(eventKey).broadcast) die(`${eventKey} is a broadcast; it goes out as a --draft with every owner on To`);
   const sample = flag("sample") || flag("to-admin");
   const to = (sample ? ADMIN_EMAIL : (opt("to") ?? single?.value.recipient ?? die("--to <addr> is required"))).toLowerCase();
   let ctx: EmailContext;

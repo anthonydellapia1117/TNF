@@ -39,6 +39,15 @@ function header(name: string, value: string): string {
   return `${name}: ${value}`;
 }
 
+/**
+ * An address list. Short, it is one line as always; long (a broadcast's Bcc),
+ * it folds after each comma so no line nears RFC 5322's 998-character limit.
+ */
+function addressHeader(name: string, addrs: string[]): string {
+  const flat = header(name, addrs.join(", "));
+  return flat.length <= 900 ? flat : `${name}: ${addrs.join(",\r\n ")}`;
+}
+
 export function buildMime(m: MimeMessage): Buffer {
   if (m.to.length === 0) throw new Error("mime: no To address");
   const seed = m.boundary ?? `tnf${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
@@ -48,8 +57,8 @@ export function buildMime(m: MimeMessage): Buffer {
 
   const head = [
     header("From", m.from),
-    header("To", m.to.join(", ")),
-    ...(m.bcc?.length ? [header("Bcc", m.bcc.join(", "))] : []),
+    addressHeader("To", m.to),
+    ...(m.bcc?.length ? [addressHeader("Bcc", m.bcc)] : []),
     header("Subject", encodedWord(m.email.subject)),
     header("Date", date),
     ...(m.inReplyTo ? [header("In-Reply-To", m.inReplyTo)] : []),

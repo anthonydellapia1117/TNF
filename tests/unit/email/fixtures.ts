@@ -78,6 +78,7 @@ export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("holder_checkin_2026-10-07", { holder: SAMPLE_HOLDER }), {}],
   [ctx("holder_checkin_2026-10-07", { holder: UNBACKED_HOLDER }), {}],
   [ctx("recruit_2026-10-07"), {}],
+  [ctx("recruit_broadcast_2026-10-07"), {}],
   [ctx("reply_t1_abc123", { blocks: ALL_BLOCKS }), { subject: "TNF", block: "7" }],
   [ctx("reply_t2_abc123", { blocks: ALL_BLOCKS }), { subject: "TNF", block: "8" }],
   [ctx("reply_t3_abc123"), { subject: "sent it" }],
