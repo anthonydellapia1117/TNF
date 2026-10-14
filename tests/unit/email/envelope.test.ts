@@ -97,12 +97,57 @@ describe("an owner with no address on the owners table", () => {
   });
 });
 
+// G4 (Anthony, 2026-10-13): for one send only, an explicit override that names
+// DN leaves DN off To. The claim writes the audit row; the default still refuses.
+describe("a one-time override naming an owner with no address", () => {
+  const dnMissing = OWNERS.map((o) => (o.code === "DN" ? { ...o, email: null } : o));
+  const NINE = TEN.filter((a) => a !== "dn@tnf.test");
+
+  it("leaves off exactly the owner it names, Anthony still first", () => {
+    expect(broadcastTo(dnMissing, ADMIN, { omit: ["DN"] })).toEqual(NINE);
+    expect(broadcastTo(dnMissing, ADMIN, { omit: [" dn "] })).toEqual(NINE);
+  });
+
+  it("is never the default: without it the broadcast still refuses", () => {
+    expect(() => broadcastTo(dnMissing, ADMIN)).toThrow(/owner DN has no address/);
+    expect(() => broadcastTo(dnMissing, ADMIN, { omit: [] })).toThrow(/owner DN has no address/);
+  });
+
+  it("refuses to leave off an owner who has an address", () => {
+    expect(() => broadcastTo(dnMissing, ADMIN, { omit: ["DN", "RM"] })).toThrow(/RM has an address/);
+    expect(() => broadcastTo(OWNERS, ADMIN, { omit: ["DN"] })).toThrow(/DN has an address/);
+  });
+
+  it("refuses when another owner with no address is not named, and an unknown code", () => {
+    const two = dnMissing.map((o) => (o.code === "TJA" ? { ...o, email: null } : o));
+    expect(() => broadcastTo(two, ADMIN, { omit: ["DN"] })).toThrow(/owner TJA has no address/);
+    expect(broadcastTo(two, ADMIN, { omit: ["DN", "TJA"] })).toEqual(NINE.filter((a) => a !== "tja@tnf.test"));
+    expect(() => broadcastTo(dnMissing, ADMIN, { omit: ["DN", "XX"] })).toThrow(/no owner XX/);
+    expect(() => broadcastTo(OWNERS.map((o) => (o.code === "AVD" ? { ...o, email: null } : o)), ADMIN, { omit: ["AVD"] })).toThrow(/AVD/);
+  });
+
+  it("carries through the envelope: nine on To, the rest in Bcc minus To", () => {
+    const e = envelopeFor("recruit_broadcast_2026-10-07", {
+      adminEmail: ADMIN, owners: dnMissing, derived: [...HOLDERS, "rm@tnf.test"], omit: ["DN"],
+    });
+    expect(e.to).toEqual(NINE);
+    expect(e.bcc).toEqual(["holder1@tnf.test", "holder2@tnf.test"]);
+    expect(() => envelopeFor("recruit_broadcast_2026-10-07", { adminEmail: ADMIN, owners: dnMissing, derived: HOLDERS }))
+      .toThrow(/owner DN has no address/);
+  });
+
+  it("is refused on a per-recipient event, where no owner is ever addressed", () => {
+    expect(() => envelopeFor("recruit_2026-10-07", { adminEmail: ADMIN, recipient: "holder1@tnf.test", omit: ["DN"] }))
+      .toThrow(/broadcast/);
+  });
+});
+
 describe("a per-recipient email", () => {
   const perRecipient = FAMILIES.filter((f) => !f.broadcast);
 
-  it("is every family but the game-day pack", () => {
+  it("is every family but the game-day pack and the recruit broadcast", () => {
     expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "recruit", "reply", "status"]);
-    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name)).toEqual(["game_day"]);
+    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["game_day", "recruit_broadcast"]);
   });
 
   for (const f of perRecipient) {

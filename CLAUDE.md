@@ -430,6 +430,20 @@ it does not move blocks.
   2026-09-09 version, which read the owner addresses from a routine variable.
   `src/lib/email/envelope.ts` builds it, and `tests/unit/email/envelope.test.ts`
   holds it.
+  - **An owner with no address makes every broadcast refuse**, unless one send
+    passes an explicit one-time override naming that owner (`--omit-owner
+    <CODE>`). The claim before the send (`admin_email_claim_broadcast`,
+    migration 37) refuses unless the codes named are exactly the owners with no
+    address, and writes one `broadcast_owner_omitted` audit row per code. The
+    default never changes. The recruit broadcast of 2026-10-13 left DN off
+    this way (Anthony, Part G4).
+  - **The recruit broadcast** (`recruit_broadcast_<date>`, Anthony
+    2026-10-13): one message, To every owner with an address, Bcc every active
+    prospect and every holder address (email and cc_email), deduped, minus To,
+    minus anything recruit-excluded, blocklisted, an owner's alt or Anthony's.
+    `admin_email_broadcast_plan` derives it and prints P + H - O - T - X =
+    Bcc; every recipient is ledgered in `email_sends` under the one key. It
+    replaced a separate holder check-in: holders are on it.
 - **Per-recipient email never carries an owner** on To or Cc: a holder
   check-in, the recruit send, a T1-T7 reply, the digest, a status report. Its
   To is its one recipient.
@@ -447,8 +461,9 @@ it does not move blocks.
     an owner's word about his own book. Block 50, the case that prompted it,
     would still have read Paid on Oct 7: RM's confirmation was on file, for a
     holder who told Anthony he had never paid. He was released and the row
-    reversed on Oct 8. Whether an owner-held row should read differently in a
-    holder's email is Anthony's call, not yet made.
+    reversed on Oct 8. Anthony's call, made 2026-10-13: an owner-held cash
+    row keeps reading Paid, because an owner's word is the payment record for
+    his book.
 - **The owners, by code.** AVD Anthony DellaPia, one address, RM Ronnie
   Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
   DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ
@@ -516,11 +531,11 @@ rule, for any session or routine that reads the mail:
 - **Pool-TNF-Done goes on only after the reply is sent or the message is
   classed no-reply.** Never on a question still waiting for an answer: a
   labelled thread is not read again. The command applies it after the send.
-- **What the live sweep runs** (found 2026-10-08): an older inline prompt,
-  not `docs/SWEEP_PROMPT.md`, with no repo source. It labels every message it
-  processes Pool-TNF-Done and may not reply, which is how two holders'
-  questions were closed unanswered on Oct 8. Its digest is inline too. Moving
-  the routine onto `docs/SWEEP_PROMPT.md` is Anthony's, by hand.
+- **What the live sweep runs:** `docs/SWEEP_PROMPT.md`, since 2026-10-09.
+  The routine's prompt is a pointer to the file and each run reads it from
+  main, so a merge to main changes the next run. Until then it ran an older
+  inline prompt that labelled every message Pool-TNF-Done and could not reply,
+  which is how two holders' questions were closed unanswered on Oct 8.
 
 ## Isolation
 
@@ -571,6 +586,14 @@ money rules are actually enforced.
 - Every write goes through an audited `admin_*` RPC that re-checks
   `is_admin()`. Server actions shape arguments and revalidate; they are not
   the security boundary.
+- **Through the Supabase connector, every `admin_*` call carries the admin
+  claim**, set in the same `execute_sql` call first:
+  `select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true);`.
+  `is_admin()` reads Anthony's email from the JWT claims and the connector
+  sends none, so without it the call is refused "not authorized". Every
+  routine prompt that calls an `admin_*` function says so. The sweep's did
+  not, and from 2026-10-09 to 2026-10-13 every admin call it made was refused:
+  no digest, nothing staged, recorded or replied to. Fixed 2026-10-13.
 - Public pages read only the `v_public_*` / `v_pot` projections. Never
   compute block status client-side, and never query base tables from a
   public route.

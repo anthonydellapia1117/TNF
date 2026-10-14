@@ -226,6 +226,82 @@ describe("C2 recruit", () => {
   });
 });
 
+// G4 (Anthony, 2026-10-13): one message to everyone, owners on To, the rest
+// in Bcc. "Everyone," then the recruit facts read at send time, every game
+// with its kickoff, then the bare URL. No dollar sign, hyphens only, no
+// holder names.
+describe("recruit broadcast", () => {
+  const KEY = "recruit_broadcast_2026-10-07";
+
+  it("renders exactly, every number derived", () => {
+    const r = renderEvent(ctx(KEY));
+    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | 10 games, Nov 25 - Dec 31 | 42 blocks open");
+    expect(r.email.text).toBe(
+      [
+        "Everyone,",
+        "",
+        "The 1622 TNF Block Pool is the 10 holiday games this year, and 42 of",
+        "the 100 blocks are still open.",
+        "",
+        "A block is 500.",
+        "Every game pays 1,500 at halftime and 3,000 at the final.",
+        "How a block wins: Last digit of each team's score. Away digit picks",
+        "the row, home digit picks the column.",
+        "Claim by Tue Nov 24, 2026. To claim, reply with how many blocks you",
+        "want, or which numbers.",
+        "",
+        "Wed Nov 25: 8:00 PM ET, Packers at Rams",
+        "Thu Nov 26: 1:00 PM ET, Bears at Lions",
+        "Thu Nov 26: 4:30 PM ET, Eagles at Cowboys",
+        "Thu Nov 26: 8:20 PM ET, Chiefs at Bills",
+        "Fri Nov 27: 3:00 PM ET, Broncos at Steelers",
+        "Thu Dec 24: 8:15 PM ET, Texans at Eagles",
+        "Fri Dec 25: 1:00 PM ET, Packers at Bears",
+        "Fri Dec 25: 4:30 PM ET, Bills at Broncos",
+        "Fri Dec 25: 8:15 PM ET, Rams at Seahawks",
+        "Thu Dec 31: 8:15 PM ET, Ravens at Bengals",
+        "",
+        "ad-26-tnf.vercel.app",
+        "",
+        "Anthony",
+        "",
+      ].join("\n"),
+    );
+    expect(r.problems).toEqual([]);
+  });
+
+  it("follows the database: the open count, the payouts, the deadline and the slate", () => {
+    const common = {
+      ...COMMON,
+      open_count: 44,
+      claim_deadline: "2026-11-23",
+      holiday_final_cents: 250000,
+      regular_final_cents: 250000,
+      games: COMMON.games.slice(0, 5),
+    };
+    const r = renderEvent(ctx(KEY, { common }));
+    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | 5 games, Nov 25 - Nov 27 | 44 blocks open");
+    expect(r.spec.prose).toContain("Every game pays 1,500 at halftime and 2,500 at the final.");
+    expect(r.email.text).toContain("Claim by Mon Nov 23, 2026.");
+    expect(r.spec.rows).toHaveLength(5);
+  });
+
+  it("links the site as the bare URL and nothing else, and names no holder", () => {
+    const r = renderEvent(ctx(KEY, { holder: SAMPLE_HOLDER, people: ASKER }));
+    expect(r.spec.next).toBe("ad-26-tnf.vercel.app");
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+    // A holder or an asker in the context changes nothing: a broadcast names no one.
+    expect(r.email.text).not.toMatch(/DellaPia|Dan Asker|\bAD\b|\bDA\b/);
+    expect(r.email.text).toBe(renderEvent(ctx(KEY)).email.text);
+    expect(r.email.text).not.toContain("$");
+  });
+
+  it("refuses a game with no confirmed date rather than state one", () => {
+    const common = { ...COMMON, games: [{ ...COMMON.games[0], date_confirmed: false }, ...COMMON.games.slice(1)] };
+    expect(() => renderEvent(ctx(KEY, { common }))).toThrow(/no confirmed date/);
+  });
+});
+
 describe("sweep replies T1-T7, wording verbatim from docs/SWEEP_PROMPT.md as of 2026-09-10, no dollar sign", () => {
   const lines = (key: string, args: Record<string, string>) =>
     renderEvent(ctx(key, { blocks: ALL_BLOCKS }), args).spec.prose;
@@ -448,5 +524,19 @@ describe("MIME", () => {
     expect(msg).toContain('Content-Disposition: attachment; filename="TNF_x.png"');
     expect(msg).toMatch(/^Bcc: h@tnf\.test\r$/m);
     expect(() => buildMime({ from: "a@tnf.test", to: ["a@tnf.test\r\nBcc: x@tnf.test"], email })).toThrow(/line break/);
+  });
+
+  // G4: one message with well over a hundred in Bcc. RFC 5322 caps a line at
+  // 998 characters; an unfolded list of that size runs to several thousand.
+  it("folds a long address list after its commas, every line short, every address kept", () => {
+    const bcc = Array.from({ length: 150 }, (_, i) => `recipient-number-${i}@tnf.test`);
+    const msg = buildMime({ from: "a@tnf.test", to: ["a@tnf.test"], bcc, email, boundary: "seed" }).toString("utf8");
+    for (const line of msg.split("\r\n")) expect(line.length).toBeLessThan(998);
+    const head = msg.split("\r\n\r\n")[0];
+    const unfolded = head.replace(/\r\n[ \t]/g, " ");
+    const line = unfolded.split("\r\n").find((l) => l.startsWith("Bcc: "));
+    expect(line?.slice(5).split(/,\s*/)).toEqual(bcc);
+    // A short list stays on one line, as before.
+    expect(buildMime({ from: "a@tnf.test", to: ["a@tnf.test", "b@tnf.test"], email }).toString("utf8")).toMatch(/^To: a@tnf\.test, b@tnf\.test\r$/m);
   });
 });

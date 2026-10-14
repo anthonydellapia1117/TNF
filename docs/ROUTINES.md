@@ -6,16 +6,18 @@ that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
-| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *` **target, not applied** | yes, the only one | Gmail, Supabase |
+| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, the only one | Gmail, Supabase |
 | 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | files only, and a draft | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed |
 
-**The sweep is the one thing this rebuild could not finish.** It is still
-named `TNF Gmail Sweep`, still disabled, and still carries `43 11-23,0-2 * * *`
-and its old prompt. It was created through the HTTP API rather than by an agent,
-and the platform refuses an agent update on such a routine: `update_trigger:
-this routine was created via "http_api", not by an agent`. Three edits by hand
-finish it, and they are listed under **Blocked: the sweep** below.
+**The sweep has been live on `docs/SWEEP_PROMPT.md` since 2026-10-09.** It is
+still named `TNF Gmail Sweep`, enabled, on the cron above, with Gmail and
+Supabase its only connectors. Its stored prompt is the pointer under **The
+sweep's hand edits** below. It was created through the HTTP API rather than by
+an agent, and the platform refuses an agent update on such a routine:
+`update_trigger: this routine was created via "http_api", not by an agent`. So
+a change to the trigger is Anthony's, by hand, and a change to what the sweep
+does is a merge to main.
 
 Retired the same day, disabled and kept for their run history:
 
@@ -29,30 +31,29 @@ Never delete one of these. A delete loses the run history and, for the three
 live ones, the repo source and the connectors, which `update_trigger` cannot
 put back.
 
-## Blocked: the sweep
+## The sweep's hand edits
 
-Three edits, in the UI, by hand. Nothing else in this file is waiting on
+Made by Anthony in the UI (claude.ai > Code > Routines > TNF Gmail Sweep) and
+read back off the trigger on 2026-10-09. Nothing in this file is waiting on
 anything.
 
-**claude.ai > Code > Routines > TNF Gmail Sweep**
-
-| Field | Set it to |
-|-------|-----------|
-| Name | `TNF Sweep` |
+| Field | Stored |
+|-------|--------|
+| Name | `TNF Gmail Sweep`; the rename to `TNF Sweep` was never made and is not needed |
 | Schedule / cron | `43 11-23,0-4 * * *` |
-| Prompt | the whole fenced block in `docs/SWEEP_PROMPT.md`, replacing what is there |
+| Prompt | the pointer below, since 10:47 AM ET 2026-10-09 |
+| Connectors | Gmail, Supabase; Vercel removed 2026-10-09 |
 | Enabled | on |
 
-You should see the routine listed as `TNF Sweep`, enabled, next run within the
-hour, with Gmail and Supabase still on its connector list. Its connectors and
-its repo source are already correct and must not be re-added; **do not delete
-and recreate it**, because a delete loses the run history, the repo source and
-both connectors, and `update_trigger` cannot put any of those back.
+The pointer, verbatim. If the routine's prompt is ever lost, this is what goes
+back:
 
-Until those edits are made: no mail is being swept, no payment candidate is
-being staged, nothing is being labelled `Pool-TNF-Done`, and there is no
-nightly digest. `Pool-TNF` has 0 unread today, so nothing is currently piling
-up, but a payment that arrives before the edits lands in mail and stays there.
+```
+Your prompt is in this repo, anthonydellapia1117/TNF, at docs/SWEEP_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/SWEEP_PROMPT.md. Hyphens only.
+```
+
+**Do not delete and recreate it**: a delete loses the run history, the repo
+source and both connectors, and `update_trigger` cannot put any of those back.
 
 ## How this file was verified
 
@@ -62,9 +63,9 @@ a session could write are byte-identical to their source in this repo:
 
 | Routine | Stored prompt vs repo | Checked |
 |---------|----------------------|---------|
-| TNF Game Day | identical, 7,903 chars, against the fenced block below | 2026-09-10 |
+| TNF Game Day | the pointer in section 2, verbatim, read back after `update_trigger` | 2026-10-13 |
 | TNF Draw Window | identical, 3,100 chars, against the fenced block below | 2026-09-10 |
-| TNF Sweep | not written, the update was refused | 2026-09-10 |
+| TNF Sweep | the pointer under "The sweep's hand edits", verbatim; set by Anthony in the UI | 2026-10-09 |
 
 The read-back is the same server-side record the Routines UI renders; there is
 no second store behind the screen. It was **not** confirmed by opening the UI in
@@ -211,12 +212,14 @@ that path matter and the older version of this file had both wrong.
 | Routine | Gmail | Supabase | Repo source | Environment |
 |---------|-------|----------|-------------|-------------|
 | TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | the three `GMAIL_OAUTH_*` variables are needed for it to send through `npm run email` (2026-10-07) |
-| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | `ADMIN_PASSWORD` **missing**. The three `GMAIL_OAUTH_*` variables are needed for `--draft` (2026-10-07). No owner addresses: the To line comes from the `owners` table |
+| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | No admin password: grids go out as links (2026-10-13). The three `GMAIL_OAUTH_*` variables are needed for `--draft` and are set (verified 2026-10-13). No owner addresses: the To line comes from the `owners` table |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
-TNF Game Day runs without either variable and says so in its report: no
-`ADMIN_PASSWORD` means the grid is not uploaded and the draft carries the live
-grid link instead of two file links.
+TNF Game Day renders every grid with `--link-only` (Anthony, 2026-10-13): the
+draft carries the live grid link, nothing is uploaded, and no admin password is
+needed. Every routine that calls an admin_* function through the Supabase
+connector sets the admin claim first, in the same call; without it the call is
+refused "not authorized" (CLAUDE.md, Code conventions).
 
 **The To line of every broadcast comes from the `owners` table, at send
 time.** Anthony's rule of 2026-10-07: every broadcast email (one body, many
@@ -230,7 +233,13 @@ owner address, and the routine variable that used to was retired the same
 day. The command refuses to build a broadcast if an owner has no address
 (naming every such owner; DN has none on 2026-10-08, so every broadcast
 refuses until it is set, and the nightly digest says so), if Anthony's row
-does not carry `ADMIN_EMAIL`, or if two owners share one.
+does not carry `ADMIN_EMAIL`, or if two owners share one. One exception, for
+one send at a time: `npm run email -- --omit-owner <CODE>` names an owner with
+no address to leave off, and the claim before the send
+(`admin_email_claim_broadcast`) refuses unless the codes named are exactly the
+owners with no address, then writes one `broadcast_owner_omitted` audit row
+per code. The recruit broadcast of 2026-10-13 left DN off that way. The
+game-day draft takes no override.
 
 The Bcc is the participant query minus every address already on To, so an
 owner who also holds a block is listed once, on To. Per-recipient email (a
@@ -247,9 +256,9 @@ exactly that.
 
 - **When:** hourly on the :43. See the cron table above.
 - **Trigger:** `trig_017vcw3ADZHPVpKVXS1s1B7X`
-- **Prompt:** `docs/SWEEP_PROMPT.md` is the source of truth. The copy stored
-  on the routine is a copy. Edit the file, commit it, then push the same text
-  onto the routine.
+- **Prompt:** `docs/SWEEP_PROMPT.md`. The routine stores only the pointer
+  above and reads the file from main at every run (since 2026-10-09), so a
+  merge to main is a deploy.
 - **Write authority:** level B. Roster always. Money, identity, release and
   refund only on mail from `anthonydellapia@gmail.com` to
   `anthonydellapia@gmail.com` with a subject beginning `DECISION TNF:`.
@@ -269,36 +278,18 @@ Reserved blocks with no payment recorded; it is now the first section of the
 - **Absorbed:** TNF Game Day Digits (phase A step 1) and TNF Post-Game Check
   (phase B). It was TNF Game Day Pack.
 
-Prompt:
+- **Prompt:** `docs/GAME_DAY_PROMPT.md`. Since 2026-10-13 the routine stores
+  only the pointer below and reads the file from main at every fire, the same
+  shape as the sweep, so a merge to main is a deploy. Grids go out as links,
+  never uploads, so the routine needs no admin password (Anthony, 2026-10-13).
+- **State:** paused until a dry fire on a non-game day comes back clean, then
+  on (Anthony, 2026-10-13).
+
+The pointer, verbatim. If the routine's prompt is ever lost, this is what goes
+back:
 
 ```
-You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md is the only rulebook and it outranks this prompt. Read it first, every run. Hyphens only, never an em dash or an en dash.
-
-0. Run TZ=America/New_York date and use it as the current date and time. Ignore any injected date. Compare every kickoff in America/New_York.
-0a. The repo anthonydellapia1117/TNF is this routine's source. If it is not in the working directory, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it, then npm ci. Live game state comes only from the public projections: take SUPABASE_URL and SUPABASE_ANON_KEY from src/lib/env.ts and GET SUPABASE_URL/rest/v1/<view> with headers "apikey: <key>" and "Authorization: Bearer <key>". Views: v_public_games?order=game_no, v_public_blocks, v_public_payouts. Anon reads only, bounded by RLS. Never look for another key. If the clone, the install or a read fails, the report is one NEEDS ANTHONY line naming the failed step. Never guess state.
-0b. Hard limits: never send an email. The only mail this routine produces is the draft npm run game-day writes with --draft; never create, update or send mail any other way. Never write to the database. Never enter or correct a score, never create, void, settle or mark a payout Paid, never draw, publish or alter digits, never confirm a date, never resolve an identity conflict, never move, release or assign a block, never move money, never delete anything. Email addresses and ADMIN_PASSWORD are secrets: addresses go into the draft and the /tmp files the steps below name and nowhere else, never into the report and never into a file in the repo; the password is never printed or copied anywhere. The Survivor pool is a separate system: never read its mail, labels, repo or database, never mention it.
-0c. This run has two phases and does both. Phase A is for games whose kickoff, in America/New_York, falls on today's date. Phase B is for games whose final_scored_at or kickoff falls on yesterday's date. A date can have both, neither, or one. If both phases have nothing, the entire report is the words NO ACTION.
-
-PHASE A, games today.
-A1. The 8:00 AM ET reveal has already passed, so row_digits and col_digits must both be non-null in the projection. One NEEDS ANTHONY line per failure, then continue:
-    - digits null and digits_assigned false: "G<xx> <away> at <home> kicks off <time> ET today and digits are not drawn. Draw and publish now at /admin/digits."
-    - digits null and digits_assigned true: "G<xx> kicks off <time> ET today and digits are not live. Publish now at /admin/digits, it goes out immediately."
-    - digits_reveal_at later than kickoff_at: "G<xx> reveal is scheduled after kickoff. Fix at /admin/digits."
-A2. Recipients. Through the Supabase connector, run the read-only SQL in docs/ROUTINES.md under "The recipient query" and write the rows as a JSON array to a file OUTSIDE the repo, for example /tmp/participants.json: full_name, display_alias, email, cc_email, blocks. Then run the read-only SQL under "The owners query" and write its single value, exactly as returned, to /tmp/owners.json: that is the To line. If the Supabase connector is not available, skip to A5 with the line "Supabase connector missing on this routine, no recipient list. Add it at claude.ai/code > Code > Routines > TNF Game Day > Connectors."
-A3. For each game today, first fetch its email context through the Supabase connector: select admin_email_context('game_day_g<NN>', 'anthonydellapia@gmail.com')::text, with NN the two-digit game number, written exactly as returned to /tmp/ctx_<NN>.json. Then run: npm run game-day -- --game <N> --context /tmp/ctx_<NN>.json --participants /tmp/participants.json --owners /tmp/owners.json --upload --draft when ADMIN_PASSWORD is set in the environment, and --link-only instead of --upload when it is not. Exit 0 prints the subject, the counts, the holders with no email, the file paths and, with --upload, the two public links. Exit 2 means the digits are not live: do NOT pass --allow-undrawn, add "G<xx> digits are not live, grid not rendered. Publish at /admin/digits, then rerun npm run game-day -- --game <N> --upload." and continue with the next game. Exit 4 means the admin sign-in or an upload failed after retries; the message says whether nothing was replaced or the PDF was replaced and the PNG was not. Rerun once with --upload; if it fails again rerun with --link-only and add "Grid upload failed (exit 4): <the message>. Check ADMIN_PASSWORD in this routine's environment variables and that migration 22 (bucket game-day) is applied."
-A4. The draft is the command's, never yours: --draft writes it through src/lib/email, with the subject, the body, the To line and the Bcc line all built there. Never type a subject or a body, and never add or remove a recipient. The To line is Anthony and then every other owner, one primary address each, from /tmp/owners.json: eight addresses today, and the command prints the count. It refuses to build when an owner has no address, when Anthony's row is not ADMIN_EMAIL, or when two owners share an address; if it refuses, add "Owners table incomplete, draft not created: <the message>. Fix the owners row at /admin." and continue. The Bcc line is the participant query minus every address on To, so an owner who holds a block is listed once, on To. Before passing --draft, search Drafts for the subject the command prints (a dry run without --draft prints it): if a draft with that subject is already there, do not write a second one, and say so. If the command cannot reach Gmail (no GMAIL_OAUTH_TOKEN_JSON in this routine's environment), it writes the .eml next to the manifest and exits non-zero; add "Gmail token missing on this routine, draft not created. The message is at <eml path>." and continue.
-A5. Phase A lines, per game: "G<xx> draft is in Gmail Drafts: <distinct> recipients (<withEmail> holders with an address, <cc> cc addresses, <shared> shared), <withoutEmail> holders with no email: <names with block numbers>. <links line>. Review and send." The links line is "Links: <png url>, <pdf url>" when the manifest's links field is set, and "Links: none, the body carries the live grid link only" when it is null. Never invent a URL.
-
-PHASE B, the morning after.
-B1. Unscored games. Every game whose kickoff is in the past and whose status is not final and not void: "G<xx> <away> at <home> kicked off <day> <time> ET and is not final. Enter halftime and final at /admin/score, echo-confirm away at home." Report it whether it was last night or a week ago.
-B2. For every game with final_scored_at in the last 26 hours:
-    a. Recompute both winners from the projection, per the CLAUDE.md grid orientation: HOME across the top, AWAY down the left. row = index of the AWAY score's last digit in row_digits, col = index of the HOME score's last digit in col_digits, block = row * 10 + col + 1. Do it for the halftime score and for the final. If your result differs from halftime_block or final_block: "G<xx> <halftime or final>: computed block <b>, projection says <b2>. Review at /admin/score." Never guess which is right.
-    b. Look up each winning block in v_public_blocks. If its status is not assigned: "G<xx> <halftime or final> hit block <b> (<display_name>, <status>). No payout by rule, review flag at /admin/payouts." Only an Assigned block receives a payout. This is the existing Reserved-versus-Assigned rule operating normally; it needs no new logic.
-    c. If a winning block is assigned, v_public_payouts must hold a row for that game_id and payout_type. Missing: "G<xx> is final with no <type> payout recorded. Review at /admin/payouts."
-    d. For each payout row present, search Gmail read-only for a Venmo receipt from Anthony to that winner, subject or body "You paid", for exactly that amount, dated after final_scored_at. Every game is one payout tier: $1,500 halftime, $3,000 final. Fetch matches in full with get_thread, never a search preview. Found: "G<xx> <type> block <b> <display_name> $<amount>: Venmo receipt <date>. Mark paid at /admin/payouts if not already." Not found: "G<xx> <type> block <b> <display_name> $<amount>: no Venmo receipt in mail. If paid by cash or elsewhere, mark paid at /admin/payouts." Paid versus owed is admin-only and invisible here, so this is a reminder, not a finding. If Gmail is not available, skip the search and add "Gmail connector missing on this routine, receipts not checked."
-B3. Older finals. For every game final more than 26 hours ago, run only B2c. A missing payout row for an assigned winner stays reported until it is fixed.
-
-REPORT. One section titled NEEDS ANTHONY: the phase A lines, then the phase B lines. Nothing else. Never print an email address or a password. If both phases are empty, the entire report is the words NO ACTION.
+Your prompt is in this repo, anthonydellapia1117/TNF, at docs/GAME_DAY_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. Every execute_sql call that runs an admin_* function begins with select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true); in the same call. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/GAME_DAY_PROMPT.md. Hyphens only.
 ```
 
 ### The owners query
@@ -336,6 +327,8 @@ order by p.full_name;
 - **Trigger:** `trig_01TmmBwcxWv5FdJGspjunhn9`
 - **Connectors:** none. It does not read mail and does not need Supabase; the
   prompt clones the repo and reads the anon projection.
+- **State:** on since 2026-10-13 (Anthony). Read-only: a fire with no draw due
+  reports NO ACTION, and one with a draw due names it for Anthony's two clicks.
 
 Prompt:
 

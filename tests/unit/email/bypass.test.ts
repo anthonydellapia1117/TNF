@@ -12,7 +12,7 @@ import { ALL_EVENTS } from "./fixtures";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const MODULE = join("src", "lib", "email");
-const ROUTINE_PROMPTS = ["docs/SWEEP_PROMPT.md", "docs/ROUTINES.md"];
+const ROUTINE_PROMPTS = ["docs/SWEEP_PROMPT.md", "docs/GAME_DAY_PROMPT.md", "docs/ROUTINES.md"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(join(ROOT, dir))) {
@@ -100,6 +100,7 @@ describe("no email bypasses src/lib/email", () => {
     expect(files).toContain("scripts/email.mts");
     expect(files).toContain("scripts/game-day-pack.mts");
     expect(files).toContain("docs/SWEEP_PROMPT.md");
+    expect(files).toContain("docs/GAME_DAY_PROMPT.md");
     expect(files.some((f) => f.startsWith(MODULE))).toBe(false);
   });
 
