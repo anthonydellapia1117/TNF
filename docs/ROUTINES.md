@@ -225,8 +225,10 @@ refused "not authorized" (CLAUDE.md, Code conventions).
 time.** Anthony's rule of 2026-10-07: every broadcast email (one body, many
 recipients in Bcc) carries every owner on To. `src/lib/email/envelope.ts`
 builds it: Anthony's address first, then each other owner's primary address
-(RM, MAP, JPOD, GD, EJD, NL, BG, TJA, DN), ten in all, never an owner's
-`alt_email`. Anthony has one address on this pool. The routine exports the
+(RM, MAP, JPOD, GD, EJD, NL, BG, TJA, DN), ten in all. An owner's
+`alt_email` is never addressed, on To or in Bcc, so an owner whose second
+address is a prospect or a holder's still gets one copy (Anthony,
+2026-10-14). Anthony has one address on this pool. The routine exports the
 table through the Supabase connector with "The owners query" below and hands
 the file to the command; no environment variable and no repo file carries an
 owner address, and the routine variable that used to was retired the same

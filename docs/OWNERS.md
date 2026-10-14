@@ -14,7 +14,7 @@ a participant's $500 and holds it, and nothing else.
 |------|-------|-------|
 | AVD | Anthony DellaPia | pool admin, and his own book |
 | RM | Ronnie Malandro | |
-| MAP | Michael Pungitore | |
+| MAP | Michael Pungitore | second address on file as `alt_email` since 2026-10-14; never addressed |
 | JPOD | Julian Podagrosi | |
 | EJD | Ernie DellaPia Jr. | |
 | NL | Nolan Lawrence | named 2026-09-09 |

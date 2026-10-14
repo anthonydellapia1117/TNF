@@ -423,10 +423,12 @@ it does not move blocks.
   body to many recipients in Bcc (the game-day pack today). Its To is
   Anthony's address first, then each other owner's primary address, read at
   send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL,
-  BG, TJA and DN, ten addresses in all. Never an owner's `alt_email`. Its Bcc
-  is the derived recipient list minus every
-  address already on To, so an owner who also holds a block appears once.
-  Nothing goes in Cc. Anthony's rule, set 2026-10-07; it replaced the
+  BG, TJA and DN, ten addresses in all. Never an owner's `alt_email`, on To
+  or in Bcc. Its Bcc is the derived recipient list minus every address
+  already on To and minus every owner's `alt_email`, so an owner who also
+  holds a block, or whose second address is a prospect or a holder's, gets
+  one copy, at his primary (Anthony, 2026-10-14; MAP's is the one alt on
+  file). Nothing goes in Cc. Anthony's rule, set 2026-10-07; it replaced the
   2026-09-09 version, which read the owner addresses from a routine variable.
   `src/lib/email/envelope.ts` builds it, and `tests/unit/email/envelope.test.ts`
   holds it.

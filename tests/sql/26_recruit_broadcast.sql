@@ -7,8 +7,9 @@
 -- Mutation checks (CLAUDE.md: re-verify, not just re-run): make the plan count
 -- an excluded holder in Bcc, stop classifying a blocklisted address, drop the
 -- exact-override check, drop the blocklist check on To, or stop minting a
--- claim_id, and sections 2, 2b, 4, 6 and 7 raise. If any still passes, its
--- assertion is dead.
+-- claim_id, and sections 2, 2b, 4, 6 and 7 raise. Make the classifier drop
+-- an owner's alt only when it is a holder's, and section 2 raises on the
+-- prospect alt. If any still passes, its assertion is dead.
 
 begin;
 
@@ -17,10 +18,13 @@ select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}',
 -- Fixtures. Owners as the live table on 2026-10-13: every code but DN has an
 -- address. Prospects: six plain, Anthony's own (his row is kept on the live
 -- table too), one that is also a holder, and one excluded that is a holder's
--- cc. A holder whose cc is an owner's alt address.
+-- cc. A holder whose cc is an owner's alt address. An active prospect that is
+-- an owner's alt address: MAP's second address, as on the live table since
+-- 2026-10-14 (Anthony), gets no Bcc copy.
 update owners set email = lower(code) || '@tnf.test', alt_email = null;
 update owners set email = 'avd-primary@tnf.test', alt_email = 'avd-alt@tnf.test' where code = 'AVD';
 update owners set alt_email = 'rm-alt@tnf.test' where code = 'RM';
+update owners set alt_email = 'map-alt@tnf.test' where code = 'MAP';
 update owners set email = null where code = 'DN';
 
 do $$
@@ -31,7 +35,7 @@ declare
 begin
   perform admin_import_prospects(
     array['p1@tnf.test', 'p2@tnf.test', 'p3@tnf.test', 'p4@tnf.test', 'p5@tnf.test', 'p6@tnf.test',
-          'avd-primary@tnf.test', 'both@tnf.test', 'excluded-cc@tnf.test'],
+          'avd-primary@tnf.test', 'both@tnf.test', 'excluded-cc@tnf.test', 'map-alt@tnf.test'],
     'msg-fixture-broadcast', 'test');
   perform admin_exclude_prospect('excluded-cc@tnf.test', 'fixture: excluded from the recruit send', 'test');
 
@@ -104,11 +108,14 @@ begin
     raise exception 'TEST FAILURE: plan % differs from first principles p % h % o % t % x % bcc %', v, e_p, e_h, e_o, e_t, e_x, e_bcc;
   end if;
   if e_p + e_h - e_o - e_t - e_x <> e_bcc then raise exception 'TEST FAILURE: the identity does not hold in the fixture'; end if;
-  if e_t < 1 or e_x < 2 then raise exception 'TEST FAILURE: the fixture no longer exercises T and X (t %, x %)', e_t, e_x; end if;
+  if e_t < 1 or e_x < 3 then raise exception 'TEST FAILURE: the fixture no longer exercises T and X (t %, x %)', e_t, e_x; end if;
+  if not exists (select 1 from prospects where email = 'map-alt@tnf.test' and excluded_at is null) then
+    raise exception 'TEST FAILURE: the fixture lost the active prospect that is an owner''s alt';
+  end if;
   if jsonb_array_length(v -> 'bcc') <> e_bcc then raise exception 'TEST FAILURE: the Bcc list is not its count'; end if;
   if jsonb_array_length(v -> 'to') <> 9 then raise exception 'TEST FAILURE: To is % addresses, not 9', jsonb_array_length(v -> 'to'); end if;
   if v -> 'omitted_owners' <> '["DN"]'::jsonb then raise exception 'TEST FAILURE: omitted owners %', v -> 'omitted_owners'; end if;
-  if (v -> 'bcc') ?| array['avd-primary@tnf.test', 'avd-alt@tnf.test', 'rm-alt@tnf.test', 'excluded-cc@tnf.test', 'rm@tnf.test'] then
+  if (v -> 'bcc') ?| array['avd-primary@tnf.test', 'avd-alt@tnf.test', 'rm-alt@tnf.test', 'map-alt@tnf.test', 'excluded-cc@tnf.test', 'rm@tnf.test'] then
     raise exception 'TEST FAILURE: Bcc carries Anthony, an owner, an alt or an excluded address';
   end if;
   if not ((v -> 'bcc') ?& array['p1@tnf.test', 'both@tnf.test', 'own-cc@tnf.test', 'alt-holder@tnf.test']) then
