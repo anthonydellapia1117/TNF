@@ -40,11 +40,12 @@
 //                             admin_email_broadcast_plan(key). --omit-owner is
 //                             the one-time override for an owner with no
 //                             address; the claim writes its audit row.
-//   ... --send-broadcast --expect-sha s --expect-envelope m
+//   ... --send-broadcast --claim id --expect-sha s --expect-envelope m
 //                             sends it, after admin_email_claim_broadcast
-//                             returned that envelope md5 for that sha; prints
-//                             the Gmail message id for
-//                             admin_email_record_sent_broadcast
+//                             returned that claim_id and that envelope md5 for
+//                             that sha (the dry run prints neither claim_id nor
+//                             any value only the claim makes); prints the Gmail
+//                             message id for admin_email_record_sent_broadcast
 //   --read-back <message id>  fetch a sent message and check it
 //   --subjects                print the subject stems the module writes
 //
@@ -245,6 +246,12 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
     return;
   }
   if (!flag("send-broadcast")) die("a broadcast goes out with --send-broadcast, after its claim; --dry-run shows it");
+  // The one value the dry run never prints: minted by the claim, so a send
+  // cannot go out with no claim behind it (review of PR 25).
+  const claim = opt("claim") ?? die("--send-broadcast needs --claim, the claim_id admin_email_claim_broadcast returned");
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(claim)) {
+    die(`--claim must be the claim_id admin_email_claim_broadcast returned, got "${claim}"`);
+  }
   const expect = opt("expect-sha") ?? die("--send-broadcast needs --expect-sha, the sha that was claimed");
   if (expect !== r.sha) die(`rendered sha ${r.sha} is not the claimed ${expect}; refusing`);
   const expectEnv = opt("expect-envelope") ?? die("--send-broadcast needs --expect-envelope, the md5 admin_email_claim_broadcast returned");
@@ -256,7 +263,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   if (prior) die(`${eventKey} already went out (Gmail message ${prior}); refusing a second copy`);
   const mime = buildMime({
     from: FROM, to: envelope.to, bcc: envelope.bcc, email: r.email,
-    headers: { "X-TNF-Event": eventKey, "X-TNF-Claim": md5 },
+    headers: { "X-TNF-Event": eventKey, "X-TNF-Claim": claim, "X-TNF-Envelope": md5 },
   });
   const sent = await gmail.send(mime);
   console.log(JSON.stringify({
