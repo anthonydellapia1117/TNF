@@ -37,6 +37,18 @@ describe("game day prompt", () => {
     expect(PROMPT).toMatch(/never send an email/i);
   });
 
+  // Codex review of PR 25: a retry must not write a second draft, so the Drafts
+  // check runs before --draft, never after it.
+  it("renders without --draft, searches Drafts, and only then drafts", () => {
+    const a3 = PROMPT.split("\n").find((l) => l.startsWith("A3.")) ?? "";
+    const dry = a3.indexOf("without --draft");
+    const search = a3.indexOf("Search Drafts for that subject");
+    const draft = a3.indexOf("rerun the same command with --draft");
+    expect(dry).toBeGreaterThan(-1);
+    expect(search).toBeGreaterThan(dry);
+    expect(draft).toBeGreaterThan(search);
+  });
+
   it("does nothing on a date with no game today and none yesterday", () => {
     expect(PROMPT).toMatch(/the entire report is the words NO ACTION/);
   });

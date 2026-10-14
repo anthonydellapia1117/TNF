@@ -5,9 +5,10 @@
 -- this suite instead of agreeing with itself.
 --
 -- Mutation checks (CLAUDE.md: re-verify, not just re-run): make the plan count
--- an excluded holder in Bcc, drop the exact-override check, or drop the
--- blocklist check on To, and sections 2, 4 and 6 raise. If any still passes,
--- its assertion is dead.
+-- an excluded holder in Bcc, stop classifying a blocklisted address, drop the
+-- exact-override check, drop the blocklist check on To, or stop minting a
+-- claim_id, and sections 2, 2b, 4, 6 and 7 raise. If any still passes, its
+-- assertion is dead.
 
 begin;
 
@@ -113,6 +114,30 @@ begin
   if not ((v -> 'bcc') ?& array['p1@tnf.test', 'both@tnf.test', 'own-cc@tnf.test', 'alt-holder@tnf.test']) then
     raise exception 'TEST FAILURE: Bcc is missing a prospect or a holder';
   end if;
+end $$;
+
+-- 2b. A blocklisted address in P or H counts in X and never reaches Bcc. The
+--     hash is inserted directly, past admin_block_address_hash's clean-first
+--     rule, to stand for a row that went wrong some other way; the block is
+--     undone by raising to the end of the DO.
+do $$
+declare
+  before_plan jsonb := admin_email_broadcast_plan('recruit_broadcast_2026-10-13');
+  after_plan jsonb;
+begin
+  insert into blocked_address_hashes (hash, reason) values (encode(sha256(convert_to('p6@tnf.test', 'UTF8')), 'hex'), 'fixture');
+  after_plan := admin_email_broadcast_plan('recruit_broadcast_2026-10-13');
+  if (after_plan ->> 'x')::int <> (before_plan ->> 'x')::int + 1
+     or (after_plan ->> 'bcc_count')::int <> (before_plan ->> 'bcc_count')::int - 1 then
+    raise exception 'TEST FAILURE: a blocklisted prospect did not move from Bcc to X (before %, after %)', before_plan, after_plan;
+  end if;
+  if (after_plan -> 'bcc') ? 'p6@tnf.test' then
+    raise exception 'TEST FAILURE: a blocklisted prospect is in Bcc';
+  end if;
+  raise exception 'drop the fixture hash';
+exception when others then
+  if sqlerrm like 'TEST FAILURE%' then raise; end if;
+  if sqlerrm <> 'drop the fixture hash' then raise; end if;
 end $$;
 
 -- 3. The per-recipient ledger rule knows the broadcast: To plus Bcc, nothing else.
@@ -229,6 +254,13 @@ begin
            (select string_agg(x, ',' order by x collate "C") from jsonb_array_elements_text(v -> 'bcc') x))
     into e_md5;
   if r ->> 'envelope_md5' is distinct from e_md5 then raise exception 'TEST FAILURE: envelope md5 % expected %', r ->> 'envelope_md5', e_md5; end if;
+  -- The one value the dry run can never print: minted by the claim, kept on its audit row.
+  if coalesce(r ->> 'claim_id', '') !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'TEST FAILURE: the claim returned no claim_id: %', r;
+  end if;
+  if (select count(*) from audit_log where action = 'email_claim_broadcast' and after ->> 'claim_id' = r ->> 'claim_id') <> 1 then
+    raise exception 'TEST FAILURE: the claim_id is not on the claim audit row';
+  end if;
   if (r ->> 'claimed')::int <> 9 + (v ->> 'bcc_count')::int then raise exception 'TEST FAILURE: claimed %', r ->> 'claimed'; end if;
   if (select count(*) from email_sends where event_key = 'recruit_broadcast_2026-10-13' and rendered_sha = sha and sent_at is null)
      <> (r ->> 'claimed')::int then
