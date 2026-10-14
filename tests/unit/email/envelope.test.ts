@@ -8,9 +8,9 @@ import { envelopeFor, FAMILIES } from "@/lib/email/registry";
 import { broadcastTo, type OwnerAddress } from "@/lib/email/envelope";
 
 const ADMIN = "avd-primary@tnf.test";
-// Shaped as the owners query returns it. No alt address is on the live table
-// since 2026-10-08; AVD carries a reserved-domain one here so the rule that an
-// alt is never addressed stays under test.
+// Shaped as the owners query returns it. MAP's second address is the one alt
+// on the live table (2026-10-14); AVD carries one here too, so the rule is held
+// for every owner's alt, not one row's. Reserved-domain addresses only.
 const OWNERS: OwnerAddress[] = [
   { code: "BG", email: "bg@tnf.test", alt_email: null },
   { code: "AVD", email: "AVD-Primary@tnf.test ", alt_email: "avd-alt@tnf.test" },
@@ -18,7 +18,7 @@ const OWNERS: OwnerAddress[] = [
   { code: "EJD", email: "ejd@tnf.test", alt_email: null },
   { code: "GD", email: "gd@tnf.test", alt_email: null },
   { code: "JPOD", email: "jpod@tnf.test", alt_email: null },
-  { code: "MAP", email: "map@tnf.test", alt_email: null },
+  { code: "MAP", email: "map@tnf.test", alt_email: "map-alt@tnf.test" },
   { code: "NL", email: "nl@tnf.test", alt_email: null },
   { code: "RM", email: "rm@tnf.test", alt_email: null },
   { code: "TJA", email: "tja@tnf.test", alt_email: null },
@@ -28,6 +28,7 @@ const TEN = [
   "gd@tnf.test", "ejd@tnf.test", "nl@tnf.test", "bg@tnf.test", "tja@tnf.test", "dn@tnf.test",
 ];
 const ALT = "avd-alt@tnf.test";
+const MAP_ALT = "map-alt@tnf.test";
 const HOLDERS = ["holder1@tnf.test", "Holder2@TNF.test", "holder2@tnf.test"];
 
 const SAMPLE_KEY: Record<string, string> = {
@@ -63,6 +64,17 @@ describe("a broadcast", () => {
   it("never carries an owner's alt address, on To or in Bcc", () => {
     const e = envelopeFor("game_day_g01", { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, ALT, " AVD-ALT@tnf.test"] });
     expect([...e.to, ...e.cc, ...e.bcc]).not.toContain(ALT);
+  });
+
+  // Anthony, 2026-10-14: MAP's second address was an active prospect, so the
+  // recruit broadcast reached him twice. Every owner's alt is out of Bcc.
+  it("gives an owner whose second address is a prospect one copy, at his primary", () => {
+    for (const key of ["game_day_g01", "recruit_broadcast_2026-10-14"]) {
+      const e = envelopeFor(key, { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, " Map-Alt@tnf.test", MAP_ALT] });
+      expect(e.to.filter((a) => a === "map@tnf.test")).toHaveLength(1);
+      expect([...e.to, ...e.cc, ...e.bcc]).not.toContain(MAP_ALT);
+      expect(e.bcc).toEqual(["holder1@tnf.test", "holder2@tnf.test"]);
+    }
   });
 
   it("refuses rather than sending short or wrong", () => {
@@ -154,7 +166,7 @@ describe("a per-recipient email", () => {
     it(`${f.name} carries its one recipient and no owner, even when owners are passed`, () => {
       const e = envelopeFor(SAMPLE_KEY[f.name], { adminEmail: ADMIN, recipient: "Holder1@tnf.test", owners: OWNERS, derived: HOLDERS });
       expect(e).toEqual({ to: ["holder1@tnf.test"], cc: [], bcc: [] });
-      const owners = new Set([...TEN, ALT]);
+      const owners = new Set([...TEN, ALT, MAP_ALT]);
       expect([...e.to, ...e.cc, ...e.bcc].some((a) => owners.has(a))).toBe(false);
     });
   }

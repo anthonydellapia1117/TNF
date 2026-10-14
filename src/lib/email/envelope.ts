@@ -4,14 +4,15 @@
 // other owner, one address each, read at send time from the admin-only owners
 // table (handed to the command as an export of that table, never from an
 // environment variable or a repo file). Bcc is the derived recipient list
-// minus every address already on To, so an owner who also holds a block
-// appears once, on To. Anthony's rule, 2026-10-07.
+// minus every address already on To and every owner's alt address, so an
+// owner who also holds a block appears once, on To. Anthony's rule, 2026-10-07.
 //
 // Per-recipient (holder check-in, recruit, T1-T7 replies, the digest, status):
 // To is the one recipient. No owner is ever added, no Cc, no Bcc.
 //
-// An owner's alt_email is never a recipient of either shape. None is on file
-// since 2026-10-08; the column stays, and the rule with it.
+// An owner's alt_email is never a recipient of either shape: an owner whose
+// second address is a prospect or a holder's still gets one copy, at his
+// primary (Anthony, 2026-10-14). MAP's is the one on file since that day.
 
 export interface OwnerAddress {
   code: string;
