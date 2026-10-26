@@ -226,6 +226,13 @@ count reopens nothing.
   payouts anywhere in the UI.
 - The app never moves money. The payments ledger is append-only; corrections
   are new rows, never edits.
+- **A correction that leaves a participant short moves his blocks back.**
+  `admin_record_payment` only ever promotes, so a reversal is followed, in the
+  same transaction, by `admin_demote_if_unpaid` (migration 39): every assigned,
+  non-comped block of his goes back to reserved, holder and name kept,
+  `assigned_at` cleared and kept in the audit row. Never release and
+  re-reserve to get there: release writes "Released from" into the block's
+  notes. Anthony, 2026-10-26 (Part H2, blocks 11, 63 and 70).
 - Committed is a real **count** of blocks, never money divided by price — a
   comped block owes $0 but is still committed.
 - Break-even is **90 paying blocks** ($45,000 / $500). Comped blocks are
