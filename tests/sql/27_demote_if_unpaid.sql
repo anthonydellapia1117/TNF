@@ -1,16 +1,27 @@
--- Migration 39: admin_demote_if_unpaid, the mirror of admin_promote_if_paid,
--- and admin_record_payment calling it after every correction (Anthony,
--- 2026-10-26, Part H2; review of PR 31). A correction that leaves a
--- participant short moves his assigned, non-comped blocks back to reserved,
--- holder and name kept. No other payment method demotes.
+-- Migration 39: admin_demote_if_unpaid, and admin_record_payment calling it
+-- after every correction (Anthony, 2026-10-26, Part H2; review of PR 31).
+-- An assigned block the ledger no longer pays for goes back to reserved,
+-- holder and name kept. Only assigned, non-comped blocks are judged, against
+-- the whole blocks the payment rows pay for; a reserved or requested block
+-- never makes a paid one look short. Partial cover and a block with a payout
+-- are refused. No payment method but a correction demotes.
 --
 -- One transaction, rolled back. Every value read is guarded for NULL.
 --
 -- Mutation checks, each verified to raise: drop the call from record_payment
--- (case A); call it for every method (case G); demote comped blocks too (case
--- C); drop the paid < due guard (case B); skip the audit row (case A); keep
--- assigned_at (case A); demote only one of a partial payer's blocks (case D);
--- let a non-admin call it (section 1).
+-- (case A); call it for every method (case G); judge against due instead of
+-- the assigned blocks (case H); demote comped blocks too (case C); demote when
+-- paid in full (case B); demote on partial cover instead of refusing (case D);
+-- drop the payout guard (case P); skip the audit row (case A); keep
+-- assigned_at (case A); target the participant instead of the blocks (case
+-- A); let a non-admin call it, or grant it to anon (section 1); drop the
+-- participant lock from demote or promote (section 3).
+--
+-- Section 3 checks the lock is taken, not the race itself: this harness is
+-- one session in one rolled-back transaction, so a second session cannot see
+-- the fixture. scripts/db/race-demote.sh runs the race in two sessions (a
+-- correction and an owner-held payment committing together); it passes with
+-- the locks and fails with them removed.
 
 begin;
 
@@ -18,25 +29,28 @@ select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}',
 
 create temp table fx (k text primary key, pid uuid, blocks int[]) on commit drop;
 
--- Fixtures on blocks that are open in the seed. Each case is assigned before
--- the step under test.
---   A: one block, RM cash (the H2 shape).
+-- Fixtures on blocks that are open in the seed.
+--   A: one block, RM cash, assigned (the H2 shape).
 --   B: one block, paid in full.
---   C: one comped block and one paid block.
+--   C: one comped block and one paid block, both assigned.
 --   D: two blocks, paid for both in two rows.
---   E: one block left assigned with nothing paid (the state a correction made
---      before migration 39 would have left), set directly by the fixture.
+--   E: one block left assigned with nothing paid, set directly by the fixture
+--      (the state a correction made before migration 39 would have left).
 --   F: one block, half paid, so still reserved.
---   G: one block paid and assigned, then a second block requested.
+--   G: like E, one assigned block with nothing paid.
+--   H: one block paid and assigned, then a second block reserved and unpaid
+--      (the shape two live holders had on 2026-10-26).
+--   P: like E, and the block has a payout that is not void.
 do $$
 declare
   v_open int[];
   v_pid uuid;
+  v_game uuid;
 begin
   select array_agg(block_number order by block_number) into v_open
-    from (select block_number from blocks where status = 'available' order by block_number limit 9) s;
-  if v_open is null or cardinality(v_open) < 9 then
-    raise exception 'TEST SETUP: need 9 available blocks, found %', coalesce(cardinality(v_open), 0);
+    from (select block_number from blocks where status = 'available' order by block_number limit 12) s;
+  if v_open is null or cardinality(v_open) < 12 then
+    raise exception 'TEST SETUP: need 12 available blocks, found %', coalesce(cardinality(v_open), 0);
   end if;
 
   insert into participants (full_name, display_alias, owner_group, blocks_requested)
@@ -83,9 +97,26 @@ begin
   insert into participants (full_name, owner_group, blocks_requested)
     values ('Case G', 'AVD', 1) returning id into v_pid;
   perform admin_reserve_blocks(array[v_open[9]], v_pid, 'admin', 'fixture G', 'test');
-  perform admin_record_payment(v_pid, 50000, 'venmo', '2026-09-04', 'fx-g', 'fixture', null, null, 'test', null);
-  update participants set blocks_requested = 2 where id = v_pid;
+  update blocks set status = 'assigned', assigned_at = now() where block_number = v_open[9];
   insert into fx values ('G', v_pid, array[v_open[9]]);
+
+  insert into participants (full_name, owner_group, blocks_requested)
+    values ('Case H', 'RM', 1) returning id into v_pid;
+  perform admin_reserve_blocks(array[v_open[10]], v_pid, 'admin', 'fixture H', 'test');
+  perform admin_record_payment(v_pid, 50000, 'cash', '2026-09-04', null, 'fixture H paid', null, null, 'test', 'RM');
+  update participants set blocks_requested = 2 where id = v_pid;
+  perform admin_reserve_blocks(array[v_open[11]], v_pid, 'admin', 'fixture H second', 'test');
+  insert into fx values ('H', v_pid, array[v_open[10], v_open[11]]);
+
+  insert into participants (full_name, owner_group, blocks_requested)
+    values ('Case P', 'AVD', 1) returning id into v_pid;
+  perform admin_reserve_blocks(array[v_open[12]], v_pid, 'admin', 'fixture P', 'test');
+  update blocks set status = 'assigned', assigned_at = now() where block_number = v_open[12];
+  select id into v_game from games order by game_no limit 1;
+  if v_game is null then raise exception 'TEST SETUP: no game to hang a payout on'; end if;
+  insert into payouts (game_id, payout_type, block_number, participant_id, amount_cents, status)
+    values (v_game, 'halftime', v_open[12], v_pid, 150000, 'owed');
+  insert into fx values ('P', v_pid, array[v_open[12]]);
 end $$;
 
 -- 0. The fixture is what it claims.
@@ -93,21 +124,27 @@ do $$
 declare
   v_n int;
 begin
-  select count(*) into v_n from blocks b join fx on b.block_number = any (fx.blocks)
-   where fx.k in ('A','B','C','D','E','G') and b.status = 'assigned';
-  if v_n is null or v_n <> 8 then
-    raise exception 'TEST SETUP: expected 8 fixture blocks assigned, found %', v_n;
+  select count(*) into v_n from blocks b join fx on b.block_number = any (fx.blocks) where b.status = 'assigned';
+  if v_n is null or v_n <> 10 then
+    raise exception 'TEST SETUP: expected 10 fixture blocks assigned, found %', v_n;
   end if;
-  if (select status from blocks where block_number = (select blocks[1] from fx where k = 'F')) is distinct from 'reserved' then
-    raise exception 'TEST SETUP: case F should start reserved';
+  if (select status from blocks where block_number = (select blocks[1] from fx where k = 'F')) is distinct from 'reserved'
+     or (select status from blocks where block_number = (select blocks[2] from fx where k = 'H')) is distinct from 'reserved' then
+    raise exception 'TEST SETUP: cases F and H second block should start reserved';
   end if;
 end $$;
 
--- 1. The RPC on its own: admin-only, an actor, a real participant.
+-- 1. The RPC on its own: admin-only, never anon, an actor, a real participant.
 do $$
 declare
   v_e uuid := (select pid from fx where k = 'E');
 begin
+  if has_function_privilege('anon', 'admin_demote_if_unpaid(uuid,text)', 'execute') then
+    raise exception 'TEST FAILURE: anon can execute admin_demote_if_unpaid';
+  end if;
+  if not has_function_privilege('authenticated', 'admin_demote_if_unpaid(uuid,text)', 'execute') then
+    raise exception 'TEST FAILURE: authenticated cannot execute admin_demote_if_unpaid';
+  end if;
   perform set_config('request.jwt.claims', '{"email":"someone-else@tnf.test"}', true);
   begin
     perform admin_demote_if_unpaid(v_e, 'test');
@@ -138,8 +175,9 @@ end $$;
 
 -- A. The H2 shape, through the correction alone. The block goes back to
 --    reserved inside admin_record_payment: holder, name, comp flag, notes,
---    method and ref kept, assigned_at cleared and kept in one audit row, the
---    correction carrying RM. A second, direct call is a no-op.
+--    method and ref kept, assigned_at cleared and kept in one audit row whose
+--    target is the block, the correction carrying RM. A second, direct call is
+--    a no-op.
 do $$
 declare
   v_pid uuid := (select pid from fx where k = 'A');
@@ -173,13 +211,17 @@ begin
   end if;
   if b_after.assigned_at is not null then raise exception 'TEST FAILURE: case A kept assigned_at'; end if;
 
-  select count(*) into v_audit from audit_log where action = 'demote_blocks' and target_id = v_pid::text;
+  select count(*) into v_audit from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text;
   if v_audit is null or v_audit <> 1 then raise exception 'TEST FAILURE: case A wrote % demote_blocks rows', v_audit; end if;
-  select * into a from audit_log where action = 'demote_blocks' and target_id = v_pid::text;
+  select * into a from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text;
+  -- getBlockHistory matches the block number in target_id (comma-separated).
+  if a.target_id is distinct from v_n::text then
+    raise exception 'TEST FAILURE: case A audit target_id is %, not block %', a.target_id, v_n;
+  end if;
   if a.actor is distinct from 'test' or a.target_table is distinct from 'blocks'
      or (a.after ->> 'demoted') is null or (a.after ->> 'demoted')::int <> 1
      or (a.after ->> 'paid_cents') is null or (a.after ->> 'paid_cents')::bigint <> 0
-     or (a.after ->> 'due_cents') is null or (a.after ->> 'due_cents')::bigint <> 50000 then
+     or (a.after ->> 'owed_cents') is null or (a.after ->> 'owed_cents')::bigint <> 50000 then
     raise exception 'TEST FAILURE: case A audit row %', a.after;
   end if;
   if (a.before -> 'blocks' -> 0 ->> 'block_number') is null
@@ -190,7 +232,7 @@ begin
 
   v_count := admin_demote_if_unpaid(v_pid, 'test');
   if v_count is null or v_count <> 0 then raise exception 'TEST FAILURE: case A second call demoted %', v_count; end if;
-  if (select count(*) from audit_log where action = 'demote_blocks' and target_id = v_pid::text) <> 1 then
+  if (select count(*) from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text) <> 1 then
     raise exception 'TEST FAILURE: a no-op call wrote an audit row';
   end if;
 end $$;
@@ -206,7 +248,7 @@ begin
   if (select status from blocks where block_number = (select blocks[1] from fx where k = 'B')) is distinct from 'assigned' then
     raise exception 'TEST FAILURE: case B block is no longer assigned';
   end if;
-  if exists (select 1 from audit_log where action = 'demote_blocks' and target_id = v_pid::text) then
+  if exists (select 1 from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text) then
     raise exception 'TEST FAILURE: case B wrote an audit row';
   end if;
 end $$;
@@ -232,21 +274,31 @@ begin
   end if;
 end $$;
 
--- D. Partial payment after a correction: both blocks go back, the rule
---    promotion uses in reverse.
+-- D. Partial cover is refused: the ledger would pay for one of his two
+--    assigned blocks, and which one keeps its payout is Anthony's call. The
+--    correction itself does not land, and nothing moves.
 do $$
 declare
   v_pid uuid := (select pid from fx where k = 'D');
   v_orig uuid := (select id from payments where participant_id = (select pid from fx where k = 'D') and source_ref = 'fixture 1');
 begin
   if v_orig is null then raise exception 'TEST SETUP: case D has no payment to correct'; end if;
-  perform admin_record_payment(v_pid, -50000, 'correction', '2026-10-26', null, 'fixture reversal', null, v_orig, 'test', null);
-  if (select count(*) from blocks where participant_id = v_pid and status = 'reserved') <> 2 then
-    raise exception 'TEST FAILURE: case D did not demote both blocks';
+  begin
+    perform admin_record_payment(v_pid, -50000, 'correction', '2026-10-26', null, 'fixture reversal', null, v_orig, 'test', null);
+    raise exception 'TEST FAILURE: case D partial cover was not refused';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%Anthony''s call%' then raise exception 'TEST FAILURE: case D wrong refusal: %', sqlerrm; end if;
+  end;
+  if (select count(*) from blocks where participant_id = v_pid and status = 'assigned') <> 2 then
+    raise exception 'TEST FAILURE: case D moved a block';
+  end if;
+  if exists (select 1 from payments where participant_id = v_pid and method = 'correction') then
+    raise exception 'TEST FAILURE: case D correction landed though it was refused';
   end if;
 end $$;
 
--- E. The RPC on its own, for a block already assigned and short.
+-- E. The RPC on its own, for a block already assigned with nothing paid.
 do $$
 declare
   v_pid uuid := (select pid from fx where k = 'E');
@@ -270,13 +322,13 @@ begin
   if (select status from blocks where block_number = (select blocks[1] from fx where k = 'F')) is distinct from 'assigned' then
     raise exception 'TEST FAILURE: case F correction to full did not promote';
   end if;
-  if exists (select 1 from audit_log where action = 'demote_blocks' and target_id = v_pid::text) then
+  if exists (select 1 from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text) then
     raise exception 'TEST FAILURE: case F wrote a demote row';
   end if;
 end $$;
 
--- G. Only a correction demotes. G is short only because he asked for a second
---    block; an ordinary payment that leaves him short moves nothing.
+-- G. Only a correction demotes. G's assigned block has nothing behind it; an
+--    ordinary payment that does not cover it moves nothing.
 do $$
 declare
   v_pid uuid := (select pid from fx where k = 'G');
@@ -285,8 +337,47 @@ begin
   if (select status from blocks where block_number = (select blocks[1] from fx where k = 'G')) is distinct from 'assigned' then
     raise exception 'TEST FAILURE: case G: a cash payment demoted a block';
   end if;
-  if exists (select 1 from audit_log where action = 'demote_blocks' and target_id = v_pid::text) then
+  if exists (select 1 from audit_log where action = 'demote_blocks' and after ->> 'participant_id' = v_pid::text) then
     raise exception 'TEST FAILURE: case G wrote a demote row';
+  end if;
+end $$;
+
+-- H. A reserved, unpaid second block never makes the paid one look short.
+--    A mistaken extra payment and its correction leave the paid block
+--    assigned, and a direct call agrees.
+do $$
+declare
+  v_pid uuid := (select pid from fx where k = 'H');
+  v_paid_block int := (select blocks[1] from fx where k = 'H');
+  v_extra uuid;
+  v_count int;
+begin
+  v_extra := admin_record_payment(v_pid, 10000, 'cash', '2026-10-26', null, 'fixture mistaken extra', null, null, 'test', 'RM');
+  perform admin_record_payment(v_pid, -10000, 'correction', '2026-10-26', null, 'fixture reversal of the extra', null, v_extra, 'test', null);
+  if (select status from blocks where block_number = v_paid_block) is distinct from 'assigned' then
+    raise exception 'TEST FAILURE: case H: a correction demoted a block he paid for';
+  end if;
+  v_count := admin_demote_if_unpaid(v_pid, 'test');
+  if v_count is null or v_count <> 0 then raise exception 'TEST FAILURE: case H direct call demoted %', v_count; end if;
+  if (select status from blocks where block_number = (select blocks[2] from fx where k = 'H')) is distinct from 'reserved' then
+    raise exception 'TEST FAILURE: case H second block changed';
+  end if;
+end $$;
+
+-- P. A block with a payout that is not void is refused, and stays assigned.
+do $$
+declare
+  v_pid uuid := (select pid from fx where k = 'P');
+begin
+  begin
+    perform admin_demote_if_unpaid(v_pid, 'test');
+    raise exception 'TEST FAILURE: case P demoted a block with a payout';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%payout%' then raise exception 'TEST FAILURE: case P wrong refusal: %', sqlerrm; end if;
+  end;
+  if (select status from blocks where block_number = (select blocks[1] from fx where k = 'P')) is distinct from 'assigned' then
+    raise exception 'TEST FAILURE: case P block moved';
   end if;
 end $$;
 
@@ -303,6 +394,36 @@ begin
   if (select assigned_at from blocks where block_number = v_n) is null then
     raise exception 'TEST FAILURE: re-promotion left assigned_at empty';
   end if;
+end $$;
+
+-- 3. Promote and demote take the same participant lock before reading the
+--    balance, and record_payment reaches it through them. Fresh participants,
+--    so no earlier call in this transaction holds it.
+do $$
+declare
+  v_p uuid;
+  v_fn text;
+  k1 oid := (hashtext('participant_finance')::bigint & 4294967295)::oid;
+begin
+  foreach v_fn in array array['promote', 'demote', 'record'] loop
+    insert into participants (full_name, owner_group, blocks_requested)
+      values ('Lock ' || v_fn, 'AVD', 0) returning id into v_p;
+    if exists (select 1 from pg_locks where locktype = 'advisory' and pid = pg_backend_pid()
+                and classid = k1 and objid = (hashtext(v_p::text)::bigint & 4294967295)::oid and objsubid = 2) then
+      raise exception 'TEST SETUP: % lock already held before the call', v_fn;
+    end if;
+    if v_fn = 'promote' then
+      perform admin_promote_if_paid(v_p, 'test');
+    elsif v_fn = 'demote' then
+      perform admin_demote_if_unpaid(v_p, 'test');
+    else
+      perform admin_record_payment(v_p, 10000, 'cash', '2026-10-26', null, 'fixture lock', null, null, 'test', null);
+    end if;
+    if not exists (select 1 from pg_locks where locktype = 'advisory' and pid = pg_backend_pid() and granted
+                    and classid = k1 and objid = (hashtext(v_p::text)::bigint & 4294967295)::oid and objsubid = 2) then
+      raise exception 'TEST FAILURE: % did not take the participant lock', v_fn;
+    end if;
+  end loop;
 end $$;
 
 rollback;
