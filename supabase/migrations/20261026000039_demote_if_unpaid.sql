@@ -40,7 +40,9 @@
 -- never from a stale balance; scripts/db/race-demote.sh runs that race in two
 -- sessions. admin_record_payment reaches the balance only through those two,
 -- so it needs no lock of its own. The blocks are row-locked before they are
--- read, so the audit row and the update describe the same rows.
+-- read, so the audit row and the update describe the same rows, and
+-- admin_score_game now reads the winning block FOR UPDATE, so a payout and a
+-- demotion of the same block are never decided from each other's snapshot.
 --
 -- WHERE IT RUNS. admin_record_payment calls it after every row that takes
 -- money away, a correction or any negative amount (review of PR 31: the
@@ -265,4 +267,122 @@ begin
     end if;
   end if;
   return v_count;
+end $$;
+
+-- admin_score_game, migration 7's text with one change: the winning block is
+-- read FOR UPDATE. admin_demote_if_unpaid row-locks a block before it checks
+-- for a payout and moves it; without this lock, scoring could read the block
+-- as assigned from its snapshot while a correction was demoting it, and write
+-- an owed payout for a reserved block (Codex, review of PR 31). With it,
+-- whichever commits first wins: scoring after a demotion sees reserved and
+-- creates no payout; a correction after scoring sees the payout and is
+-- refused. create or replace on an unchanged signature keeps its ACL.
+
+create or replace function admin_score_game(
+  p_game_id uuid,
+  p_type text,
+  p_away int,
+  p_home int,
+  p_actor text
+) returns jsonb
+language plpgsql
+set search_path = public, pg_temp
+as $$
+declare
+  g games;
+  b blocks;
+  v_block int;
+  v_amount int;
+  v_existing payouts;
+  v_payout_created boolean := false;
+  v_review boolean := false;
+begin
+  perform assert_admin();
+  if p_type not in ('halftime', 'final') then
+    raise exception 'score type must be halftime or final';
+  end if;
+  if p_away is null or p_home is null or p_away < 0 or p_home < 0 then
+    raise exception 'scores must be non-negative numbers';
+  end if;
+  select * into g from games where id = p_game_id for update;
+  if g.id is null then
+    raise exception 'game not found';
+  end if;
+  if g.digits_published_at is null or g.digits_published_at > now() then
+    raise exception 'G%: cannot score before digits are published', lpad(g.game_no::text, 2, '0');
+  end if;
+
+  select * into v_existing from payouts where game_id = p_game_id and payout_type = p_type;
+  if v_existing.id is not null and v_existing.status = 'paid' then
+    raise exception 'G% %: payout already settled — cannot re-score', lpad(g.game_no::text, 2, '0'), p_type;
+  end if;
+
+  v_block := winning_block(g.row_digits, g.col_digits, p_home, p_away);
+  select case
+           when g.game_type = 'holiday' and p_type = 'halftime' then c.holiday_halftime_cents
+           when g.game_type = 'holiday' then c.holiday_final_cents
+           when p_type = 'halftime' then c.regular_halftime_cents
+           else c.regular_final_cents
+         end
+    into v_amount
+    from config c;
+
+  if p_type = 'halftime' then
+    update games
+       set halftime_home = p_home, halftime_away = p_away, halftime_block = v_block,
+           halftime_scored_at = now(),
+           status = case when status in ('final', 'void') then status else 'halftime' end
+     where id = p_game_id;
+  else
+    update games
+       set final_home = p_home, final_away = p_away, final_block = v_block,
+           final_scored_at = now(), status = 'final'
+     where id = p_game_id;
+  end if;
+
+  -- Row-locked (migration 39, review of PR 31): a correction that demotes this
+  -- block holds the same row lock, so the two are judged one after the other
+  -- and a payout is never written for a block a concurrent correction just
+  -- moved back to reserved.
+  select * into b from blocks where block_number = v_block for update;
+
+  if b.status = 'assigned' then
+    insert into payouts (game_id, payout_type, block_number, participant_id, amount_cents)
+    values (p_game_id, p_type, v_block, b.participant_id, v_amount)
+    on conflict (game_id, payout_type) do update
+      set block_number = excluded.block_number,
+          participant_id = excluded.participant_id,
+          amount_cents = excluded.amount_cents,
+          status = 'owed',
+          note = 'corrected by re-score';
+    v_payout_created := true;
+  else
+    if v_existing.id is not null and v_existing.status = 'owed' then
+      update payouts set status = 'void', note = 'voided on re-score: winning block not assigned'
+       where id = v_existing.id;
+    end if;
+    v_review := true;
+    update games
+       set notes = trim(both E'\n' from coalesce(notes, '') || E'\n'
+             || 'REVIEW ' || upper(p_type) || ': winning block ' || v_block
+             || ' is ' || b.status || ' — no payout created')
+     where id = p_game_id;
+    insert into audit_log (actor, action, target_table, target_id, after, note)
+    values (p_actor, 'review_flag', 'games', p_game_id::text,
+            jsonb_build_object('game_no', g.game_no, 'type', p_type,
+                               'block', v_block, 'block_status', b.status),
+            'winning block not assigned — no payout');
+  end if;
+
+  insert into audit_log (actor, action, target_table, target_id, after)
+  values (p_actor, 'score_' || p_type, 'games', p_game_id::text,
+          jsonb_build_object('game_no', g.game_no, 'away', p_away, 'home', p_home,
+                             'block', v_block, 'payout_created', v_payout_created));
+
+  return jsonb_build_object(
+    'block', v_block, 'amount_cents', v_amount,
+    'payout_created', v_payout_created, 'review', v_review,
+    'winner_status', b.status,
+    'winner_name', (select coalesce(p.display_alias, p.full_name)
+                      from participants p where p.id = b.participant_id));
 end $$;

@@ -23,9 +23,10 @@
 --
 -- Section 3 checks the lock is taken, not the race itself: this harness is
 -- one session in one rolled-back transaction, so a second session cannot see
--- the fixture. scripts/db/race-demote.sh runs the race in two sessions (a
--- correction and an owner-held payment committing together); it passes with
--- the locks and fails with them removed.
+-- the fixture. scripts/db/race-demote.sh runs the races in two sessions: a
+-- correction against an owner-held payment, and against the score that makes
+-- the block a winner, each in both orders. It passes with the locks and fails
+-- with either lock removed.
 
 begin;
 
