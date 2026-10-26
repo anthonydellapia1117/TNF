@@ -72,6 +72,7 @@ race() {
   wait "$first" || true
   q -c "select b.status || ' payouts=' || (select count(*) from payouts p where p.block_number = r.block and p.status <> 'void')
                || ' corrections=' || (select count(*) from payments c where c.corrects_payment_id = r.orig)
+               || ' scored=' || coalesce((select (g.halftime_block = r.block)::int from games g where g.id = r.game), 0)
           from race_fx r join blocks b on b.block_number = r.block;"
 }
 
@@ -86,8 +87,10 @@ check() { # $1 name, $2 expected, $3 game, $4 first, $5 second
     status=1
   fi
 }
-check "correction first, payment races in" "assigned payouts=0 corrections=1" 0 "$CORR" "$PAY"
-check "payment first, correction races in" "assigned payouts=0 corrections=1" 0 "$PAY" "$CORR"
-check "correction first, winning score races in" "reserved payouts=0 corrections=1" 1 "$CORR" "$SCORE"
-check "winning score first, correction races in" "assigned payouts=1 corrections=0" 2 "$SCORE" "$CORR"
+# scored=1 says the score itself committed, so a refused score cannot pass
+# for a race that came out right.
+check "correction first, payment races in" "assigned payouts=0 corrections=1 scored=0" 0 "$CORR" "$PAY"
+check "payment first, correction races in" "assigned payouts=0 corrections=1 scored=0" 0 "$PAY" "$CORR"
+check "correction first, winning score races in" "reserved payouts=0 corrections=1 scored=1" 1 "$CORR" "$SCORE"
+check "winning score first, correction races in" "assigned payouts=1 corrections=0 scored=1" 2 "$SCORE" "$CORR"
 exit $status

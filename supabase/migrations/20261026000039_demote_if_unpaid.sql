@@ -28,10 +28,14 @@
 --     assigned_at is cleared (/block/[n] prints it, and a later promotion
 --     stamps it again) and kept in the audit row.
 --   - It pays for some but not all: refused. Which block keeps its payout
---     eligibility is a choice, not arithmetic, so it is Anthony's: release or
---     correct by hand first. There are no partial payments (CLAUDE.md).
---   - A block with a payout row that is not void is refused too: demoting a
---     winner is money going out, which is Anthony's call.
+--     eligibility is a choice, not arithmetic, so it is Anthony's: release the
+--     block that goes, then record the correction again. A path that keeps
+--     both blocks with the holder is open as issue 35. There are no partial
+--     payments (CLAUDE.md).
+--   - A block with a payout to him that is not void is refused too: demoting
+--     a winner is money going out, which is Anthony's call. A payout won by a
+--     former holder of the block does not block the current one (Codex,
+--     review of PR 31).
 --
 -- LOCKING. This function and admin_promote_if_paid take one participant-level
 -- advisory lock immediately before they read the balance (review of PR 31).
@@ -39,7 +43,9 @@
 -- for the same person committing together are judged one after the other,
 -- never from a stale balance; scripts/db/race-demote.sh runs that race in two
 -- sessions. admin_record_payment reaches the balance only through those two,
--- so it needs no lock of its own. The blocks are row-locked before they are
+-- so it needs no lock of its own. admin_set_comped still judges and moves
+-- blocks outside this lock, on its own due-based rule (issue 33). The blocks
+-- are row-locked before they are
 -- read, so the audit row and the update describe the same rows, and
 -- admin_score_game now reads the winning block FOR UPDATE, so a payout and a
 -- demotion of the same block are never decided from each other's snapshot.
@@ -48,7 +54,9 @@
 -- money away, a correction or any negative amount (review of PR 31: the
 -- /admin/payments form records those with that one RPC, so a separate call
 -- would never run there, and the schema allows a negative amount on every
--- method). It stays callable on its own. A positive payment never demotes.
+-- method). It stays callable on its own. A positive payment that is not a
+-- correction never calls it; a positive correction does, and at a fixed block
+-- price adding money never leaves anyone short.
 -- admin_record_payment also refuses a correction booked on a participant
 -- other than the one whose row it corrects.
 -- The audit row's target_id is the block list, the shape getBlockHistory
@@ -103,11 +111,12 @@ begin
     return 0;
   end if;
   if v_covered > 0 then
-    raise exception 'refused: participant % holds % assigned blocks and the ledger pays for %; which stays assigned is Anthony''s call, so release or correct by hand first',
+    raise exception 'refused: participant % holds % assigned blocks and the ledger pays for %; which block stays assigned is Anthony''s call. Release the block that goes, then record this again (issue 35)',
       p_participant_id, v_assigned, v_covered;
   end if;
   if exists (select 1 from payouts py
               where py.status <> 'void'
+                and py.participant_id = p_participant_id
                 and py.block_number in (select b.block_number from blocks b
                                          where b.participant_id = p_participant_id
                                            and b.status = 'assigned' and not b.comped)) then
@@ -171,11 +180,14 @@ begin
       from payments where id = p_corrects_payment_id;
   end if;
 
-  -- A correction belongs to the participant of the row it corrects (migration
-  -- 39, review of PR 31). The /admin/payments form picks the participant and
-  -- the corrected row separately; a mismatch would book the reversal, and the
-  -- demotion that follows it, on the wrong person.
-  if p_method = 'correction'
+  -- A row that names the payment it corrects belongs to that payment's
+  -- participant (migration 39, review of PR 31). The /admin/payments form
+  -- picks the participant and the corrected row separately; a mismatch would
+  -- book the reversal, and the demotion that follows it, on the wrong person.
+  -- An id that names no payment is left to the foreign key, and a correction
+  -- with no id to correction_references_original, which name the real cause.
+  if p_corrects_payment_id is not null
+     and exists (select 1 from payments where id = p_corrects_payment_id)
      and p_participant_id is distinct from
          (select participant_id from payments where id = p_corrects_payment_id) then
     raise exception 'refused: payment % belongs to a different participant; a correction goes on the participant of the row it corrects',

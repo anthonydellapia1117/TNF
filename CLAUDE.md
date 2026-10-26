@@ -238,10 +238,12 @@ count reopens nothing.
   his assigned, non-comped blocks are judged, against the whole blocks his
   payment rows pay for: if they pay for none, every one goes back to
   reserved, holder and name kept; if some but not all, the correction is
-  refused, because which block keeps its payout is Anthony's call; a block
-  with a payout is refused too. A reserved or requested block never makes a
-  paid one look short. Never release and re-reserve to get there: release
-  writes "Released from" into the block's notes.
+  refused, because which block keeps its payout is Anthony's call (release
+  the block that goes, then record it again; keeping both is open as issue
+  35); a block with a payout to him is refused too. A reserved or requested
+  block never makes a paid one look short. Never release and re-reserve a
+  block to the same holder to demote it: release writes "Released from" into
+  the block's notes.
 - Committed is a real **count** of blocks, never money divided by price — a
   comped block owes $0 but is still committed.
 - Break-even is **90 paying blocks** ($45,000 / $500). Comped blocks are
