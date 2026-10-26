@@ -4,7 +4,9 @@
 -- holder and name kept. Only assigned, non-comped blocks are judged, against
 -- the whole blocks the payment rows pay for; a reserved or requested block
 -- never makes a paid one look short. Partial cover and a block with a payout
--- are refused. No payment method but a correction demotes.
+-- are refused. Only a row that takes money away demotes: a correction, or a
+-- negative amount on any method. A correction booked on a participant other
+-- than the one whose row it corrects is refused.
 --
 -- One transaction, rolled back. Every value read is guarded for NULL.
 --
@@ -15,7 +17,9 @@
 -- drop the payout guard (case P); skip the audit row (case A); keep
 -- assigned_at (case A); target the participant instead of the blocks (case
 -- A); let a non-admin call it, or grant it to anon (section 1); drop the
--- participant lock from demote or promote (section 3).
+-- participant lock from demote or promote (section 3); skip the demote on a
+-- negative cash row (case N); drop the corrected row's participant check
+-- (case W).
 --
 -- Section 3 checks the lock is taken, not the race itself: this harness is
 -- one session in one rolled-back transaction, so a second session cannot see
@@ -41,6 +45,9 @@ create temp table fx (k text primary key, pid uuid, blocks int[]) on commit drop
 --   H: one block paid and assigned, then a second block reserved and unpaid
 --      (the shape two live holders had on 2026-10-26).
 --   P: like E, and the block has a payout that is not void.
+--   N: one block, paid in full and assigned.
+--   W: one block, paid in full and assigned; its payment is the one a
+--      correction booked on case B's participant tries to reverse.
 do $$
 declare
   v_open int[];
@@ -48,9 +55,9 @@ declare
   v_game uuid;
 begin
   select array_agg(block_number order by block_number) into v_open
-    from (select block_number from blocks where status = 'available' order by block_number limit 12) s;
-  if v_open is null or cardinality(v_open) < 12 then
-    raise exception 'TEST SETUP: need 12 available blocks, found %', coalesce(cardinality(v_open), 0);
+    from (select block_number from blocks where status = 'available' order by block_number limit 14) s;
+  if v_open is null or cardinality(v_open) < 14 then
+    raise exception 'TEST SETUP: need 14 available blocks, found %', coalesce(cardinality(v_open), 0);
   end if;
 
   insert into participants (full_name, display_alias, owner_group, blocks_requested)
@@ -117,6 +124,18 @@ begin
   insert into payouts (game_id, payout_type, block_number, participant_id, amount_cents, status)
     values (v_game, 'halftime', v_open[12], v_pid, 150000, 'owed');
   insert into fx values ('P', v_pid, array[v_open[12]]);
+
+  insert into participants (full_name, owner_group, blocks_requested)
+    values ('Case N', 'AVD', 1) returning id into v_pid;
+  perform admin_reserve_blocks(array[v_open[13]], v_pid, 'admin', 'fixture N', 'test');
+  perform admin_record_payment(v_pid, 50000, 'cash', '2026-09-04', null, 'fixture N', null, null, 'test', null);
+  insert into fx values ('N', v_pid, array[v_open[13]]);
+
+  insert into participants (full_name, owner_group, blocks_requested)
+    values ('Case W', 'AVD', 1) returning id into v_pid;
+  perform admin_reserve_blocks(array[v_open[14]], v_pid, 'admin', 'fixture W', 'test');
+  perform admin_record_payment(v_pid, 50000, 'cash', '2026-09-04', null, 'fixture W', null, null, 'test', null);
+  insert into fx values ('W', v_pid, array[v_open[14]]);
 end $$;
 
 -- 0. The fixture is what it claims.
@@ -125,8 +144,8 @@ declare
   v_n int;
 begin
   select count(*) into v_n from blocks b join fx on b.block_number = any (fx.blocks) where b.status = 'assigned';
-  if v_n is null or v_n <> 10 then
-    raise exception 'TEST SETUP: expected 10 fixture blocks assigned, found %', v_n;
+  if v_n is null or v_n <> 12 then
+    raise exception 'TEST SETUP: expected 12 fixture blocks assigned, found %', v_n;
   end if;
   if (select status from blocks where block_number = (select blocks[1] from fx where k = 'F')) is distinct from 'reserved'
      or (select status from blocks where block_number = (select blocks[2] from fx where k = 'H')) is distinct from 'reserved' then
@@ -378,6 +397,43 @@ begin
   end;
   if (select status from blocks where block_number = (select blocks[1] from fx where k = 'P')) is distinct from 'assigned' then
     raise exception 'TEST FAILURE: case P block moved';
+  end if;
+end $$;
+
+-- N. A negative amount on an ordinary method takes money away too, and
+--    demotes like a correction.
+do $$
+declare
+  v_pid uuid := (select pid from fx where k = 'N');
+begin
+  perform admin_record_payment(v_pid, -50000, 'cash', '2026-10-26', null, 'fixture negative cash', null, null, 'test', null);
+  if (select status from blocks where block_number = (select blocks[1] from fx where k = 'N')) is distinct from 'reserved' then
+    raise exception 'TEST FAILURE: case N: a negative cash row left the block assigned';
+  end if;
+end $$;
+
+-- W. A correction booked on the wrong participant is refused: it would
+--    reverse W's money on B's ledger and demote B. Nothing lands.
+do $$
+declare
+  v_b uuid := (select pid from fx where k = 'B');
+  v_w uuid := (select pid from fx where k = 'W');
+  v_orig uuid := (select id from payments where participant_id = (select pid from fx where k = 'W') and method = 'cash');
+begin
+  if v_orig is null then raise exception 'TEST SETUP: case W has no payment to correct'; end if;
+  begin
+    perform admin_record_payment(v_b, -50000, 'correction', '2026-10-26', null, 'fixture wrong person', null, v_orig, 'test', null);
+    raise exception 'TEST FAILURE: case W correction on the wrong participant was accepted';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%different participant%' then raise exception 'TEST FAILURE: case W wrong refusal: %', sqlerrm; end if;
+  end;
+  if (select status from blocks where block_number = (select blocks[1] from fx where k = 'B')) is distinct from 'assigned'
+     or (select status from blocks where block_number = (select blocks[1] from fx where k = 'W')) is distinct from 'assigned' then
+    raise exception 'TEST FAILURE: case W moved a block';
+  end if;
+  if exists (select 1 from payments where corrects_payment_id = v_orig) then
+    raise exception 'TEST FAILURE: case W correction landed though it was refused';
   end if;
 end $$;
 

@@ -42,10 +42,13 @@
 -- so it needs no lock of its own. The blocks are row-locked before they are
 -- read, so the audit row and the update describe the same rows.
 --
--- WHERE IT RUNS. admin_record_payment calls it after every correction (review
--- of PR 31: the /admin/payments form records a correction with that one RPC,
--- so a separate call would never run there). It stays callable on its own.
--- Every other payment method is unchanged: only a correction takes money away.
+-- WHERE IT RUNS. admin_record_payment calls it after every row that takes
+-- money away, a correction or any negative amount (review of PR 31: the
+-- /admin/payments form records those with that one RPC, so a separate call
+-- would never run there, and the schema allows a negative amount on every
+-- method). It stays callable on its own. A positive payment never demotes.
+-- admin_record_payment also refuses a correction booked on a participant
+-- other than the one whose row it corrects.
 -- The audit row's target_id is the block list, the shape getBlockHistory
 -- matches, with the participant in the payload.
 
@@ -127,8 +130,9 @@ end $$;
 revoke execute on function admin_demote_if_unpaid(uuid, text) from public, anon;
 grant execute on function admin_demote_if_unpaid(uuid, text) to authenticated;
 
--- admin_record_payment, derived from migration 32's text programmatically: one
--- insertion, the demote call before the promotion call, and nothing else.
+-- admin_record_payment, derived from migration 32's text programmatically: two
+-- insertions, the corrected row's participant check after the collector read
+-- and the demote call before the promotion call, and nothing else.
 -- create or replace on an unchanged signature keeps the ACL; the grants are
 -- re-applied anyway.
 
@@ -165,6 +169,17 @@ begin
       from payments where id = p_corrects_payment_id;
   end if;
 
+  -- A correction belongs to the participant of the row it corrects (migration
+  -- 39, review of PR 31). The /admin/payments form picks the participant and
+  -- the corrected row separately; a mismatch would book the reversal, and the
+  -- demotion that follows it, on the wrong person.
+  if p_method = 'correction'
+     and p_participant_id is distinct from
+         (select participant_id from payments where id = p_corrects_payment_id) then
+    raise exception 'refused: payment % belongs to a different participant; a correction goes on the participant of the row it corrects',
+      p_corrects_payment_id;
+  end if;
+
   insert into payments (participant_id, amount_cents, method, paid_on,
                         venmo_txn_id, source_ref, note, corrects_payment_id,
                         collected_by)
@@ -197,10 +212,12 @@ begin
                 ', so the block is in his book');
       end if;
     end if;
-    -- A correction can leave him short (migration 39): demote first, so a
-    -- reversed payment never leaves a block assigned and eligible to win.
-    -- Promotion and demotion judge the same view and never both fire.
-    if p_method = 'correction' then
+    -- A row that takes money away can leave him short (migration 39): a
+    -- correction, or any negative amount, which the schema allows on every
+    -- method. Demote first, so a reversed payment never leaves a block
+    -- assigned and eligible to win. Promotion and demotion judge different
+    -- things and only one of them can move a block.
+    if p_method = 'correction' or coalesce(p_amount_cents, 0) < 0 then
       perform admin_demote_if_unpaid(p_participant_id, p_actor);
     end if;
     perform admin_promote_if_paid(p_participant_id, p_actor);

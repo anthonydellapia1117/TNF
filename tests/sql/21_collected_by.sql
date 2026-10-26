@@ -154,9 +154,14 @@ begin
   --     NOT test the method filter: a comp is 0 dollars, so the amount guard
   --     catches it either way, and removing the method filter left the suite
   --     green. A correction carries a positive amount and isolates it.
+  --     The corrected row is this participant's own (migration 39 refuses a
+  --     correction booked on another participant's row): a $0 comp, so its
+  --     collector is null and only the method filter keeps the book.
   insert into participants (full_name, display_alias, owner_group, blocks_requested)
   values ('Test AvdMove Four', 'avdmove4', 'JPOD', 1) returning id into v_p;
 
+  v_pay := admin_record_payment(v_p, 0, 'comp', current_date, null,
+                                'comped block', null, null, 'admin@tnf.test', null);
   perform admin_record_payment(v_p, 50000, 'correction', current_date, null,
                                'correcting an earlier row', null, v_pay,
                                'admin@tnf.test', null);

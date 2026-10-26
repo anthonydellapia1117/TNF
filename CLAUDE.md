@@ -230,8 +230,11 @@ count reopens nothing.
   Anthony asked, 2026-10-26 (Part H2), for blocks 11, 63 and 70 to go from
   assigned to reserved with their holders kept once their RM rows were
   reversed. Migration 39 does it with `admin_demote_if_unpaid`, and
-  `admin_record_payment` calls it after every correction (that wiring came
-  from the review of PR 31, so the /admin/payments form demotes too). Only
+  `admin_record_payment` calls it after every row that takes money away, a
+  correction or any negative amount, and refuses a correction booked on a
+  participant other than the one whose row it corrects (that wiring and the
+  check came from the review of PR 31, so the /admin/payments form is covered
+  too). Only
   his assigned, non-comped blocks are judged, against the whole blocks his
   payment rows pay for: if they pay for none, every one goes back to
   reserved, holder and name kept; if some but not all, the correction is
