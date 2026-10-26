@@ -226,6 +226,24 @@ count reopens nothing.
   payouts anywhere in the UI.
 - The app never moves money. The payments ledger is append-only; corrections
   are new rows, never edits.
+- **A correction that leaves an assigned block unpaid moves it back.**
+  Anthony asked, 2026-10-26 (Part H2), for blocks 11, 63 and 70 to go from
+  assigned to reserved with their holders kept once their RM rows were
+  reversed. Migration 39 does it with `admin_demote_if_unpaid`, and
+  `admin_record_payment` calls it after every row that takes money away, a
+  correction or any negative amount, and refuses a correction booked on a
+  participant other than the one whose row it corrects (that wiring and the
+  check came from the review of PR 31, so the /admin/payments form is covered
+  too). Only
+  his assigned, non-comped blocks are judged, against the whole blocks his
+  payment rows pay for: if they pay for none, every one goes back to
+  reserved, holder and name kept; if some but not all, the correction is
+  refused, because which block keeps its payout is Anthony's call (release
+  the block that goes, then record it again; keeping both is open as issue
+  35); a block with a payout to him is refused too. A reserved or requested
+  block never makes a paid one look short. Never release and re-reserve a
+  block to the same holder to demote it: release writes "Released from" into
+  the block's notes.
 - Committed is a real **count** of blocks, never money divided by price — a
   comped block owes $0 but is still committed.
 - Break-even is **90 paying blocks** ($45,000 / $500). Comped blocks are
