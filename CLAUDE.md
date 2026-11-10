@@ -41,6 +41,15 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
     comped.** That is his original free $500 block, which is two blocks at
     $250. No other block is comped. Ernie Sr holds 12 and 25, both
     rendering "Philadelphia Poultry" (25 by its own name, 12 by his alias).
+- **The format email (Anthony, 2026-11-10, Part L).** Sent once, approved by
+  Anthony at 12:38 PM ET in the TNF PM chat (the approval is on its claim's
+  audit row). It told every holder that a block is now $250, that $500 buys
+  2 blocks, and that **a holder who wants fewer blocks replies by Sunday,
+  Nov 15 and gets $250 back (or owes $250 less) per block dropped.** Every
+  such reply, a holder who wants none included, is Anthony's call: the sweep
+  stages it to `/admin/queue` as NEEDS ANTHONY (`docs/SWEEP_PROMPT.md` 8b)
+  and never releases a block, changes a count, stages a refund or sends T4
+  for it.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -464,7 +473,12 @@ it does not move blocks.
 
 ## Email to the pool
 
-- **Every broadcast email carries every owner in To.** A broadcast is one
+- **Every broadcast email carries every owner in To**, except the format
+  email (`format_change_<date>`, Part L), which Anthony addressed To himself
+  alone with every other owner on Cc and each holder's own address in Bcc
+  (never a holder's `cc_email`, which can be someone else); it is the one
+  pool email with a Cc (`ownersOnCcEnvelope` in `src/lib/email/envelope.ts`,
+  migration 41). A broadcast is one
   body to many recipients in Bcc (the game-day pack today). Its To is
   Anthony's address first, then each other owner's primary address, read at
   send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL,
@@ -473,7 +487,7 @@ it does not move blocks.
   already on To and minus every owner's `alt_email`, so an owner who also
   holds a block, or whose second address is a prospect or a holder's, gets
   one copy, at his primary (Anthony, 2026-10-14; MAP's is the one alt on
-  file). Nothing goes in Cc. Anthony's rule, set 2026-10-07; it replaced the
+  file). Nothing goes in Cc, the format email aside. Anthony's rule, set 2026-10-07; it replaced the
   2026-09-09 version, which read the owner addresses from a routine variable.
   `src/lib/email/envelope.ts` builds it, and `tests/unit/email/envelope.test.ts`
   holds it.

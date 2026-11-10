@@ -106,6 +106,29 @@ export function broadcastEnvelope(
   return { to, cc: [], bcc };
 }
 
+/**
+ * The format email (Anthony, 2026-11-10, Part L): To is Anthony alone, Cc is
+ * every other owner's primary, in the To order above, and Bcc is the derived
+ * list minus both and minus every owner's alt. The owners are checked exactly
+ * as broadcastTo checks them, the one-time override included.
+ */
+export function ownersOnCcEnvelope(
+  owners: OwnerAddress[],
+  adminEmail: string,
+  derived: string[],
+  opts: BroadcastOptions = {},
+): Envelope {
+  const all = broadcastTo(owners, adminEmail, opts);
+  const admin = norm(adminEmail);
+  if (all[0] !== admin) throw new Error("broadcast: Anthony is not first among the owners");
+  const onEnvelope = new Set(all);
+  const never = neverAddressed(owners);
+  const bcc = [...new Set(derived.map(norm))]
+    .filter((a) => a && !onEnvelope.has(a) && !never.has(a))
+    .sort();
+  return { to: [admin], cc: all.slice(1), bcc };
+}
+
 export function perRecipientEnvelope(recipient: string): Envelope {
   const r = norm(recipient);
   if (!r) throw new Error("per-recipient email with no recipient");

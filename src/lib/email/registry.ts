@@ -17,7 +17,7 @@ import { gameList, GAME_LIST_KEY } from "./events/game-list.ts";
 import { answer, ANSWER_KEY } from "./events/answer.ts";
 import { formatChange, FORMAT_CHANGE_KEY } from "./events/format-change.ts";
 import { POOL_SUBJECT } from "./copy.ts";
-import { broadcastEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
+import { broadcastEnvelope, ownersOnCcEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
 type Renderer = (ctx: EmailContext, args: EventArgs) => EmailSpec;
 
@@ -28,6 +28,8 @@ interface Family {
   dated: boolean;
   /** One body to many in Bcc, with every owner on To. Everything else is per-recipient. */
   broadcast: boolean;
+  /** A broadcast whose owners go on Cc, To Anthony alone (the format email, Part L). */
+  ownersOnCc?: boolean;
   /** Written in Anthony's reply voice to one person: the voice lint applies. */
   voice?: boolean;
   render: Renderer;
@@ -43,7 +45,7 @@ export const FAMILIES: Family[] = [
   { name: "game_day", match: GAME_DAY_KEY, dated: false, broadcast: true, render: gameDay },
   { name: "game_list", match: GAME_LIST_KEY, dated: false, broadcast: false, voice: true, render: gameList },
   { name: "answer", match: ANSWER_KEY, dated: false, broadcast: false, voice: true, render: answer },
-  { name: "format_change", match: FORMAT_CHANGE_KEY, dated: true, broadcast: true, render: formatChange },
+  { name: "format_change", match: FORMAT_CHANGE_KEY, dated: true, broadcast: true, ownersOnCc: true, render: formatChange },
 ];
 
 /** Families that answer one inbound message; the key ends in that message's Gmail id. */
@@ -90,7 +92,8 @@ export function envelopeFor(
   const f = familyOf(eventKey);
   if (f.broadcast) {
     if (!opts.owners) throw new Error(`${eventKey} is a broadcast: it needs the owners table export (--owners)`);
-    return broadcastEnvelope(opts.owners, opts.adminEmail, opts.derived ?? [], { omit: opts.omit });
+    const build = f.ownersOnCc ? ownersOnCcEnvelope : broadcastEnvelope;
+    return build(opts.owners, opts.adminEmail, opts.derived ?? [], { omit: opts.omit });
   }
   if (opts.omit?.length) throw new Error(`${eventKey} is per-recipient: leaving an owner off To applies only to a broadcast`);
   return perRecipientEnvelope(opts.recipient ?? "");

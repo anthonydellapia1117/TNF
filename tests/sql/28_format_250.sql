@@ -456,13 +456,21 @@ begin
   update blocks set status = 'reserved' where block_number = v_b;
 end $$;
 
--- 4. The format_change broadcast derives the holder set, as game_day does.
+-- 4. The format_change broadcast derives the owners and each holder's own
+--    address (migration 41), never a holder's cc: game_day carries fm2, the
+--    format email does not. One owner gets an address here so the owners'
+--    half of the rule is tested, not empty.
+update owners set email = 'rm-owner@tnf.test' where code = 'RM';
 do $$
 begin
+  if not ('rm-owner@tnf.test' = any (array(select recipient from admin_email_recipients('format_change_2026-11-10')))) then
+    raise exception '4a: an owner with an address is not among the format_change recipients';
+  end if;
   if array(select recipient from admin_email_recipients('format_change_2026-11-10'))
-       is distinct from array(select recipient from admin_email_recipients('game_day_g01'))
-     or array(select recipient from admin_email_recipients('format_change_2026-11-10'))
-       is distinct from array['fa@tnf.test', 'fm2@tnf.test', 'fm@tnf.test'] then
+       is distinct from array(select x from (select lower(btrim(email)) x from owners where nullif(btrim(email), '') is not null
+                                             union select 'fa@tnf.test' union select 'fm@tnf.test') y order by 1)
+     or not ('fm2@tnf.test' = any (array(select recipient from admin_email_recipients('game_day_g01'))))
+     or 'fm2@tnf.test' = any (array(select recipient from admin_email_recipients('format_change_2026-11-10'))) then
     raise exception '4a: format_change recipients are %', array(select recipient from admin_email_recipients('format_change_2026-11-10'));
   end if;
   begin

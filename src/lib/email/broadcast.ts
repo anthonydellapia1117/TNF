@@ -13,7 +13,7 @@ export interface BroadcastPlan {
   event_key: string;
   /** Active prospect addresses. */
   p: number;
-  /** Holder addresses, primary and cc. */
+  /** Holder addresses: primary and cc for the recruit broadcast, each holder's own for the format email. */
   h: number;
   /** In both. */
   o: number;
@@ -22,8 +22,10 @@ export interface BroadcastPlan {
   /** Of the rest, excluded: recruit-excluded, blocklisted, an owner's alt, Anthony's. */
   x: number;
   bcc_count: number;
-  /** Every owner's primary address, any order. */
+  /** Every owner's primary address, any order; Anthony's alone for the format email. */
   to: string[];
+  /** The format email only: every other owner's primary (Part L). */
+  cc?: string[];
   /** Sorted. */
   bcc: string[];
   /** Owners with no address on the owners table. */
@@ -45,11 +47,14 @@ export function planArithmetic(p: BroadcastPlan): string {
 /**
  * md5 of the sorted To list, a bar, then the sorted Bcc list, each
  * comma-joined and lowercased. admin_email_claim_broadcast hashes the same
- * string (sorted with collate "C", which is this byte order).
+ * string (sorted with collate "C", which is this byte order). With a Cc (the
+ * format email) the Cc list sits between them: to | cc | bcc.
  */
-export function envelopeMd5(env: { to: string[]; bcc: string[] }): string {
+export function envelopeMd5(env: { to: string[]; cc?: string[]; bcc: string[] }): string {
   const line = (xs: string[]) => [...new Set(xs.map(norm))].filter(Boolean).sort().join(",");
-  return createHash("md5").update(`${line(env.to)}|${line(env.bcc)}`).digest("hex");
+  const cc = line(env.cc ?? []);
+  const s = cc ? `${line(env.to)}|${cc}|${line(env.bcc)}` : `${line(env.to)}|${line(env.bcc)}`;
+  return createHash("md5").update(s).digest("hex");
 }
 
 const sameSet = (a: string[], b: string[]) => {
@@ -61,7 +66,7 @@ const sameSet = (a: string[], b: string[]) => {
 /** Throws, naming every problem at once, unless the broadcast may go. */
 export function checkBroadcast(
   plan: BroadcastPlan,
-  env: { to: string[]; bcc: string[] },
+  env: { to: string[]; cc?: string[]; bcc: string[] },
   owners: OwnerAddress[],
   omit: string[],
   range: BccRange,
@@ -73,6 +78,7 @@ export function checkBroadcast(
   }
   if (!sameSet(env.bcc, plan.bcc)) problems.push("the envelope's Bcc differs from the plan's");
   if (!sameSet(env.to, plan.to)) problems.push("the envelope's To differs from the plan's");
+  if (!sameSet(env.cc ?? [], plan.cc ?? [])) problems.push("the envelope's Cc differs from the plan's");
   const n = new Set(env.bcc.map(norm)).size;
   if (n < range.min || n > range.max) problems.push(`Bcc is ${n}, outside ${range.min} to ${range.max}`);
   const ownerAddrs = new Set(owners.flatMap((o) => [norm(o.email), norm(o.alt_email)]).filter(Boolean));

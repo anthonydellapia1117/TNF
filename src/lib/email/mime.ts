@@ -13,6 +13,8 @@ export interface MimeAttachment {
 export interface MimeMessage {
   from: string;
   to: string[];
+  /** Only the format email carries one (Anthony, 2026-11-10, Part L). */
+  cc?: string[];
   bcc?: string[];
   email: RenderedEmail;
   attachments?: MimeAttachment[];
@@ -58,6 +60,7 @@ export function buildMime(m: MimeMessage): Buffer {
   const head = [
     header("From", m.from),
     addressHeader("To", m.to),
+    ...(m.cc?.length ? [addressHeader("Cc", m.cc)] : []),
     ...(m.bcc?.length ? [addressHeader("Bcc", m.bcc)] : []),
     header("Subject", encodedWord(m.email.subject)),
     header("Date", date),

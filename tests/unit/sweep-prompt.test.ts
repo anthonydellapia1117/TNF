@@ -168,3 +168,42 @@ describe("sweep prompt: every admin call carries the admin claim", () => {
     expect(step!).toContain(CLAIM);
   });
 });
+
+// Part L (Anthony, 2026-11-10): a holder asking for fewer blocks after the
+// format email is Anthony's call. The sweep stages it and does nothing else:
+// no release, no count change, no refund row, no reply. This pins the words
+// that make the live routine behave that way, since the file is behaviour.
+describe("sweep prompt: 8b, fewer blocks after the format email", () => {
+  const item = PROMPT.split("\n").find((l) => l.trim().startsWith("8b.")) ?? "";
+
+  it("exists and covers any message from a holder, in any thread, zero included", () => {
+    expect(item).toMatch(/ANY MESSAGE FROM A HOLDER, IN ANY THREAD/);
+    expect(item).toMatch(/FEWER blocks/);
+    expect(item).toMatch(/ZERO INCLUDED/);
+  });
+
+  it("forbids the release, the count change, the refund row and every reply", () => {
+    expect(item).toMatch(/NEVER release a block/);
+    expect(item).toMatch(/NEVER change blocks_requested/);
+    expect(item).toMatch(/NEVER stage "refund_needed"/);
+    expect(item).toMatch(/SEND NO REPLY AT ALL, no T4/);
+  });
+
+  it("outranks the rules that would otherwise act, 8a and 11 included", () => {
+    expect(item).toMatch(/outranks 1b, 5, 8a, 10, 10d, 11b and 11d/);
+    const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
+    expect(eleven).toMatch(/8a and 8b still hold/);
+  });
+
+  it("stages once, as NEEDS ANTHONY, and labels only after the row is resolved", () => {
+    expect(item).toMatch(/Stage ONE "unclassified_mail" row per message/);
+    expect(item).toMatch(/NEEDS ANTHONY - fewer blocks \(Part L\)/);
+    expect(item).toMatch(/Leave the message unlabelled while its row is open/);
+    expect(item).toMatch(/never stage a second row/);
+  });
+
+  it("keeps the shared reply thread safe: answer_M only, never over Anthony's drafts", () => {
+    expect(item).toMatch(/answer_M only, never a T1-T6 template/);
+    expect(item).toMatch(/drafts_to_delete above 0/);
+  });
+});

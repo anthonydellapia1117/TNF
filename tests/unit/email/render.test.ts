@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderEvent } from "@/lib/email";
 import { buildMime } from "@/lib/email/mime";
 import { attachmentBase } from "@/lib/email/events/game-day";
+import { weekdayMonthDay } from "@/lib/email/events/format-change";
 import { firstNameOf, greetingFor } from "@/lib/email/greeting";
 import { wrap, wrapRow } from "@/lib/email/wrap";
 import { gameDatesLine, seasonPayoutCents, uniformPayouts } from "@/lib/email/facts";
@@ -302,8 +303,10 @@ describe("recruit broadcast", () => {
   });
 });
 
-// Part J (Anthony, 2026-11-10): the format change, staged as a draft. Owners
-// on To, every holder in Bcc. Every number from config, no dollar sign.
+// Parts J and L (Anthony, 2026-11-10): the format email, in Anthony's words,
+// approved 12:38 PM ET. To Anthony, Cc the owners, Bcc the holders. Every app
+// number from the database, no dollar sign; the plain text wraps at 69, so the
+// words below are his exactly and only the line breaks are the module's.
 describe("format change broadcast", () => {
   const KEY = "format_change_2026-10-07";
   const FORMAT_250 = {
@@ -314,38 +317,85 @@ describe("format change broadcast", () => {
     holiday_final_cents: 150000,
     regular_final_cents: 150000,
   };
+  const APPROVED = [
+    "Everyone,",
+    "",
+    "Quick update on the TNF block pool. 30 seconds.",
+    "",
+    "1. We have 50 entries. To fill all 100 blocks, each block is now 250 (was 500).",
+    "2. Same money, double the blocks. Every 500 you put in = 2 blocks.",
+    "3. Every game pays twice, all 10 games:",
+    "   Halftime: 750",
+    "   Final: 1,500",
+    "4. How to win: the last digit of each team's score at halftime or the final matches your block.",
+    "5. Don't want the extra block? Totally fine. Reply with how many blocks you want by Sunday, Nov 15. You get 250 back (or owe 250 less) for each block you drop.",
+    "6. Not paid yet? 250 a block, due by Tuesday, Nov 24.",
+    "",
+    "Your block numbers: ad-26-tnf.vercel.app",
+    "",
+    "Owners: please pass this to your people.",
+    "",
+    "Anthony",
+  ].join("\n");
+  const words = (s: string) => s.replace(/\s+/g, " ").trim();
 
-  it("renders exactly from the 250 config", () => {
+  it("is Anthony's approved text, word for word, from the 250 config", () => {
     const r = renderEvent(ctx(KEY, { common: FORMAT_250 }));
-    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | 250 a block, double the blocks");
+    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | Your blocks doubled");
+    expect(words(r.email.text)).toBe(words(APPROVED));
     expect(r.email.text).toBe(
       [
         "Everyone,",
         "",
-        "The pool is now 250 a block, and everyone's block count doubled for",
-        "the same money.",
+        "Quick update on the TNF block pool. 30 seconds.",
         "",
-        "Prizes are 750 at halftime and 1,500 at the final, every game.",
-        "Your new numbers are on ad-26-tnf.vercel.app.",
+        "1. We have 50 entries. To fill all 100 blocks, each block is now 250",
+        "(was 500).",
+        "2. Same money, double the blocks. Every 500 you put in = 2 blocks.",
+        "3. Every game pays twice, all 10 games:",
+        "   Halftime: 750",
+        "   Final: 1,500",
+        "4. How to win: the last digit of each team's score at halftime or the",
+        "final matches your block.",
+        "5. Don't want the extra block? Totally fine. Reply with how many",
+        "blocks you want by Sunday, Nov 15. You get 250 back (or owe 250 less)",
+        "for each block you drop.",
+        "6. Not paid yet? 250 a block, due by Tuesday, Nov 24.",
+        "",
+        "Your block numbers: ad-26-tnf.vercel.app",
+        "",
+        "Owners: please pass this to your people.",
         "",
         "Anthony",
         "",
       ].join("\n"),
     );
-    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
     expect(r.problems).toEqual([]);
     expect(r.email.text).not.toContain("$");
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+    // The payout lines keep their indent in HTML too.
+    expect(r.email.html).toContain("<br>&nbsp;&nbsp;&nbsp;Halftime: 750<br>&nbsp;&nbsp;&nbsp;Final: 1,500<br>");
   });
 
-  it("reads every number from the database, and names no holder", () => {
-    const r = renderEvent(ctx(KEY, { holder: SAMPLE_HOLDER, people: ASKER }));
-    expect(r.email.text).toContain("The pool is now 500 a block");
-    expect(r.email.text).toContain("Prizes are 1,500 at halftime and 3,000 at the final");
+  it("reads the price, the payouts, the games, the total and the deadline from the database", () => {
+    const common = { ...COMMON, games: COMMON.games.slice(0, 5), claim_deadline: "2026-11-23", blocks_total: 120 };
+    const r = renderEvent(ctx(KEY, { common, holder: SAMPLE_HOLDER, people: ASKER }));
+    expect(r.spec.prose).toContain("2. Same money, double the blocks. Every 1,000 you put in = 2 blocks.");
+    expect(r.spec.prose).toContain("   Halftime: 1,500");
+    expect(r.spec.prose).toContain("   Final: 3,000");
+    expect(r.spec.prose).toContain("3. Every game pays twice, all 5 games:");
+    expect(r.spec.prose).toContain("6. Not paid yet? 500 a block, due by Monday, Nov 23.");
+    expect(r.email.text).toContain("To fill all 120 blocks");
     expect(r.email.text).not.toMatch(/DellaPia|Dan Asker|\bAD\b|\bDA\b/);
   });
 
   it("renders only on its own day", () => {
     expect(() => renderEvent(ctx("format_change_2026-11-10", { common: FORMAT_250 }))).toThrow(/renders only on its own day/);
+  });
+
+  it("names Nov 15 a Sunday and Nov 24 a Tuesday, from the calendar", () => {
+    expect(weekdayMonthDay("2026-11-15")).toBe("Sunday, Nov 15");
+    expect(weekdayMonthDay("2026-11-24")).toBe("Tuesday, Nov 24");
   });
 });
 
@@ -561,6 +611,14 @@ describe("MIME", () => {
     expect(decode(msg, "text/html")).toBe(email.html);
     expect(msg).not.toMatch(/[^\r]\n/);
     expect(msg).not.toMatch(/^Bcc:/m);
+    expect(msg).not.toMatch(/^Cc:/m);
+  });
+  it("carries a Cc header only when one is given (the format email, Part L)", () => {
+    const msg = buildMime({ from: "a@tnf.test", to: ["a@tnf.test"], cc: ["rm@tnf.test", "map@tnf.test"], bcc: ["h@tnf.test"], email, boundary: "seed" }).toString("utf8");
+    expect(msg).toMatch(/^To: a@tnf\.test\r$/m);
+    expect(msg).toMatch(/^Cc: rm@tnf\.test, map@tnf\.test\r$/m);
+    expect(msg).toMatch(/^Bcc: h@tnf\.test\r$/m);
+    expect(buildMime({ from: "a@tnf.test", to: ["a@tnf.test"], cc: [], email }).toString("utf8")).not.toMatch(/^Cc:/m);
   });
   it("wraps the alternative in multipart/mixed only when files ride along, and refuses a header line break", () => {
     const msg = buildMime({
