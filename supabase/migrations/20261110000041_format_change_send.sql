@@ -4,9 +4,12 @@
 -- The recruit broadcast's plan, claim and record (migrations 37 and 38) take a
 -- second key, format_change_YYYY-MM-DD, with its own envelope, which Anthony
 -- set for this send: To is Anthony alone, Cc is every other owner with an
--- address, Bcc is every holder address (primary and cc) minus anything on To
--- or Cc, an owner's alt and the blocklist. Prospects are not on it. The plan
--- prints the same arithmetic with P and O at zero: H - T - X = Bcc.
+-- address, Bcc is every holder's own address (participants.email of everyone
+-- holding a reserved or assigned block) minus anything on To or Cc, an
+-- owner's alt and the blocklist. Not a holder's cc_email: Anthony said every
+-- participant who holds a block, and a cc can be someone else entirely (the
+-- 2026-09-08 release asked for by a cc, CLAUDE.md). Prospects are not on it.
+-- The plan prints the same arithmetic with P and O at zero: H - T - X = Bcc.
 --
 -- The claim takes a seventh argument, p_approval: where and when Anthony
 -- approved the send, kept on the claim's audit row. It is required for the
@@ -15,15 +18,15 @@
 -- its suite are untouched.
 
 -- Internal (invoker; only the SECURITY DEFINER functions below call it). Every
--- holder address, whether it is on To or Cc (an owner's primary), and why it
--- is out if it is. Recruit exclusion does not apply: it is about recruiting,
--- and a holder is told about his own blocks.
+-- holder's own address, whether it is on To or Cc (an owner's primary), and
+-- why it is out if it is. Recruit exclusion does not apply: it is about
+-- recruiting, and a holder is told about his own blocks.
 create or replace function email_format_change_addresses()
 returns table (address text, active_prospect boolean, holder boolean, on_to boolean, excluded text)
 language sql stable
 set search_path = public, pg_temp
 as $$
-  with h as (select distinct x.recipient as a from email_holder_addresses() x),
+  with h as (select distinct x.recipient as a from email_holder_addresses() x where x.via = 'primary'),
        t as (select lower(btrim(o.email)) as a from owners o where nullif(btrim(o.email), '') is not null)
   select h.a,
          false,
@@ -194,8 +197,9 @@ begin
                 where c not in (select lower(btrim(o.email)) from owners o where o.code <> 'AVD' and nullif(btrim(o.email), '') is not null)) then
       raise exception 'refused: a Cc address is not an owner''s primary';
     end if;
-    if exists (select 1 from unnest(v_bcc) b where b not in (select h.recipient from email_holder_addresses() h)) then
-      raise exception 'refused: a Bcc address is not a holder''s';
+    if exists (select 1 from unnest(v_bcc) b
+                where b not in (select h.recipient from email_holder_addresses() h where h.via = 'primary')) then
+      raise exception 'refused: a Bcc address is not a holder''s own';
     end if;
   end if;
 

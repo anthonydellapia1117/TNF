@@ -46,9 +46,10 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   audit row). It told every holder that a block is now $250, that $500 buys
   2 blocks, and that **a holder who wants fewer blocks replies by Sunday,
   Nov 15 and gets $250 back (or owes $250 less) per block dropped.** Every
-  such reply is Anthony's call: the sweep stages it to `/admin/queue` as
-  NEEDS ANTHONY (`docs/SWEEP_PROMPT.md` 8b) and never releases a block,
-  changes a count or stages a refund for it.
+  such reply, a holder who wants none included, is Anthony's call: the sweep
+  stages it to `/admin/queue` as NEEDS ANTHONY (`docs/SWEEP_PROMPT.md` 8b)
+  and never releases a block, changes a count, stages a refund or sends T4
+  for it.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -474,7 +475,8 @@ it does not move blocks.
 
 - **Every broadcast email carries every owner in To**, except the format
   email (`format_change_<date>`, Part L), which Anthony addressed To himself
-  alone with every other owner on Cc and the holders in Bcc; it is the one
+  alone with every other owner on Cc and each holder's own address in Bcc
+  (never a holder's `cc_email`, which can be someone else); it is the one
   pool email with a Cc (`ownersOnCcEnvelope` in `src/lib/email/envelope.ts`,
   migration 41). A broadcast is one
   body to many recipients in Bcc (the game-day pack today). Its To is

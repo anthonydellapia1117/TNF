@@ -1,15 +1,16 @@
 -- Migration 41: the format email through the broadcast path (Anthony,
 -- 2026-11-10, Part L). To Anthony alone, Cc every other owner with an
--- address, Bcc every holder address minus To, Cc, owners' alts and the
--- blocklist. No prospect, no participant without a block. The claim needs the
--- approval and keeps it on its audit row.
+-- address, Bcc every holder's own address minus To, Cc, owners' alts and the
+-- blocklist. Not a holder's cc_email, no prospect, no participant without a
+-- block. The claim needs the approval and keeps it on its audit row.
 --
 -- Every expected number is computed from the tables directly, never through
 -- email_format_change_addresses(), so a broken classifier fails here instead
 -- of agreeing with itself.
 --
 -- Mutation checks, each verified to raise: let a prospect into the holder set
--- (section 2); stop dropping owners' alts (2); put the owners on To instead of
+-- (section 2); take holders' cc addresses too (2); let the guard accept a cc
+-- address (5b); stop dropping owners' alts (2); put the owners on To instead of
 -- Cc (2); drop the approval requirement (3); drop the non-holder Bcc guard
 -- (5); hash the envelope without the Cc (6); drop the format key from the
 -- record (7).
@@ -20,7 +21,7 @@ select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}',
 
 -- Fixtures. Owners as the live table on 2026-11-10: every code but DN has an
 -- address, MAP has an alt. Every seed holder released, so the holder set is:
---   h1, with a cc address;
+--   h1, with a cc address (the cc is never on the envelope);
 --   an owner's primary holding a block (RM): on Cc, never Bcc;
 --   an owner's alt holding a block (MAP's): out;
 --   Anthony's own holding: on To;
@@ -89,20 +90,20 @@ declare
   e_bcc text[];
   e_cc text[];
 begin
-  select count(distinct a) into e_h
-    from (select lower(btrim(p.email)) a from participants p where exists (select 1 from blocks b where b.participant_id = p.id) and p.email is not null
-          union all
-          select lower(btrim(p.cc_email)) from participants p where exists (select 1 from blocks b where b.participant_id = p.id) and p.cc_email is not null) x;
-  e_bcc := array['h1@tnf.test', 'h1cc@tnf.test', 'h5@tnf.test'];
+  select count(distinct lower(btrim(p.email))) into e_h
+    from participants p
+   where exists (select 1 from blocks b where b.participant_id = p.id) and p.email is not null;
+  e_bcc := array['h1@tnf.test', 'h5@tnf.test'];
   e_cc := array['bg@tnf.test', 'ejd@tnf.test', 'gd@tnf.test', 'jpod@tnf.test', 'map@tnf.test', 'nl@tnf.test', 'rm@tnf.test', 'tja@tnf.test'];
   if v is null then raise exception 'TEST FAILURE: no plan'; end if;
   if (v ->> 'p')::int is distinct from 0 or (v ->> 'o')::int is distinct from 0
-     or (v ->> 'h')::int is distinct from e_h or e_h <> 6
+     or (v ->> 'h')::int is distinct from e_h or e_h <> 5
      or (v ->> 't')::int is distinct from 2 or (v ->> 'x')::int is distinct from 1
-     or (v ->> 'bcc_count')::int is distinct from 3 then
+     or (v ->> 'bcc_count')::int is distinct from 2 then
     raise exception 'TEST FAILURE: arithmetic %', v - 'bcc' - 'cc' - 'to';
   end if;
-  if array(select jsonb_array_elements_text(v -> 'bcc')) is distinct from e_bcc then
+  if array(select jsonb_array_elements_text(v -> 'bcc')) is distinct from e_bcc
+     or (v -> 'bcc') ? 'h1cc@tnf.test' then
     raise exception 'TEST FAILURE: Bcc %', v -> 'bcc';
   end if;
   if array(select jsonb_array_elements_text(v -> 'to')) is distinct from array['avd-primary@tnf.test'] then
@@ -171,7 +172,30 @@ exception when others then
   if sqlerrm <> 'restore the classifier' then raise; end if;
 end $$;
 
--- 6. The claim: To 1, Cc 8, Bcc 3, every one ledgered once; the md5 is
+-- 5b. A holder's cc address forced into Bcc is refused too: the guard takes a
+--     holder's own address only.
+do $$
+begin
+  execute $f$
+    create or replace function email_format_change_addresses()
+    returns table (address text, active_prospect boolean, holder boolean, on_to boolean, excluded text)
+    language sql stable set search_path = public, pg_temp
+    as $b$ select 'h1cc@tnf.test'::text, false, true, false, null::text $b$
+  $f$;
+  begin
+    perform admin_email_claim_broadcast('format_change_2026-11-10', repeat('b', 64), array['DN'], 1, 100, 'test', 'fixture approval');
+    raise exception 'TEST FAILURE: a holder''s cc address in Bcc was claimed';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%not a holder''s own%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+  end;
+  raise exception 'restore the classifier';
+exception when others then
+  if sqlerrm like 'TEST FAILURE%' then raise; end if;
+  if sqlerrm <> 'restore the classifier' then raise; end if;
+end $$;
+
+-- 6. The claim: To 1, Cc 8, Bcc 2, every one ledgered once; the md5 is
 --    to | cc | bcc; the approval on the audit row; no address in any audit
 --    payload; a second claim refuses.
 do $$
@@ -181,10 +205,10 @@ declare
   r jsonb;
   e_md5 text;
 begin
-  r := admin_email_claim_broadcast('format_change_2026-11-10', sha, array[' dn '], 3, 3, 'test',
+  r := admin_email_claim_broadcast('format_change_2026-11-10', sha, array[' dn '], 2, 2, 'test',
                                    'Anthony approved this send at 12:38 PM ET in the TNF PM chat');
   if (r ->> 'to')::int is distinct from 1 or (r ->> 'cc')::int is distinct from 8
-     or (r ->> 'bcc')::int is distinct from 3 or (r ->> 'claimed')::int is distinct from 12 then
+     or (r ->> 'bcc')::int is distinct from 2 or (r ->> 'claimed')::int is distinct from 11 then
     raise exception 'TEST FAILURE: claim returned %', r;
   end if;
   select md5('avd-primary@tnf.test' || '|' ||
@@ -194,11 +218,11 @@ begin
   if r ->> 'envelope_md5' is distinct from e_md5 then
     raise exception 'TEST FAILURE: envelope md5 % expected %', r ->> 'envelope_md5', e_md5;
   end if;
-  if (select count(*) from email_sends where event_key = 'format_change_2026-11-10' and rendered_sha = sha and sent_at is null) <> 12
-     or (select count(distinct recipient) from email_sends where event_key = 'format_change_2026-11-10') <> 12
+  if (select count(*) from email_sends where event_key = 'format_change_2026-11-10' and rendered_sha = sha and sent_at is null) <> 11
+     or (select count(distinct recipient) from email_sends where event_key = 'format_change_2026-11-10') <> 11
      or exists (select 1 from email_sends where event_key = 'format_change_2026-11-10'
-                  and recipient in ('p1@tnf.test', 'np@tnf.test', 'map-alt@tnf.test')) then
-    raise exception 'TEST FAILURE: the ledger is not exactly the twelve';
+                  and recipient in ('p1@tnf.test', 'np@tnf.test', 'map-alt@tnf.test', 'h1cc@tnf.test')) then
+    raise exception 'TEST FAILURE: the ledger is not exactly the eleven';
   end if;
   if (select count(*) from audit_log where action = 'email_claim_broadcast' and target_id = 'format_change_2026-11-10'
         and after ->> 'approval' = 'Anthony approved this send at 12:38 PM ET in the TNF PM chat'
@@ -215,7 +239,7 @@ begin
     raise exception 'TEST FAILURE: an audit row carries an address';
   end if;
   begin
-    perform admin_email_claim_broadcast('format_change_2026-11-10', sha, array['DN'], 3, 3, 'test', 'again');
+    perform admin_email_claim_broadcast('format_change_2026-11-10', sha, array['DN'], 2, 2, 'test', 'again');
     raise exception 'TEST FAILURE: claimed twice';
   exception when others then
     if sqlerrm like 'TEST FAILURE%' then raise; end if;
@@ -223,13 +247,13 @@ begin
   end;
 end $$;
 
--- 7. Recording the one message: all twelve rows at once; refused for another id.
+-- 7. Recording the one message: all eleven rows at once; refused for another id.
 do $$
 declare
   r jsonb;
 begin
   r := admin_email_record_sent_broadcast('format_change_2026-11-10', 'msg-format-1', repeat('c', 64), 'test');
-  if r ->> 'status' is distinct from 'recorded' or (r ->> 'rows')::int is distinct from 12 then
+  if r ->> 'status' is distinct from 'recorded' or (r ->> 'rows')::int is distinct from 11 then
     raise exception 'TEST FAILURE: record returned %', r;
   end if;
   if exists (select 1 from email_sends where event_key = 'format_change_2026-11-10'
