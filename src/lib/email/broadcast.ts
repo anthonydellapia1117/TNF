@@ -13,7 +13,7 @@ export interface BroadcastPlan {
   event_key: string;
   /** Active prospect addresses. */
   p: number;
-  /** Holder addresses, primary and cc. */
+  /** Holder addresses: primary and cc for the recruit broadcast, each holder's own for the format email. */
   h: number;
   /** In both. */
   o: number;

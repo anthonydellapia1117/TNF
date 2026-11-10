@@ -320,3 +320,79 @@ begin
                              'rows', v_n, 'sent_sha', p_rendered_sha));
   return jsonb_build_object('status', v_status, 'rows', v_n);
 end $$;
+
+-- The recipient rule the per-recipient path and the draft path read
+-- (admin_email_batch, npm run email --draft). Migration 40 put the format key
+-- in the holder rule, which carries holders' cc addresses; it now derives the
+-- same people as the plan: every owner with an address and the plan's Bcc.
+-- Everything else in the function is migration 40's, unchanged.
+create or replace function admin_email_recipients(p_event_key text)
+returns table (recipient text)
+language plpgsql stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  perform assert_admin();
+
+  if p_event_key ~ '^recruit_broadcast_\d{4}-\d{2}-\d{2}$' then
+    -- The recruit broadcast (migration 37): every owner with an address, and
+    -- the plan's Bcc. Before the per-recipient recruit rule, which its key
+    -- would otherwise match.
+    return query
+      select lower(btrim(o.email)) from owners o where nullif(btrim(o.email), '') is not null
+      union
+      select a.address from email_recruit_broadcast_addresses() a
+       where not a.on_to and a.excluded is null
+      order by 1;
+
+  elsif p_event_key ~ '^format_change_\d{4}-\d{2}-\d{2}$' then
+    -- The format email (migration 41): every owner with an address, and the
+    -- plan's Bcc, each holder's own address. Never a holder's cc_email.
+    return query
+      select lower(btrim(o.email)) from owners o where nullif(btrim(o.email), '') is not null
+      union
+      select a.address from email_format_change_addresses() a
+       where not a.on_to and a.excluded is null
+      order by 1;
+
+  elsif p_event_key like 'holder\_checkin\_%' or p_event_key like 'game\_day\_%' then
+    return query
+      select distinct h.recipient
+        from email_holder_addresses() h
+       where h.recipient not in (select email_avd_addresses())
+       order by 1;
+
+  elsif p_event_key like 'recruit\_%' then
+    -- Prospects not already holding, not excluded, and not an owner: an owner
+    -- is never a prospect (Anthony, 2026-10-08), so every owner address is
+    -- out, primary and alt, Anthony's included.
+    return query
+      select p.email
+        from prospects p
+       where p.excluded_at is null
+         and p.email not in (select h.recipient from email_holder_addresses() h)
+         and p.email not in (select email_owner_addresses())
+         and p.email not in (select email_avd_addresses())
+       order by 1;
+
+  elsif p_event_key like 'reply\_%' then
+    return query
+      select distinct a.addr
+        from participants p,
+             unnest(array[lower(btrim(p.email)), lower(btrim(p.cc_email))]) as a(addr)
+       where nullif(a.addr, '') is not null
+         and a.addr not in (select email_avd_addresses())
+       order by 1;
+
+  elsif p_event_key ~ '^(game_list|answer)_[0-9a-f]+$' then
+    -- A reply to one inbound message goes to an address the pool knows: a
+    -- participant, a prospect or an owner. The command checks it is the
+    -- address that wrote the message.
+    return query
+      select a.a from email_pool_addresses() a(a) order by 1;
+
+  else
+    raise exception 'no recipient rule for event %', p_event_key;
+  end if;
+end $$;
