@@ -196,8 +196,10 @@ expected amount is his `due_cents`, not his headcount. Every holder's block
 count doubled for the same money on 2026-11-10, so a holder owes what he
 owed before.
 
-For the forty-odd single-block holders this is exactly the old
-$500-only rule and nothing about them changes. It exists to stop the pool
+For the single-block holders it replaced, this was exactly the old
+$500-only rule. Since the doubling every holder holds two or more, so a
+payment for part of a holding (250 from a two-block holder) is outcome 2,
+a question, never a payment. The rule exists to stop the pool
 losing a real payment: Anthony Astorga settled both his blocks with one
 $1,000 Venmo on 2026-09-03, a full and unambiguous payment that a
 $500-only sweep is instructed to ignore. Anthony had to point it out by

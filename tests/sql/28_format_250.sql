@@ -13,7 +13,9 @@
 -- (2, comped); drop the seed-reuse check (3a); drop the after-check on
 -- assigned blocks and payments (3b); move only the holiday keys in
 -- admin_set_format (2, config); skip the double_holdings audit row (2, audit);
--- grant either RPC to anon (section 4).
+-- grant either RPC to anon (section 4); refuse the exact fit, < to <= (1e);
+-- leave requested_ref null on a drawn block (2, draw); wipe a placed block's
+-- notes (2, notes); key the pairs map by source (2, audit).
 
 begin;
 
@@ -225,12 +227,62 @@ begin
     if sqlerrm not like 'fixed placements repeat%' then raise; end if;
   end;
 
-  if (select count(*) from blocks where participant_id is not null) <> 8
-     or (select price_per_block_cents from config) is distinct from 50000
-     or exists (select 1 from audit_log where action in ('set_format', 'double_holdings', 'double_blocks_requested')) then
-    raise exception '1: a refusal left something behind';
-  end if;
+  -- No check that a refusal left nothing behind: each ran in its own
+  -- exception block, which Postgres rolls back when it catches the error, so
+  -- such a check could never fail.
 end $$;
+
+-- 1e. The production shape: every open block used, 49 mirrored into 49 after
+--     the fixed placement. Each attempt runs in a block that rolls back.
+do $$
+declare
+  v_x uuid;
+  v_open int[];
+  v_fixed int;
+  v_pair int;
+  v jsonb;
+begin
+  select block_number into v_pair from blocks where participant_id = (select pid from fx where k = 'C');
+  begin
+    insert into participants (full_name, owner_group, blocks_requested) values ('FX', 'AVD', 42) returning id into v_x;
+    select array_agg(block_number order by block_number) into v_open from blocks where status = 'available';
+    perform admin_reserve_blocks(v_open[1:42], v_x, 'admin', 'fx', 'fx');
+    if (select count(*) from blocks where participant_id is not null) <> 50
+       or (select count(*) from blocks where status = 'available') <> 50 then
+      raise exception '1e: the fixture is not 50 held and 50 open';
+    end if;
+    select min(block_number) into v_fixed from blocks where status = 'available';
+    perform admin_set_format(25000, 75000, 150000, 'fx');
+    v := admin_double_holdings('fx-seed-fit', jsonb_build_array(jsonb_build_object(
+           'block', v_fixed, 'mirror_of', v_pair, 'status', 'reserved')), 'fx');
+    if (v ->> 'blocks_added')::int is distinct from 50
+       or (select count(*) from blocks where status = 'available') <> 0
+       or (select count(*) from blocks where participant_id is not null) <> 100 then
+      raise exception '1e: the exact fit did not fill the grid';
+    end if;
+    raise exception '1e: rollback';
+  exception when others then
+    if sqlerrm <> '1e: rollback' then raise; end if;
+  end;
+  -- One held block more than fits: 51 held, 49 open, the fixed placement takes
+  -- one, so 50 to mirror and 48 open. Refused before anything moves.
+  begin
+    insert into participants (full_name, owner_group, blocks_requested) values ('FX', 'AVD', 43) returning id into v_x;
+    select array_agg(block_number order by block_number) into v_open from blocks where status = 'available';
+    perform admin_reserve_blocks(v_open[1:43], v_x, 'admin', 'fx', 'fx');
+    select min(block_number) into v_fixed from blocks where status = 'available';
+    perform admin_double_holdings('fx-seed-fit', jsonb_build_array(jsonb_build_object(
+              'block', v_fixed, 'mirror_of', v_pair, 'status', 'reserved')), 'fx');
+    raise exception '1e: doubled with more blocks to mirror than open ones';
+  exception when others then
+    if sqlerrm is distinct from '50 blocks to mirror and 48 open after the fixed placements' then raise; end if;
+  end;
+end $$;
+
+-- Every open block carries a note before the switch, so a placement that
+-- wipes a block's history cannot pass for one that kept it.
+update blocks set notes = coalesce(notes, 'fx history ' || block_number) where status = 'available';
+create temp table notes0 on commit drop as select block_number, notes from blocks;
 
 -- 2. The switch: the price and the tier, then the doubling, one transaction.
 create temp table drawn (i int, src int, dst int) on commit drop;
@@ -324,6 +376,7 @@ begin
       or n.assignment_method is distinct from 'random'
       or n.comped
       or n.display_name is not null
+      or n.requested_ref is null
       or n.requested_ref not like 'seed fx-seed-1 - drawn from the % open, pairs with block ' || d.src
       or (n.status = 'assigned') is distinct from (n.assigned_at is not null);
   if v_bad is not null or (select count(*) from drawn) <> 7 then
@@ -354,8 +407,19 @@ begin
      or v_audit.after -> 'free' is distinct from to_jsonb(v_free)
      or v_audit.after -> 'order' is distinct from to_jsonb(v_order)
      or v_audit.target_id is distinct from
-          (select string_agg(x::text, ',' order by x) from (select dst x from drawn union select v_fixed) y) then
+          (select string_agg(x::text, ',' order by x) from (select dst x from drawn union select v_fixed) y)
+     or v_audit.after -> 'pairs' is distinct from
+          ((select jsonb_object_agg(dst::text, src) from drawn) || jsonb_build_object(v_fixed::text, v_pair))
+     or v -> 'pairs' is distinct from v_audit.after -> 'pairs' then
     raise exception '2, audit: the double_holdings row';
+  end if;
+
+  -- notes: every block's history is as it was, placed or not.
+  select string_agg(b.block_number::text, ', ') into v_bad
+    from blocks b join notes0 o on o.block_number = b.block_number
+   where b.notes is distinct from o.notes;
+  if v_bad is not null or (select count(*) from notes0) <> 100 then
+    raise exception '2, notes: changed on blocks %', coalesce(v_bad, 'unknown');
   end if;
   if (select string_agg(f.k || ':' || (a.before ->> 'blocks_requested') || '->' || (a.after ->> 'blocks_requested'), ' ' order by f.k)
         from audit_log a join fx f on f.pid::text = a.target_id
@@ -390,9 +454,6 @@ begin
     if sqlerrm is distinct from 'after doubling, assigned blocks outrun the payments for FA, FC, FM, FR, FT' then raise; end if;
   end;
   update blocks set status = 'reserved' where block_number = v_b;
-  if (select count(*) from blocks where participant_id is not null) <> 16 then
-    raise exception '3b: the refused doubling left blocks behind';
-  end if;
 end $$;
 
 -- 4. The format_change broadcast derives the holder set, as game_day does.
