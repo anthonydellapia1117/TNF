@@ -69,7 +69,7 @@ describe("a broadcast", () => {
   // Anthony, 2026-10-14: MAP's second address was an active prospect, so the
   // recruit broadcast reached him twice. Every owner's alt is out of Bcc.
   it("gives an owner whose second address is a prospect one copy, at his primary", () => {
-    for (const key of ["game_day_g01", "recruit_broadcast_2026-10-14"]) {
+    for (const key of ["game_day_g01", "recruit_broadcast_2026-10-14", "format_change_2026-11-10"]) {
       const e = envelopeFor(key, { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, " Map-Alt@tnf.test", MAP_ALT] });
       expect(e.to.filter((a) => a === "map@tnf.test")).toHaveLength(1);
       expect([...e.to, ...e.cc, ...e.bcc]).not.toContain(MAP_ALT);
@@ -157,9 +157,9 @@ describe("a one-time override naming an owner with no address", () => {
 describe("a per-recipient email", () => {
   const perRecipient = FAMILIES.filter((f) => !f.broadcast);
 
-  it("is every family but the game-day pack and the recruit broadcast", () => {
+  it("is every family but the game-day pack, the recruit broadcast and the format change", () => {
     expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "recruit", "reply", "status"]);
-    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["game_day", "recruit_broadcast"]);
+    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["format_change", "game_day", "recruit_broadcast"]);
   });
 
   for (const f of perRecipient) {

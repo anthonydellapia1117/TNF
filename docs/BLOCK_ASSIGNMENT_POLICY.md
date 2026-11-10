@@ -19,6 +19,20 @@ future assignment work in this pool.
    - `tnf-2026-blockdraw-02` — replacement draw for the released carryovers
      (8→58, 17→63, 27→70, 47→43; a drawee cannot randomly land back on
      their own prior number)
+   - `tnf-2026-blockdraw-27` — the 250 format (Anthony, 2026-11-10): one new
+     block per held block, drawn from the open numbers by
+     `admin_double_holdings`; the free list and the shuffle are in its
+     `double_holdings` audit row
+
+   Seeds 03 to 26 were single draws recorded in each block's `requested_ref`.
+   Those ran from a script that was never committed, so they cannot be
+   replayed bit for bit (seed 26 against the 43 numbers open on 2026-09-17
+   does not give block 32). From migration 40 the draw is committed code:
+   `block_draw_order()` in SQL, which the database runs, and
+   `src/lib/block-draw.ts`, its TypeScript twin; tests/sql/28 and
+   tests/unit/block-draw.test.ts assert the same vector, so the two cannot
+   drift. The i-th block placed takes the i-th number of the shuffle, and a
+   seed is printable ASCII and never reused.
 
 3. **A specific request beats a random assignment.** If someone requests
    block N and N is held by a `random` assignment, the random holder moves

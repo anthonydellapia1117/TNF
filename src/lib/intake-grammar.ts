@@ -316,6 +316,12 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export interface ParseOptions {
   /** Today in America/New_York as YYYY-MM-DD. Rule 6 needs a clock. */
   todayET: string;
+  /**
+   * config.price_per_block_cents, read from the database. Rule 5 needs it: an
+   * amount that is not a whole number of blocks is not a block payment. 25000
+   * since the 250 format (2026-11-10); it was 50000 before.
+   */
+  priceCents: number;
 }
 
 export function parseIntake(
@@ -407,10 +413,13 @@ export function parseIntake(
     const cents = parseAmountCents(fields.AMOUNT, errors);
     checkPaidOn(fields.PAID_ON, opts.todayET, errors);
     if (cents !== null) {
-      // Rule 5, first half: anything not a multiple of $500 is not a block
-      // payment at all and is invisible, so it never becomes a row.
-      if (cents % 50000 !== 0) {
-        errors.push("rule 5: AMOUNT is not a multiple of $500, so it is not a block payment");
+      // Rule 5, first half: anything not a multiple of the block price is not
+      // a block payment at all and is invisible, so it never becomes a row.
+      if (!Number.isInteger(opts.priceCents) || opts.priceCents <= 0) {
+        throw new Error("parseIntake: priceCents must be config.price_per_block_cents, a positive whole number of cents");
+      }
+      if (cents % opts.priceCents !== 0) {
+        errors.push(`rule 5: AMOUNT is not a multiple of ${opts.priceCents / 100}, the block price, so it is not a block payment`);
       } else {
         // Second half needs the ledger: equal to that participant's due_cents,
         // or it is a non-matching multiple and a question for Anthony.

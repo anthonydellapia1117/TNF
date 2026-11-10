@@ -262,7 +262,7 @@ export function ParticipantDialog({
             />
             <p className="text-2xs text-muted-foreground">
               A second address for the same block — not a second participant.
-              No extra block, no extra $500.
+              No extra block, nothing extra owed.
             </p>
           </div>
 

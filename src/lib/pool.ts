@@ -91,9 +91,10 @@ export function blockDigits(
 
 /**
  * What a halftime or a final pays. One tier since the 2026-09-08 restructure:
- * every game is a holiday game and every game pays the same, $1,500 at the
- * half and $3,000 at the final. The config row still carries four keys and
- * migration 24 set all four to the same numbers; this reads the holiday pair
+ * every game is a holiday game and every game pays the same, $750 at the half
+ * and $1,500 at the final since the 250 format (2026-11-10; $1,500 and $3,000
+ * before). The config row still carries four keys and admin_set_format
+ * (migration 40) sets all four to the same numbers; this reads the holiday pair
  * and ignores game_type, so an older caller passing "regular" gets the same
  * answer as everything else. Never a fallback to any other tier.
  */
@@ -108,9 +109,9 @@ export function payoutCents(
 }
 
 /**
- * Season total across all games in the table: 10 games x $4,500 = $45,000
- * since 2026-09-08. Derived, never stored; the admin page and the SQL suite
- * both assert it.
+ * Season total across all games in the table: 10 games x $2,250 = $22,500
+ * since the 250 format (2026-11-10; $45,000 from 2026-09-08). Derived, never
+ * stored; the admin page and the SQL suites assert it.
  */
 export function seasonPayoutTotalCents(
   games: Pick<PublicGame, "game_type">[],

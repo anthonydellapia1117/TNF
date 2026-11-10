@@ -15,6 +15,7 @@ import { status, STATUS_SUBJECT } from "./events/status.ts";
 import { gameDay, GAME_DAY_KEY } from "./events/game-day.ts";
 import { gameList, GAME_LIST_KEY } from "./events/game-list.ts";
 import { answer, ANSWER_KEY } from "./events/answer.ts";
+import { formatChange, FORMAT_CHANGE_KEY } from "./events/format-change.ts";
 import { POOL_SUBJECT } from "./copy.ts";
 import { broadcastEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
@@ -42,6 +43,7 @@ export const FAMILIES: Family[] = [
   { name: "game_day", match: GAME_DAY_KEY, dated: false, broadcast: true, render: gameDay },
   { name: "game_list", match: GAME_LIST_KEY, dated: false, broadcast: false, voice: true, render: gameList },
   { name: "answer", match: ANSWER_KEY, dated: false, broadcast: false, voice: true, render: answer },
+  { name: "format_change", match: FORMAT_CHANGE_KEY, dated: true, broadcast: true, render: formatChange },
 ];
 
 /** Families that answer one inbound message; the key ends in that message's Gmail id. */

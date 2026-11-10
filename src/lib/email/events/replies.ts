@@ -68,8 +68,8 @@ export function replyLines(t: number, ctx: EmailContext, args: EventArgs): strin
     case 5:
       return [
         `Yeah, it changed. It's the ${games} holiday games only now, not all 23. Nothing happens until Thanksgiving Eve, ${first}.`,
-        `Same ${price} a block. Payouts went up to ${half} halftime and ${fin} final, every game.`,
-        "Your block number is the same. If you paid, you're paid. The numbers posted for the two September games are void, fresh ones get drawn the morning of each game.",
+        `It's ${price} a block now, and everyone's block count doubled for the same money. ${half} halftime and ${fin} final, every game.`,
+        "Your numbers are on the board. If you paid, you're paid. The numbers posted for the two September games are void, fresh ones get drawn the morning of each game.",
         BOARD_URL,
       ];
     case 6:

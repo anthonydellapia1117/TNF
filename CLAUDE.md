@@ -11,14 +11,29 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   Weeks 12, 16 and 17. Every game is `game_type = 'holiday'`. The 23-game
   Thursday slate that ran from Sep 9 is gone; nothing happens before
   November 25.
-- **One payout tier.** $1,500 halftime, $3,000 final, every game. The four
-  config keys still exist and all carry the same numbers (migration 24), so
-  the regular/holiday split is harmless wherever an older path still reads
-  it. `payoutCents()` in `src/lib/pool.ts` ignores `game_type`.
-- **$500 a block, unchanged.** 100 x $500 = $50,000 in. 10 x $4,500 =
-  $45,000 out. House $5,000. Break-even 90 paying blocks. Expected payout
-  per block $450. None of these is stored; each derives from the games
-  table and config, and the unit and SQL suites assert the $45,000.
+- **One payout tier.** $750 halftime, $1,500 final, every game, since the
+  250 format (2026-11-10; $1,500 and $3,000 before). The four config keys
+  still exist and all carry the same numbers (`admin_set_format`, migration
+  40), so the regular/holiday split is harmless wherever an older path still
+  reads it. `payoutCents()` in `src/lib/pool.ts` ignores `game_type`.
+- **$250 a block since 2026-11-10.** 100 x $250 = $25,000 in. 10 x $2,250 =
+  $22,500 out. House $2,500. Break-even 90 paying blocks. Expected payout
+  per block $225. None of these is stored; each derives from the games
+  table and config. tests/sql/28 asserts the $22,500 after the switch; the
+  older unit and SQL fixtures still run at $500, which is their fixture.
+- **The 250 format (Anthony, 2026-11-10, Part J).** The pool was cut to 50
+  held blocks (62 and 64 released, the Cuginos removed and excluded from
+  every send list; 32, 5, 25 and 93 released; Dennis Bell removed), then the
+  price went from $500 to $250 and every holder's block count doubled for
+  the same money: one new block per held block, same holder, same status
+  (assigned stays assigned, reserved stays reserved), never comped, drawn by
+  `admin_double_holdings` with seed `tnf-2026-blockdraw-27`, the seed and
+  the free list in its audit row. Block 3 stays Anthony's only comp. His new
+  block is **25, "Philadelphia Poultry", reserved, $250 owed, for his
+  father on purpose**: it is on the Anthony DellaPia row and is never merged
+  or matched with the Ernie DellaPia Sr row (block 66). Never run the
+  doubling again: a second one would leave every assigned block short, and
+  the function refuses it.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -68,15 +83,15 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
 **The ten owner codes — AVD, RM, MAP, JPOD, EJD, NL, GD, BG, TJA, DN — are
 collection responsibility, not provenance.** They do not record who introduced someone
 or who they emailed. They record *which owner collects that participant's
-$500 and holds it*.
+block money and holds it*.
 
 How the pool actually runs:
 
 - Each owner collects from his own participants and **holds that cash**.
 - Each owner **pays his own winners out of what he is holding**, first.
 - If an owner runs dry, the other owners cover it between them.
-- At season end it reconciles per owner: participants × $500 against what
-  that owner paid out.
+- At season end it reconciles per owner: his participants' blocks × the
+  block price against what that owner paid out.
 
 Three things follow, and getting them wrong is expensive:
 
@@ -108,7 +123,7 @@ held by JPOD, and block 51 promoted to assigned.
 
 **Money that reaches Anthony moves the participant to AVD. Automatically, in
 the same transaction as the payment, with no confirmation step.** The owner
-code records who collects and holds the $500. If Anthony collected it, the
+code records who collects and holds the money. If Anthony collected it, the
 block is in Anthony's book, and AVD is what that means. The money and the
 book are never apart, so there is never a gap to flag.
 
@@ -121,13 +136,13 @@ book are never apart, so there is never a gap to flag.
   that left, at the same moment. Recruiting is not collecting.
 
 **The exception: cash held by another owner does not move anyone.** When an
-owner collects and holds his own participant's $500, that owner is doing the
+owner collects and holds his own participant's money, that owner is doing the
 collecting and keeps the code — Konnor McGrorty stays JPOD because Julian is
 holding his money. Only money that actually reached Anthony moves anyone.
 
 **Read the exception by who SENT it, not by whose name is in the memo.** A
-$500 Venmo from the participant is Anthony collecting. A $500 Venmo from
-another *owner*, forwarding what he already collected, is that owner
+block payment by Venmo from the participant is Anthony collecting. The same
+Venmo from another *owner*, forwarding what he already collected, is that owner
 collecting and does not move the participant — it is the Konnor case
 arriving by Venmo instead of by hand. If the sender is an owner rather than
 the participant, ask Anthony rather than moving anyone.
@@ -173,13 +188,18 @@ JPOD 2 to 1, MAP 10 to 7, AVD 20 to 26.
 
 ## Payment sweeps
 
-**A block costs $500 flat, so the candidate amount for a participant is
-$500 x the blocks he actually owes for.** One block is $500, two is $1,000,
-Ed D's three is $1,500. A comped block owes $0 and is excluded from that
-count — the expected amount is his `due_cents`, not his headcount.
+**A block costs `config.price_per_block_cents` flat, $250 since the 250
+format (2026-11-10, $500 before), so the candidate amount for a participant
+is the price x the blocks he actually owes for.** Two blocks is $500, four
+is $1,000. A comped block owes $0 and is excluded from that count — the
+expected amount is his `due_cents`, not his headcount. Every holder's block
+count doubled for the same money on 2026-11-10, so a holder owes what he
+owed before.
 
-For the forty-odd single-block holders this is exactly the old
-$500-only rule and nothing about them changes. It exists to stop the pool
+For the single-block holders it replaced, this was exactly the old
+$500-only rule. Since the doubling every holder holds two or more, so a
+payment for part of a holding (250 from a two-block holder) is outcome 2,
+a question, never a payment. The rule exists to stop the pool
 losing a real payment: Anthony Astorga settled both his blocks with one
 $1,000 Venmo on 2026-09-03, a full and unambiguous payment that a
 $500-only sweep is instructed to ignore. Anthony had to point it out by
@@ -190,18 +210,18 @@ Three outcomes, and only three:
 1. **Matches a participant's expected amount** — a real candidate. Verify
    the receipt and record it.
 2. **Matches no participant's expected amount, but is a clean multiple of
-   $500** — surface it as **"non-matching multiple, needs review"** and
-   stop. Do not record it and do not guess who it belongs to. This is
-   someone paying for a friend, or a two-block holder sending $500 for one
-   of them. It needs Anthony, not a decision.
-3. **Not a multiple of $500** — not a block payment. Invisible. Do not
+   the block price ($250)** — surface it as **"non-matching multiple, needs
+   review"** and stop. Do not record it and do not guess who it belongs to.
+   This is someone paying for a friend, or a four-block holder sending $500
+   for two of them. It needs Anthony, not a decision.
+3. **Not a multiple of the block price ($250)** — not a block payment. Invisible. Do not
    surface it, flag it, or record it as a partial one, whatever name is on
    it, unless Anthony says otherwise for that specific transaction.
 
 Rule 3 is the one learned the hard way: two sweeps surfaced a $30 and a
 $150 Venmo from people who *are* participants, and both turned out to be
 unrelated (a Survivor entry fee and personal money). Reporting them cost
-Anthony two round trips to chase nothing. Neither is a multiple of $500, so
+Anthony two round trips to chase nothing. Neither is a multiple of $250, so
 both stay invisible under the amounts rule above — widening it to block
 count reopens nothing.
 
@@ -221,8 +241,8 @@ count reopens nothing.
 
 ## Money
 
-- `payout_mode` is **FIXED at $45,000** regardless of blocks sold (10 games
-  x $4,500 since 2026-09-08). Never surface sellout risk or contingent
+- `payout_mode` is **FIXED at $22,500** regardless of blocks sold (10 games
+  x $2,250 since 2026-11-10; $45,000 from 2026-09-08). Never surface sellout risk or contingent
   payouts anywhere in the UI.
 - The app never moves money. The payments ledger is append-only; corrections
   are new rows, never edits.
@@ -246,7 +266,7 @@ count reopens nothing.
   the block's notes.
 - Committed is a real **count** of blocks, never money divided by price — a
   comped block owes $0 but is still committed.
-- Break-even is **90 paying blocks** ($45,000 / $500). Comped blocks are
+- Break-even is **90 paying blocks** ($22,500 / $250). Comped blocks are
   excluded from that count. This lives on /admin only and is never public.
 
 ## The claim deadline
@@ -470,7 +490,7 @@ it does not move blocks.
 - **A holder check-in says Paid only when the ledger backs it.** Anthony,
   2026-10-08 (Part E4). `email_holder_facts()` (migration 36) marks an
   assigned block `ledger_paid` when the participant's payment rows,
-  corrections included, total at least 500 for every assigned block of theirs
+  corrections included, total at least the block price for every assigned block of theirs
   that is not comped, or when the block is comped: a comp is reconciled, basis
   comp (Part F2; block 3 is Anthony's standing comp). Any other assigned block
   renders "On file, payment not found - reply if that's wrong". Status alone
@@ -597,8 +617,8 @@ money rules are actually enforced.
 
 ## Code conventions
 
-- **Money is stored in CENTS, everywhere.** `price_per_block_cents = 50000`
-  is $500; `holiday_final_cents = 300000` is $3,000. Never treat a `_cents`
+- **Money is stored in CENTS, everywhere.** `price_per_block_cents = 25000`
+  is $250; `holiday_final_cents = 150000` is $1,500. Never treat a `_cents`
   column as dollars — that is a 100x error waiting to happen. Format for
   display with the helpers in `src/lib/format.ts`, never by hand.
 - Server components by default; `"use client"` only where there is real
