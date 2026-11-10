@@ -74,5 +74,34 @@ describe("the envelope md5", () => {
     // md5("a@x,b@x|c@x"), computed independently with md5sum. Postgres must
     // produce the same string: the claim sorts with collate "C" for this reason.
     expect(envelopeMd5({ to: ["b@x", "a@x"], bcc: ["c@x"] })).toBe("99bd6d5ad0e3b2d5928afb411d0a35e4");
+    // An empty Cc is the same string as none: the recruit broadcast's md5 is unchanged.
+    expect(envelopeMd5({ to: ["b@x", "a@x"], cc: [], bcc: ["c@x"] })).toBe("99bd6d5ad0e3b2d5928afb411d0a35e4");
+  });
+
+  it("puts a Cc list between To and Bcc: what the claim hashes for the format email", () => {
+    // md5("a@x|d@x|c@x"), computed independently with md5sum.
+    expect(envelopeMd5({ to: ["a@x"], cc: ["D@x"], bcc: ["c@x"] })).toBe("bbf1b14f720dfa2a36f1172c202e69fe");
+    expect(envelopeMd5({ to: ["a@x"], cc: ["d@x"], bcc: ["c@x"] })).not.toBe(envelopeMd5({ to: ["a@x"], bcc: ["d@x", "c@x"] }));
+  });
+});
+
+describe("the format email's plan check (Part L)", () => {
+  const FPLAN: BroadcastPlan = {
+    event_key: "format_change_2026-11-10",
+    p: 0, h: 6, o: 0, t: 1, x: 0, bcc_count: 5,
+    to: ["avd@tnf.test"],
+    cc: ["rm@tnf.test"],
+    bcc: BCC,
+    omitted_owners: ["DN"],
+  };
+  const FENV = { to: ["avd@tnf.test"], cc: ["rm@tnf.test"], bcc: [...BCC] };
+
+  it("passes when To, Cc and Bcc are the plan's", () => {
+    expect(() => checkBroadcast(FPLAN, FENV, OWNERS, ["DN"], RANGE)).not.toThrow();
+  });
+
+  it("refuses a Cc that is not the plan's", () => {
+    expect(() => checkBroadcast(FPLAN, { ...FENV, cc: [] }, OWNERS, ["DN"], RANGE)).toThrow(/Cc differs from the plan/);
+    expect(() => checkBroadcast({ ...FPLAN, cc: undefined }, FENV, OWNERS, ["DN"], RANGE)).toThrow(/Cc differs from the plan/);
   });
 });

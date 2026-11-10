@@ -242,7 +242,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   const md5 = envelopeMd5(envelope);
   console.log(JSON.stringify({
     event_key: eventKey, subject: r.email.subject, sha: r.sha,
-    arithmetic: planArithmetic(plan), to: envelope.to.length, bcc: envelope.bcc.length,
+    arithmetic: planArithmetic(plan), to: envelope.to.length, cc: envelope.cc.length, bcc: envelope.bcc.length,
     omitted: omit.map((c) => c.trim().toUpperCase()), envelope_md5: md5,
   }, null, 2));
   if (flag("dry-run")) {
@@ -266,13 +266,13 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   const prior = await gmail.sentWithEvent(ADMIN_EMAIL, eventKey);
   if (prior) die(`${eventKey} already went out (Gmail message ${prior}); refusing a second copy`);
   const mime = buildMime({
-    from: FROM, to: envelope.to, bcc: envelope.bcc, email: r.email,
+    from: FROM, to: envelope.to, cc: envelope.cc, bcc: envelope.bcc, email: r.email,
     headers: { "X-TNF-Event": eventKey, "X-TNF-Claim": claim, "X-TNF-Envelope": md5 },
   });
   const sent = await gmail.send(mime);
   console.log(JSON.stringify({
     event_key: eventKey, message_id: sent.id, thread_id: sent.threadId, sha: r.sha,
-    to: envelope.to.length, bcc: envelope.bcc.length, envelope_md5: md5,
+    to: envelope.to.length, cc: envelope.cc.length, bcc: envelope.bcc.length, envelope_md5: md5,
   }));
 }
 
@@ -340,7 +340,7 @@ async function main() {
     const ctx: EmailContext = { event_key: eventKey, recipient: ADMIN_EMAIL, common: batch.value.common };
     const r = renderOrDie(ctx, args);
     const owners = readJson<OwnerAddress[]>(ownersPath).value;
-    const { to, bcc } = envelopeFor(eventKey, {
+    const { to, cc, bcc } = envelopeFor(eventKey, {
       adminEmail: ADMIN_EMAIL,
       owners,
       derived: batch.value.items.map((i) => i.recipient),
@@ -352,15 +352,15 @@ async function main() {
       const mimeType = ext === "png" ? "image/png" : ext === "pdf" ? "application/pdf" : die(`--attach: ${basename(path)} is not png or pdf`);
       return { filename: `${base}.${ext}`, mimeType, content: readFileSync(path) };
     });
-    const mime = buildMime({ from: FROM, to, bcc, email: r.email, attachments, headers: { "X-TNF-Event": eventKey } });
+    const mime = buildMime({ from: FROM, to, cc, bcc, email: r.email, attachments, headers: { "X-TNF-Event": eventKey } });
     if (flag("dry-run")) {
-      console.log(JSON.stringify({ subject: r.email.subject, to: to.length, bcc: bcc.length, omitted_owners: opts("omit-owner"), attachments: attachments.map((a) => a.filename), sha: r.sha }, null, 2));
+      console.log(JSON.stringify({ subject: r.email.subject, to: to.length, cc: cc.length, bcc: bcc.length, omitted_owners: opts("omit-owner"), attachments: attachments.map((a) => a.filename), sha: r.sha }, null, 2));
       console.log(r.email.text);
       return;
     }
     const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
     const d = await gmail.createDraft(mime);
-    console.log(JSON.stringify({ draft_id: d.draftId, message_id: d.messageId, subject: r.email.subject, to: to.length, bcc: bcc.length, sha: r.sha }));
+    console.log(JSON.stringify({ draft_id: d.draftId, message_id: d.messageId, subject: r.email.subject, to: to.length, cc: cc.length, bcc: bcc.length, sha: r.sha }));
     return;
   }
 

@@ -5,13 +5,29 @@
 // that competes with the table.
 
 import type { EmailSpec, RenderedEmail } from "./types.ts";
-import { wrap, wrapRow } from "./wrap.ts";
+import { MAX_LINE, wrap, wrapRow } from "./wrap.ts";
+
+/**
+ * A prose line that starts with spaces is an indented sub-line (the format
+ * email's payout lines, Part L): it keeps its indent, on every line it wraps
+ * to, and in HTML as non-breaking spaces. A line with no leading space renders
+ * exactly as it always has.
+ */
+function leadOf(line: string): string {
+  return /^ */.exec(line)?.[0] ?? "";
+}
+
+function proseText(line: string): string[] {
+  const lead = leadOf(line);
+  if (!lead) return wrap(line);
+  return wrap(line.slice(lead.length), MAX_LINE - lead.length).map((l) => lead + l);
+}
 
 export function renderText(spec: EmailSpec): string {
   const blocks: string[] = [];
   if (spec.greeting) blocks.push(`${spec.greeting},`);
   if (spec.opening) blocks.push(wrap(spec.opening).join("\n"));
-  if (spec.prose?.length) blocks.push(spec.prose.flatMap((l) => wrap(l)).join("\n"));
+  if (spec.prose?.length) blocks.push(spec.prose.flatMap(proseText).join("\n"));
   if (spec.rows.length) blocks.push(spec.rows.flatMap(([k, v]) => wrapRow(k, v)).join("\n"));
   if (spec.next) blocks.push(wrap(spec.next).join("\n"));
   if (spec.deadline) blocks.push(wrap(spec.deadline).join("\n"));
@@ -56,7 +72,11 @@ export function renderHtml(spec: EmailSpec): string {
   if (spec.greeting) body.push(`<p style="${P}">${esc(spec.greeting)},</p>`);
   if (spec.opening) body.push(`<p style="${P}">${inline(spec.opening)}</p>`);
   if (spec.prose?.length) {
-    body.push(`<p style="${P}">${spec.prose.map(inline).join("<br>")}</p>`);
+    const html = (l: string) => {
+      const lead = leadOf(l);
+      return "&nbsp;".repeat(lead.length) + inline(l.slice(lead.length));
+    };
+    body.push(`<p style="${P}">${spec.prose.map(html).join("<br>")}</p>`);
   }
   if (spec.rows.length) {
     const cell = "padding:7px 0;border-bottom:1px solid #e6e6e6;vertical-align:top;";

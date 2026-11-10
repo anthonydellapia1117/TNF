@@ -71,10 +71,27 @@ describe("a broadcast", () => {
   it("gives an owner whose second address is a prospect one copy, at his primary", () => {
     for (const key of ["game_day_g01", "recruit_broadcast_2026-10-14", "format_change_2026-11-10"]) {
       const e = envelopeFor(key, { adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, " Map-Alt@tnf.test", MAP_ALT] });
-      expect(e.to.filter((a) => a === "map@tnf.test")).toHaveLength(1);
+      expect([...e.to, ...e.cc].filter((a) => a === "map@tnf.test")).toHaveLength(1);
       expect([...e.to, ...e.cc, ...e.bcc]).not.toContain(MAP_ALT);
       expect(e.bcc).toEqual(["holder1@tnf.test", "holder2@tnf.test"]);
     }
+  });
+
+  // Part L (Anthony, 2026-11-10): the format email is To Anthony alone, Cc
+  // every other owner with an address, Bcc the holders minus all of them.
+  it("puts the format email To Anthony, every other owner on Cc in To order, nobody twice", () => {
+    const e = envelopeFor("format_change_2026-11-10", {
+      adminEmail: ADMIN, owners: OWNERS, derived: [...HOLDERS, "RM@tnf.test", "avd-primary@tnf.test", ALT],
+    });
+    expect(e.to).toEqual(["avd-primary@tnf.test"]);
+    expect(e.cc).toEqual(TEN.slice(1));
+    expect(e.bcc).toEqual(["holder1@tnf.test", "holder2@tnf.test"]);
+    const noDn = OWNERS.map((o) => (o.code === "DN" ? { ...o, email: null } : o));
+    expect(() => envelopeFor("format_change_2026-11-10", { adminEmail: ADMIN, owners: noDn, derived: HOLDERS })).toThrow(/DN has no address/);
+    const omitted = envelopeFor("format_change_2026-11-10", { adminEmail: ADMIN, owners: noDn, derived: HOLDERS, omit: ["DN"] });
+    expect(omitted.cc).toEqual(TEN.slice(1, 9));
+    expect(omitted.cc).toHaveLength(8);
+    expect(omitted.to).toEqual(["avd-primary@tnf.test"]);
   });
 
   it("refuses rather than sending short or wrong", () => {
