@@ -28,12 +28,19 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   the same money: one new block per held block, same holder, same status
   (assigned stays assigned, reserved stays reserved), never comped, drawn by
   `admin_double_holdings` with seed `tnf-2026-blockdraw-27`, the seed and
-  the free list in its audit row. Block 3 stays Anthony's only comp. His new
-  block is **25, "Philadelphia Poultry", reserved, $250 owed, for his
-  father on purpose**: it is on the Anthony DellaPia row and is never merged
-  or matched with the Ernie DellaPia Sr row (block 66). Never run the
-  doubling again: a second one would leave every assigned block short, and
-  the function refuses it.
+  the free list in its audit row. Never run the doubling again: a second
+  one would leave every assigned block short, and the function refuses it.
+- **Poultry and PAAA M (Anthony, 2026-11-10, Part K).** Block 25, first
+  placed on Anthony's row for his father, moved to the **Ernie DellaPia Sr**
+  row, assigned on his $500 (2 x $250). Ernie and Vincent Angiolillo swapped
+  12 and 14, Ernie's 66 went to Perry T (MAP), and Perry's 23 came to Anthony
+  as **"PAAA M", comped**. Each move was a release (prior holder kept in the
+  block's notes) and a reserve, method `requested` with a Part K ref, and
+  status followed the participant. No `blocks_requested` changed.
+  - **Anthony's comp is blocks 3 ("AAA") and 23 ("PAAA M"), both
+    comped.** That is his original free $500 block, which is two blocks at
+    $250. No other block is comped. Ernie Sr holds 12 and 25, both
+    rendering "Philadelphia Poultry" (25 by its own name, 12 by his alias).
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -492,7 +499,7 @@ it does not move blocks.
   assigned block `ledger_paid` when the participant's payment rows,
   corrections included, total at least the block price for every assigned block of theirs
   that is not comped, or when the block is comped: a comp is reconciled, basis
-  comp (Part F2; block 3 is Anthony's standing comp). Any other assigned block
+  comp (Part F2; Anthony's standing comp is blocks 3 and 23 since Part K). Any other assigned block
   renders "On file, payment not found - reply if that's wrong". Status alone
   never makes a block Paid. Every check-in closes with "If anything here is
   off, reply and I'll fix it."
