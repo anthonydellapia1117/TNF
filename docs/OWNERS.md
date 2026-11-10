@@ -8,7 +8,7 @@ admin-only `owners` table and this file is its readable copy.
 What a code MEANS has not changed and is not defined here. That lives in
 CLAUDE.md under *Owner codes and how money is actually collected*: a code is
 **collection responsibility, not provenance**. It records which owner collects
-a participant's $500 and holds it, and nothing else.
+a participant's block money and holds it, and nothing else.
 
 | Code | Owner | Since |
 |------|-------|-------|

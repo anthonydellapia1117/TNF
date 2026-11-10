@@ -8,7 +8,7 @@ can be staged.
 ## What it is
 
 The hourly sweep finds things it is not allowed to decide: a Venmo that
-matches a participant's expected amount, a clean multiple of $500 that
+matches a participant's expected amount, a clean multiple of the block price that
 matches nobody, a block request in a thread, an identity conflict. Each of
 those used to be a line in a report and a round trip. The queue is where
 those lines live now: one row per item, staged by the sweep, resolved by

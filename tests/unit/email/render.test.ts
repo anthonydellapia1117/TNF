@@ -302,6 +302,53 @@ describe("recruit broadcast", () => {
   });
 });
 
+// Part J (Anthony, 2026-11-10): the format change, staged as a draft. Owners
+// on To, every holder in Bcc. Every number from config, no dollar sign.
+describe("format change broadcast", () => {
+  const KEY = "format_change_2026-10-07";
+  const FORMAT_250 = {
+    ...COMMON,
+    price_per_block_cents: 25000,
+    holiday_halftime_cents: 75000,
+    regular_halftime_cents: 75000,
+    holiday_final_cents: 150000,
+    regular_final_cents: 150000,
+  };
+
+  it("renders exactly from the 250 config", () => {
+    const r = renderEvent(ctx(KEY, { common: FORMAT_250 }));
+    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | 250 a block, double the blocks");
+    expect(r.email.text).toBe(
+      [
+        "Everyone,",
+        "",
+        "The pool is now 250 a block, and everyone's block count doubled for",
+        "the same money.",
+        "",
+        "Prizes are 750 at halftime and 1,500 at the final, every game.",
+        "Your new numbers are on ad-26-tnf.vercel.app.",
+        "",
+        "Anthony",
+        "",
+      ].join("\n"),
+    );
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+    expect(r.problems).toEqual([]);
+    expect(r.email.text).not.toContain("$");
+  });
+
+  it("reads every number from the database, and names no holder", () => {
+    const r = renderEvent(ctx(KEY, { holder: SAMPLE_HOLDER, people: ASKER }));
+    expect(r.email.text).toContain("The pool is now 500 a block");
+    expect(r.email.text).toContain("Prizes are 1,500 at halftime and 3,000 at the final");
+    expect(r.email.text).not.toMatch(/DellaPia|Dan Asker|\bAD\b|\bDA\b/);
+  });
+
+  it("renders only on its own day", () => {
+    expect(() => renderEvent(ctx("format_change_2026-11-10", { common: FORMAT_250 }))).toThrow(/renders only on its own day/);
+  });
+});
+
 describe("sweep replies T1-T7, wording verbatim from docs/SWEEP_PROMPT.md as of 2026-09-10, no dollar sign", () => {
   const lines = (key: string, args: Record<string, string>) =>
     renderEvent(ctx(key, { blocks: ALL_BLOCKS }), args).spec.prose;
@@ -331,8 +378,8 @@ describe("sweep replies T1-T7, wording verbatim from docs/SWEEP_PROMPT.md as of 
   it("T5", () => {
     expect(lines("reply_t5_abc", { subject: "x" })).toEqual([
       "Yeah, it changed. It's the 10 holiday games only now, not all 23. Nothing happens until Thanksgiving Eve, Wed 11/25.",
-      "Same 500 a block. Payouts went up to 1,500 halftime and 3,000 final, every game.",
-      "Your block number is the same. If you paid, you're paid. The numbers posted for the two September games are void, fresh ones get drawn the morning of each game.",
+      "It's 500 a block now, and everyone's block count doubled for the same money. 1,500 halftime and 3,000 final, every game.",
+      "Your numbers are on the board. If you paid, you're paid. The numbers posted for the two September games are void, fresh ones get drawn the morning of each game.",
       "https://ad-26-tnf.vercel.app/blocks",
     ]);
   });

@@ -23,10 +23,14 @@
 //                             send one context (a sweep reply) after its claim
 //   --to-admin (or --sample)  send the rendered email to ADMIN_EMAIL only:
 //                             the digest, the status report, a sample
-//   --draft --batch f --owners o
+//   --draft --batch f --owners o [--omit-owner CODE]
 //                             a broadcast as a Gmail draft: To Anthony and
 //                             every owner from the owners table export, Bcc
-//                             every batch item not already on To
+//                             every batch item not already on To. A draft is
+//                             not a send and is never claimed: Anthony sends
+//                             it himself. --omit-owner is the same one-time
+//                             override as a broadcast send, for an owner with
+//                             no address; the draft's dry run names who is off
 //
 // A broadcast that goes out as one message (G4, Anthony 2026-10-13):
 //   --context f --sample      the rendered broadcast to ADMIN_EMAIL alone
@@ -340,6 +344,7 @@ async function main() {
       adminEmail: ADMIN_EMAIL,
       owners,
       derived: batch.value.items.map((i) => i.recipient),
+      omit: opts("omit-owner"),
     });
     const base = attachmentBase(r.email.subject);
     const attachments: MimeAttachment[] = opts("attach").map((path) => {
@@ -349,7 +354,7 @@ async function main() {
     });
     const mime = buildMime({ from: FROM, to, bcc, email: r.email, attachments, headers: { "X-TNF-Event": eventKey } });
     if (flag("dry-run")) {
-      console.log(JSON.stringify({ subject: r.email.subject, to: to.length, bcc: bcc.length, attachments: attachments.map((a) => a.filename), sha: r.sha }, null, 2));
+      console.log(JSON.stringify({ subject: r.email.subject, to: to.length, bcc: bcc.length, omitted_owners: opts("omit-owner"), attachments: attachments.map((a) => a.filename), sha: r.sha }, null, 2));
       console.log(r.email.text);
       return;
     }

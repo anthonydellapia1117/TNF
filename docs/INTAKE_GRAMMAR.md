@@ -95,7 +95,7 @@ still wins on the field set; it just does not decide this.
 | Rule | Check | Why it cannot be static |
 |------|-------|------------------------|
 | 11 | `who_resolves_to_exactly_one` | Needs the roster. **What zero means depends on the action**: on `participant` with a `NAME` it means CREATE, and everywhere else - including a `participant` naming a `PARTICIPANT_ID` - it is malformed. Two matches is always malformed - never a guess, and never a new row created to make it fit. See rule 11. |
-| 5 | `amount_equals_due_cents` | Needs that participant's live balance. A multiple of $500 is not enough on its own: a two-block holder owes $1,000, and `AMOUNT: 500` for him is CLAUDE.md's second sweep outcome, a non-matching multiple that goes to Anthony as a question. |
+| 5 | `amount_equals_due_cents` | Needs that participant's live balance. A multiple of the block price is not enough on its own: a four-block holder owes $1,000, and `AMOUNT: 500` for him is CLAUDE.md's second sweep outcome, a non-matching multiple that goes to Anthony as a question. |
 | 12 | `queue_row_is_open` | Needs the queue. A resolved row is malformed. |
 
 ## Validation rules
@@ -126,13 +126,15 @@ the whole message malformed.
    which would have had the sweep reject a message written exactly as the
    grammar told the sender to write it. The sweep converts to cents; money is stored in cents
    everywhere.
-5. `AMOUNT` on a `payment` must be a multiple of 500 AND must equal that
-   participant's live `due_cents`. A multiple of 500 is not enough on its
-   own: a two-block holder owes $1,000, and a `DECISION TNF:` carrying
+5. `AMOUNT` on a `payment` must be a multiple of the block price
+   (`config.price_per_block_cents`: 250 since the 250 format of 2026-11-10,
+   500 before) AND must equal that participant's live `due_cents`. A
+   multiple of the price is not enough on its own: a four-block holder owes
+   $1,000, and a `DECISION TNF:` carrying
    `AMOUNT: 500` for him is the second of CLAUDE.md's three sweep outcomes,
    a non-matching multiple that goes to Anthony as a question. Stage
    `non_matching_multiple` and record nothing. Anything that is not a
-   multiple of 500 at all is not a block payment and is invisible.
+   multiple of the price at all is not a block payment and is invisible.
 6. `PAID_ON` is `YYYY-MM-DD`, not in the future in America/New_York, and not
    before 2026-08-01 (the season floor).
 7. **`METHOD` means two different columns and the two lists do not overlap.**

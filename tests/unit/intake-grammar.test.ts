@@ -12,7 +12,7 @@ import {
 } from "@/lib/intake-grammar";
 
 const TODAY = "2026-09-10";
-const opts = { todayET: TODAY };
+const opts = { todayET: TODAY, priceCents: 25000 }; // the 250 format, 2026-11-10
 
 /**
  * One fixture per action from docs/INTAKE_GRAMMAR.md, plus one drift case each
@@ -59,10 +59,10 @@ const FIXTURES: Record<ActionName, Fixture> = {
   payment: {
     subject: S.d,
     lines: ["ACTION: payment", "NAME: Anthony Astorga", "AMOUNT: $1000", "METHOD: venmo", "PAID_ON: 2026-09-08", "TXN: 4681784574292679976"],
-    // Rule 5: not a multiple of $500 is not a block payment at all.
+    // Rule 5: not a multiple of the block price (250) is not a block payment at all.
     drift: {
-      lines: ["ACTION: payment", "NAME: Anthony Astorga", "AMOUNT: 750", "METHOD: venmo", "PAID_ON: 2026-09-08"],
-      because: /rule 5: AMOUNT is not a multiple of \$500/,
+      lines: ["ACTION: payment", "NAME: Anthony Astorga", "AMOUNT: 600", "METHOD: venmo", "PAID_ON: 2026-09-08"],
+      because: /rule 5: AMOUNT is not a multiple of 250, the block price/,
     },
   },
   owner: {
@@ -255,6 +255,19 @@ describe("what the parser cannot know without the database", () => {
   it("defers rule 5, that a payment equals that participant's due_cents", () => {
     const a = ok(FIXTURES.payment);
     expect(a.deferred).toContainEqual({ rule: 5, check: "amount_equals_due_cents", amountCents: 100000 });
+  });
+
+  // The 250 format (2026-11-10): rule 5 follows config.price_per_block_cents.
+  // 250 is one block now; under the old 500 price it was not a block payment.
+  it("rule 5 follows the block price it is handed", () => {
+    const lines = ["ACTION: payment", "NAME: Anthony Astorga", "AMOUNT: 250", "METHOD: venmo", "PAID_ON: 2026-09-08"].join("\n");
+    const now = parseIntake(S.d, lines, opts);
+    expect(now.ok).toBe(true);
+    if (now.ok) expect(now.intake.deferred).toContainEqual({ rule: 5, check: "amount_equals_due_cents", amountCents: 25000 });
+    const before = parseIntake(S.d, lines, { ...opts, priceCents: 50000 });
+    expect(before.ok).toBe(false);
+    if (!before.ok) expect(before.errors.join()).toMatch(/not a multiple of 500, the block price/);
+    expect(() => parseIntake(S.d, lines, { ...opts, priceCents: 0 })).toThrow(/priceCents/);
   });
 
   it("defers rule 12, that a queue ID names an open row", () => {
