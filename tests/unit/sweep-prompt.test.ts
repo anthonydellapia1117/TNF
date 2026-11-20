@@ -192,7 +192,7 @@ describe("sweep prompt: 8b, fewer blocks after the format email", () => {
   it("outranks the rules that would otherwise act, 8a and 11 included", () => {
     expect(item).toMatch(/outranks 1b, 5, 8a, 10, 10d, 11b and 11d/);
     const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
-    expect(eleven).toMatch(/8a and 8b still hold/);
+    expect(eleven).toMatch(/8a, 8b and 8c still hold/);
   });
 
   it("stages once, as NEEDS ANTHONY, and labels only after the row is resolved", () => {
@@ -205,5 +205,45 @@ describe("sweep prompt: 8b, fewer blocks after the format email", () => {
   it("keeps the shared reply thread safe: answer_M only, never over Anthony's drafts", () => {
     expect(item).toMatch(/answer_M only, never a T1-T6 template/);
     expect(item).toMatch(/drafts_to_delete above 0/);
+  });
+});
+
+// Part M (Anthony, 2026-11-20): any Esgro mail is about all three crew rows,
+// their money waits for a DECISION, and the sweep keeps at most one open queue
+// row for the crew. Six per-message rows piled up from Oct 26 to Nov 18 before
+// this; these pin the words that stop a seventh.
+describe("sweep prompt: 8c, Esgro's crew", () => {
+  const item = PROMPT.split("\n").find((l) => l.trim().startsWith("8c.")) ?? "";
+
+  it("names the three crew rows as on file, and Nicco as separate", () => {
+    expect(item).toMatch(/ALL ON FILE/);
+    expect(item).toMatch(/Anthony Esgro \(Scro, blocks 11 and 28\), frank animal \(63 and 80\) and M & M \(70 and 77\)/);
+    expect(item).toMatch(/Nicco Esgro is a SEPARATE participant/);
+    expect(item).toMatch(/covers his own two blocks and nobody else's/);
+  });
+
+  it("reads any Esgro mail as about all three rows, and never records their money on anyone's word", () => {
+    expect(item).toMatch(/ANY ESGRO MAIL, in any thread/);
+    expect(item).toMatch(/about all three rows at once/);
+    expect(item).toMatch(/until a valid DECISION TNF: records it/);
+    expect(item).toMatch(/never record a payment, never stage a "payment"/);
+  });
+
+  it("keeps at most one open crew row, found by its payload, and outranks the per-message rule", () => {
+    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR THE CREW/);
+    expect(item).toMatch(/payload ->> 'crew' = 'esgro'/);
+    expect(item).toMatch(/stages NOTHING under any step/);
+    expect(item).toMatch(/outranks 1c's one row per message, 5, 8b, 10c and 11e/);
+    expect(item).toMatch(/never staged as a second row/);
+    const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
+    expect(eleven).toMatch(/8c over 8b for the Esgro crew's queue row/);
+  });
+
+  it("labels only once the crew row is confirmed open, and never re-stages what Anthony has seen", () => {
+    const confirm = item.indexOf("Confirm the crew row is open");
+    const label = item.indexOf("then label the message Pool-TNF-Done");
+    expect(confirm).toBeGreaterThan(-1);
+    expect(label).toBeGreaterThan(confirm);
+    expect(item).toMatch(/Never stage a crew row for a message dated before the last crew row was resolved/);
   });
 });

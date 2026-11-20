@@ -58,4 +58,29 @@ describe("game day prompt", () => {
       "Your prompt is in this repo, anthonydellapia1117/TNF, at docs/GAME_DAY_PROMPT.md. Open that file and follow everything between its two code fences",
     );
   });
+
+  // Part M (Anthony, 2026-11-20): with DN blank the pack goes out without him,
+  // through the same audited one-time override a sent broadcast uses. The
+  // audit row comes after the Drafts check and before the draft, and the
+  // override names DN alone.
+  it("leaves DN off To on the record: audit after the Drafts check, before the draft", () => {
+    const a3 = PROMPT.split("\n").find((l) => l.startsWith("A3.")) ?? "";
+    const search = a3.indexOf("Search Drafts for that subject");
+    const audit = a3.indexOf("select admin_email_omit_owners('game_day_g<NN>', array['DN'], 'tnf-game-day')");
+    const draft = a3.indexOf("rerun the same command with --draft");
+    expect(audit).toBeGreaterThan(search);
+    expect(draft).toBeGreaterThan(audit);
+    expect(a3.slice(search, draft)).toContain(CLAIM);
+    expect(a3).toMatch(/if DN is the one owner whose email is null or blank/);
+    expect(a3).toMatch(/if any other owner has no address, or DN has one, add no override/);
+    expect(a3).toMatch(/--omit-owner DN to both runs/);
+  });
+
+  it("writes to the database only for that audit row", () => {
+    const b0 = PROMPT.split("\n").find((l) => l.startsWith("0b.")) ?? "";
+    expect(b0).toMatch(/Never write to the database, with one exception: A3's admin_email_omit_owners call/);
+    const writes = PROMPT.match(/select admin_[a-z_]+\(/g) ?? [];
+    expect([...new Set(writes)].sort()).toEqual(["select admin_email_context(", "select admin_email_omit_owners("]);
+  });
 });
+

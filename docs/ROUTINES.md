@@ -241,7 +241,12 @@ no address to leave off, and the claim before the send
 (`admin_email_claim_broadcast`) refuses unless the codes named are exactly the
 owners with no address, then writes one `broadcast_owner_omitted` audit row
 per code. The recruit broadcast of 2026-10-13 left DN off that way. The
-game-day draft takes no override.
+game-day draft has no claim, so its override is recorded on its own (Anthony,
+2026-11-20, Part M): `npm run game-day -- --omit-owner DN`, after
+`admin_email_omit_owners('game_day_g<NN>', array['DN'], ...)` (migration 42)
+makes the same check and writes the same audit row, once per game. TNF Game
+Day does this while DN is the one owner with no address; any other blank
+owner still stops the draft.
 
 The Bcc is the participant query minus every address already on To, so an
 owner who also holds a block is listed once, on To. Per-recipient email (a

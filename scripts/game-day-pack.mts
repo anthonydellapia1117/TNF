@@ -50,6 +50,15 @@
 //                         Gmail API (GMAIL_OAUTH_TOKEN_JSON and friends, see
 //                         src/lib/email/transport.ts). A draft: nothing is
 //                         sent, ever.
+//   --omit-owner CODE     the one-time override (repeatable): an owner with no
+//                         address, left off To for this game's pack. Every
+//                         owner with no address must be named, a named owner
+//                         may not have one, and AVD is never left off; the
+//                         rule is broadcastTo's in src/lib/email/envelope.ts.
+//                         The audit row comes first, from
+//                         admin_email_omit_owners('game_day_g<NN>', codes)
+//                         (migration 42); without the override a missing
+//                         address still refuses the pack.
 //
 // Without --upload and --link-only the message carries both files as
 // attachments. The command always writes <name>.eml next to the manifest, the
@@ -100,6 +109,14 @@ function arg(name: string): string | undefined {
 }
 function flag(name: string): boolean {
   return process.argv.includes(`--${name}`);
+}
+/** Every value of a repeatable option, in order. */
+function args(name: string): string[] {
+  const out: string[] = [];
+  process.argv.forEach((a, i) => {
+    if (a === `--${name}` && process.argv[i + 1] !== undefined) out.push(process.argv[i + 1]);
+  });
+  return out;
 }
 
 function fail(msg: string, code = 1): never {
@@ -344,6 +361,7 @@ async function main() {
   const ownersPath = arg("owners");
   if (!ownersPath) fail("--owners FILE is required (the owners query in docs/ROUTINES.md)");
   const owners = readOwners(resolve(ownersPath));
+  const omit = args("omit-owner").map((c) => c.trim().toUpperCase()).filter(Boolean);
   const base = arg("base") ?? DEFAULT_BASE;
   const outDir = resolve(arg("out") ?? "out/game-day");
   const scale = Number(arg("scale") ?? 2);
@@ -394,7 +412,7 @@ async function main() {
     content: new Uint8Array(readFileSync(f.path)),
   })));
 
-  const { to, bcc } = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: pack.recipients.bcc });
+  const { to, bcc } = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: pack.recipients.bcc, omit });
   // distinct is the Bcc actually written; an owner who also holds a block is
   // counted on the To line, not twice.
   const counts = {
@@ -425,6 +443,7 @@ async function main() {
     rendered_sha: rendered.sha,
     to,
     bcc,
+    omittedOwners: omit,
     noEmail: pack.recipients.noEmail,
     counts,
     files,
@@ -450,7 +469,8 @@ async function main() {
       `distinct in bcc ${c.distinct}${c.movedToTo ? ` (${c.movedToTo} moved to To)` : ""}`,
   );
   console.log(
-    `to: ${to.length} (Anthony and every owner, from the owners table), bcc: ${bcc.length}`,
+    `to: ${to.length} (Anthony and every owner, from the owners table` +
+      `${omit.length ? `; left off, no address: ${omit.join(", ")}` : ""}), bcc: ${bcc.length}`,
   );
   if (pack.recipients.noEmail.length > 0) {
     console.log(
