@@ -223,11 +223,12 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
   });
 
   it("reads crew mail as about all three rows, and keeps receipts, Nicco and Anthony's own intake out of it", () => {
-    expect(item).toMatch(/CREW MAIL is any message, in any thread/);
-    expect(item).toMatch(/it is about all three rows at once/);
-    expect(item).toMatch(/Nicco's mail about his own blocks/);
+    expect(item).toMatch(/CREW MAIL is any message, in any thread and from any sender, about the crew/);
+    expect(item).toMatch(/It is about all three rows at once/);
+    expect(item).toMatch(/however it names them \(full name, Scro, Animal, M&M, Esgro, or their block numbers\)/);
+    expect(item).toMatch(/Nicco's mail about his own blocks 15 and 24/);
     expect(item).toMatch(/a Venmo receipt, under 3 whoever sent it/);
-    expect(item).toMatch(/Anthony's own DECISION TNF:, UPDATE TNF: and NOTE TNF: mail, under 4 and 1b/);
+    expect(item).toMatch(/every message from Anthony's own address, DECISION TNF:, UPDATE TNF: and NOTE TNF: included \(4 and 1b\)/);
   });
 
   // Review of PR 41: "recorded" follows each member's live balance, never a
@@ -236,16 +237,21 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
     expect(item).toMatch(/amount_due_cents minus amount_paid_cents in v_participant_finance is above 0/);
     expect(item).not.toMatch(/150000/);
     expect(item).toMatch(/one per crew member for that member's own balance/);
+    expect(item).toMatch(/one Venmo transaction id can sit on only one payment row/);
     expect(item).toMatch(/never record a payment, never promote a block and never reply about the money/);
     expect(item).toMatch(/WHEN NOBODY OWES, this item is done/);
   });
 
-  it("keeps at most one open money row, staged with no source message so it never collides", () => {
-    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR IT/);
-    expect(item).toMatch(/payload ->> 'crew' = 'esgro'/);
+  // Round two of the PR 41 review: a fixed source key lets the open-row unique
+  // index refuse a second crew row, where a NULL source never would.
+  it("keeps at most one open money row, held to one by the fixed source key crew:esgro", () => {
+    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR IT, and the database holds it to one/);
+    expect(item).toMatch(/payload crew "esgro"/);
     expect(item).toMatch(/crew mail about the money stages NOTHING more/);
     expect(item).toMatch(/outranks 1c's one row per message, 5, 10c and 11e for it/);
-    expect(item).toMatch(/p_source_message_id null so it never collides/);
+    expect(item).toMatch(/source_message_id = 'crew:esgro'/);
+    expect(item).toMatch(/p_source_message_id 'crew:esgro' \(never a Gmail id/);
+    expect(item).not.toMatch(/p_source_message_id null/);
     expect(item).toMatch(/amount_cents equal to what they still owe in total/);
     expect(item).toMatch(/Never stage one for a message dated before the last crew row was resolved/);
     const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
@@ -254,7 +260,7 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
 
   it("leaves a waiting money question unlabelled, as 8b does, and never routes around 11g", () => {
     expect(item).toMatch(/stays unlabelled while the crew row is open/);
-    expect(item).toMatch(/Once the crew row is resolved, or Anthony has written to the sender after the message, label it Pool-TNF-Done/);
+    expect(item).toMatch(/Label it Pool-TNF-Done once the crew row is resolved, or once Anthony himself has answered that message in its own thread/);
     expect(item).not.toMatch(/11g does not hold it back|exception to 11g/);
   });
 
@@ -262,5 +268,6 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
     expect(item).toMatch(/asking for FEWER blocks is 8b's/);
     expect(item).toMatch(/a release asked for by anyone other than the holder, Billy included, is 1e's/);
     expect(item).toMatch(/A message that carries the money and anything else gets no reply while the crew row is open/);
+    expect(item).toMatch(/put every other part of it in ONE "unclassified_mail" row for that message/);
   });
 });

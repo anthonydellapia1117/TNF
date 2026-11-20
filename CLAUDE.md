@@ -69,7 +69,9 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
     a different decision and gets its own row, as it would for anyone. The
     money is recorded by one `DECISION TNF:` payment per crew member, each
     for that member's own balance ($500 each today; the grammar takes no
-    combined amount). Once none of the three owes anything, crew mail goes
+    combined amount, and one Venmo transaction id can sit on only one
+    payment row). The crew row's source is the fixed key `crew:esgro`, so
+    the database refuses a second open one. Once none of the three owes anything, crew mail goes
     back to the ordinary steps. Crew money mail stays unlabelled while the
     crew row is open, as 8b does with fewer-blocks mail.
   - The sweep's "two of whom are not on file" was wrong: frank animal and
