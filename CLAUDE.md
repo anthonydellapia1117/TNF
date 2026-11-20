@@ -50,6 +50,33 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   stages it to `/admin/queue` as NEEDS ANTHONY (`docs/SWEEP_PROMPT.md` 8b)
   and never releases a block, changes a count, stages a refund or sends T4
   for it.
+- **Esgro's crew (Anthony, 2026-11-20, Part M).** Three RM participant
+  rows, **all on file**: **Anthony Esgro** ("Scro", blocks 11 and 28),
+  **frank animal** (63 and 80) and **M & M** (70 and 77). 6 blocks, $1,500
+  at $250. The cash is held by **Billy Agnes**, a former participant and not
+  an owner, for Anthony to collect. Until Anthony's `DECISION TNF:` email
+  records it, nothing is recorded and no block is promoted, whatever Esgro or
+  Billy writes.
+  - **Nicco Esgro is a separate participant** (blocks 15 and 24), paid $500
+    by Venmo on 2026-08-21. That payment covers his own two blocks and
+    nobody else's.
+  - **The sweep reads any Esgro mail as about all three rows and keeps at
+    most one open queue row for the crew's money** (`docs/SWEEP_PROMPT.md`
+    8c): "Esgro crew 1,500 with Billy Agnes - Anthony to collect; DECISION
+    email records it." The six per-message rows it staged from Oct 26 to Nov
+    18 were dismissed as superseded by that one on 2026-11-20. A Venmo
+    receipt, a fewer-blocks request or a release asked for by someone else is
+    a different decision and gets its own row, as it would for anyone. The
+    money is recorded by one `DECISION TNF:` payment per crew member, each
+    for that member's own balance ($500 each today; the grammar takes no
+    combined amount, and one Venmo transaction id can sit on only one
+    payment row). The crew row's source is the fixed key `crew:esgro`, so
+    the database refuses a second open one. Once none of the three owes anything, crew mail goes
+    back to the ordinary steps. Crew money mail stays unlabelled while the
+    crew row is open, as 8b does with fewer-blocks mail.
+  - The sweep's "two of whom are not on file" was wrong: frank animal and
+    M & M are on file. They share one contact address and are two people
+    (Anthony, 2026-08-24).
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -416,7 +443,11 @@ it does not move blocks.
   - The three draw weeks of the restructured season: G01-G05 (week 12) open
     Tuesday November 24, G06-G09 (week 16) Tuesday December 22, G10 (week
     17) Tuesday December 29. Thanksgiving week is five games in three days
-    and Christmas week four in two; each game is still its own draw.
+    and Christmas week four in two; each game is still its own draw. Those
+    Tuesdays are the draw days; the gate itself opens 7 days before each
+    week's last kickoff: week 12 Fri Nov 20 3:00 PM ET (G05), week 16 Fri
+    Dec 18 8:15 PM ET (G09), week 17 Thu Dec 24 8:15 PM ET (G10), checked
+    against `weekPlans` on 2026-11-20 (Part M).
 - **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD, BG, TJA and DN.**
   Nothing else. `TJA` is TJ Auletto and `DN` is Dom Novelli, both added
   2026-10-08 (migration 34), code and name only, the way migration 19 added
@@ -498,6 +529,14 @@ it does not move blocks.
     address, and writes one `broadcast_owner_omitted` audit row per code. The
     default never changes. The recruit broadcast of 2026-10-13 left DN off
     this way (Anthony, Part G4).
+  - **The game-day pack leaves DN off the same way** (Anthony, 2026-11-20,
+    Part M). It is a draft Anthony sends himself, so it has no claim: its
+    audit row comes from `admin_email_omit_owners('game_day_g<NN>', ...)`
+    (migration 42), the claim's own check and the same
+    `broadcast_owner_omitted` row, once per game and nothing in
+    `email_sends`, and then `npm run game-day -- --omit-owner DN`. TNF Game
+    Day does this only while DN is the one owner with no address; any other
+    blank owner still stops the draft (`docs/GAME_DAY_PROMPT.md` A3).
   - **The recruit broadcast** (`recruit_broadcast_<date>`, Anthony
     2026-10-13): one message, To every owner with an address, Bcc every active
     prospect and every holder address (email and cc_email), deduped, minus To,
@@ -529,8 +568,9 @@ it does not move blocks.
   Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
   DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ
   Auletto, DN Dom Novelli. DN has no address on file yet (2026-10-08), so
-  every broadcast refuses until it is set, and the nightly digest carries one
-  NEEDS ANTHONY line saying so.
+  every broadcast refuses until it is set unless the send names him in the
+  one-time override (the game-day pack does, each game, since Part M), and
+  the nightly digest carries one NEEDS ANTHONY line saying so.
 - **Anthony's work email is never stored, written, or addressed anywhere in
   this pool.** Anthony, 2026-10-08. He has one address on this pool. AVD's
   `alt_email` was cleared that day and nothing replaced it. Migration 35 makes

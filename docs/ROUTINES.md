@@ -1,13 +1,13 @@
 # Routines
 
-Three routines run this pool. One writes, two report. Rewritten 2026-09-10
+Three routines run this pool. One writes, one reports and writes a single kind of audit row, one only reports. Rewritten 2026-09-10
 from a set of six, of which all six were disabled and three had a stored cron
 that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
-| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, the only one | Gmail, Supabase |
-| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | files only, and a draft | Gmail, Supabase |
+| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
+| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14 1,24-28,31 1,11,12 *` | files, a draft, and one `broadcast_owner_omitted` audit row per game while DN is left off To (migration 42, Part M) | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed |
 
 **The sweep has been live on `docs/SWEEP_PROMPT.md` since 2026-10-09.** It is
@@ -80,8 +80,12 @@ session does.
 - CLAUDE.md outranks the prompt. A prompt restates a rule only so the session
   knows where to look.
 - Only TNF Sweep writes to the database, and only within the authority in
-  `docs/SWEEP_PROMPT.md`. The other two read the public projections through
-  the anon key in `src/lib/env.ts`, RLS-bounded by design.
+  `docs/SWEEP_PROMPT.md`, with one narrow exception: TNF Game Day writes the
+  `broadcast_owner_omitted` audit row through `admin_email_omit_owners`
+  (migration 42) for a game whose pack leaves DN off To, and nothing else
+  (Part M, 2026-11-20). Game state for both other routines comes from the
+  public projections through the anon key in `src/lib/env.ts`, RLS-bounded by
+  design.
 - **Email is a closed list of two, and only TNF Sweep holds it.** It may send
   a reply from the T1-T6 allowlist to the sender only, and the nightly digest
   to Anthony's own address alone (he authorised that one send on 2026-09-10,
@@ -241,7 +245,12 @@ no address to leave off, and the claim before the send
 (`admin_email_claim_broadcast`) refuses unless the codes named are exactly the
 owners with no address, then writes one `broadcast_owner_omitted` audit row
 per code. The recruit broadcast of 2026-10-13 left DN off that way. The
-game-day draft takes no override.
+game-day draft has no claim, so its override is recorded on its own (Anthony,
+2026-11-20, Part M): `npm run game-day -- --omit-owner DN`, after
+`admin_email_omit_owners('game_day_g<NN>', array['DN'], ...)` (migration 42)
+makes the same check and writes the same audit row, once per game. TNF Game
+Day does this while DN is the one owner with no address; any other blank
+owner still stops the draft.
 
 The Bcc is the participant query minus every address already on To, so an
 owner who also holds a block is listed once, on To. Per-recipient email (a
@@ -405,7 +414,8 @@ this section as "handled" until that is done:
    2026-09-10; before that it was a draft.
 
 What is still only a transcript: the read-only lines from TNF Game Day and
-TNF Draw Window. Those two never write, so they cannot stage. A digits problem
+TNF Draw Window. Neither can stage a queue row (Game Day's one write is the
+owner-omission audit row). A digits problem
 they find is re-found on their next fire, and for the digits window that next
 fire is inside the same week, which is why they were left alone. A digits
 problem on the morning of a game is also found by TNF Sweep's self-check only

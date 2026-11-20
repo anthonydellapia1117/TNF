@@ -192,7 +192,7 @@ describe("sweep prompt: 8b, fewer blocks after the format email", () => {
   it("outranks the rules that would otherwise act, 8a and 11 included", () => {
     expect(item).toMatch(/outranks 1b, 5, 8a, 10, 10d, 11b and 11d/);
     const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
-    expect(eleven).toMatch(/8a and 8b still hold/);
+    expect(eleven).toMatch(/8a, 8b and 8c still hold/);
   });
 
   it("stages once, as NEEDS ANTHONY, and labels only after the row is resolved", () => {
@@ -205,5 +205,69 @@ describe("sweep prompt: 8b, fewer blocks after the format email", () => {
   it("keeps the shared reply thread safe: answer_M only, never over Anthony's drafts", () => {
     expect(item).toMatch(/answer_M only, never a T1-T6 template/);
     expect(item).toMatch(/drafts_to_delete above 0/);
+  });
+});
+
+// Part M (Anthony, 2026-11-20): any Esgro mail is about all three crew rows,
+// their money waits for a DECISION, and the sweep keeps at most one open queue
+// row for the crew. Six per-message rows piled up from Oct 26 to Nov 18 before
+// this; these pin the words that stop a seventh.
+describe("sweep prompt: 8c, Esgro's crew", () => {
+  const item = PROMPT.split("\n").find((l) => l.trim().startsWith("8c.")) ?? "";
+
+  it("names the three crew rows as on file, and Nicco as separate", () => {
+    expect(item).toMatch(/ALL ON FILE/);
+    expect(item).toMatch(/Anthony Esgro \(Scro, blocks 11 and 28\), frank animal \(63 and 80\) and M & M \(70 and 77\)/);
+    expect(item).toMatch(/Nicco Esgro is a SEPARATE participant/);
+    expect(item).toMatch(/covers his own two blocks and nobody else's/);
+  });
+
+  it("reads crew mail as about all three rows, and keeps receipts, Nicco and Anthony's own intake out of it", () => {
+    expect(item).toMatch(/CREW MAIL is any message, in any thread and from any sender, about the crew/);
+    expect(item).toMatch(/It is about all three rows at once/);
+    expect(item).toMatch(/however it names them \(full name, Scro, Animal, M&M, Esgro, or their block numbers\)/);
+    expect(item).toMatch(/Nicco's mail about his own blocks 15 and 24/);
+    expect(item).toMatch(/a Venmo receipt, under 3 whoever sent it/);
+    expect(item).toMatch(/every message from Anthony's own address, DECISION TNF:, UPDATE TNF: and NOTE TNF: included \(4 and 1b\)/);
+  });
+
+  // Review of PR 41: "recorded" follows each member's live balance, never a
+  // constant, so a dropped block or a partial payment cannot keep it alive.
+  it("tracks the money per member from the ledger, recorded only by Anthony's DECISION mails", () => {
+    expect(item).toMatch(/amount_due_cents minus amount_paid_cents in v_participant_finance is above 0/);
+    expect(item).not.toMatch(/150000/);
+    expect(item).toMatch(/one per crew member for that member's own balance/);
+    expect(item).toMatch(/one Venmo transaction id can sit on only one payment row/);
+    expect(item).toMatch(/never record a payment, never promote a block and never reply about the money/);
+    expect(item).toMatch(/WHEN NOBODY OWES, this item is done/);
+  });
+
+  // Round two of the PR 41 review: a fixed source key lets the open-row unique
+  // index refuse a second crew row, where a NULL source never would.
+  it("keeps at most one open money row, held to one by the fixed source key crew:esgro", () => {
+    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR IT, and the database holds it to one/);
+    expect(item).toMatch(/payload crew "esgro"/);
+    expect(item).toMatch(/crew mail about the money stages NOTHING more/);
+    expect(item).toMatch(/outranks 1c's one row per message, 5, 10c and 11e for it/);
+    expect(item).toMatch(/source_message_id = 'crew:esgro'/);
+    expect(item).toMatch(/p_source_message_id 'crew:esgro' \(never a Gmail id/);
+    expect(item).not.toMatch(/p_source_message_id null/);
+    expect(item).toMatch(/amount_cents equal to what they still owe in total/);
+    expect(item).toMatch(/Never stage one for a message dated before the last crew row was resolved/);
+    const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
+    expect(eleven).toMatch(/8a, 8b and 8c still hold/);
+  });
+
+  it("leaves a waiting money question unlabelled, as 8b does, and never routes around 11g", () => {
+    expect(item).toMatch(/stays unlabelled while the crew row is open/);
+    expect(item).toMatch(/Label it Pool-TNF-Done once the crew row is resolved, or once Anthony himself has answered that message in its own thread/);
+    expect(item).not.toMatch(/11g does not hold it back|exception to 11g/);
+  });
+
+  it("sends every other decision through its own step, beside the crew row", () => {
+    expect(item).toMatch(/asking for FEWER blocks is 8b's/);
+    expect(item).toMatch(/a release asked for by anyone other than the holder, Billy included, is 1e's/);
+    expect(item).toMatch(/A message that carries the money and anything else gets no reply while the crew row is open/);
+    expect(item).toMatch(/put every other part of it in ONE "unclassified_mail" row for that message/);
   });
 });
