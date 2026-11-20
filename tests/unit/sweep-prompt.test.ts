@@ -220,23 +220,23 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
     expect(item).toMatch(/Anthony Esgro \(Scro, blocks 11 and 28\), frank animal \(63 and 80\) and M & M \(70 and 77\)/);
     expect(item).toMatch(/Nicco Esgro is a SEPARATE participant/);
     expect(item).toMatch(/covers his own two blocks and nobody else's/);
+    expect(item).toMatch(/Nicco's mail about his own blocks is not crew mail/);
   });
 
   it("reads any Esgro mail as about all three rows, and never records their money on anyone's word", () => {
     expect(item).toMatch(/ANY ESGRO MAIL, in any thread/);
     expect(item).toMatch(/about all three rows at once/);
-    expect(item).toMatch(/until a valid DECISION TNF: records it/);
-    expect(item).toMatch(/never record a payment, never stage a "payment"/);
+    expect(item).toMatch(/Until a valid DECISION TNF: records the crew's money/);
+    expect(item).toMatch(/never record a payment, never promote a block and never reply about the money/);
   });
 
-  it("keeps at most one open crew row, found by its payload, and outranks the per-message rule", () => {
-    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR THE CREW/);
+  it("keeps at most one open row for the money, found by its payload, and outranks the per-message rule", () => {
+    expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR IT/);
     expect(item).toMatch(/payload ->> 'crew' = 'esgro'/);
-    expect(item).toMatch(/stages NOTHING under any step/);
-    expect(item).toMatch(/outranks 1c's one row per message, 5, 8b, 10c and 11e/);
-    expect(item).toMatch(/never staged as a second row/);
+    expect(item).toMatch(/crew mail about the money stages NOTHING/);
+    expect(item).toMatch(/outranks 1c's one row per message, 5, 10c and 11e for it/);
     const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
-    expect(eleven).toMatch(/8c over 8b for the Esgro crew's queue row/);
+    expect(eleven).toMatch(/8a, 8b and 8c still hold/);
   });
 
   it("labels only once the crew row is confirmed open, and never re-stages what Anthony has seen", () => {
@@ -245,5 +245,15 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
     expect(confirm).toBeGreaterThan(-1);
     expect(label).toBeGreaterThan(confirm);
     expect(item).toMatch(/Never stage a crew row for a message dated before the last crew row was resolved/);
+  });
+
+  // Review of PR 41: the item has to end once the money is recorded, and the
+  // one-row cap must not swallow a receipt or a different decision.
+  it("stops once the money is recorded, and never swallows a receipt or another decision", () => {
+    expect(item).toMatch(/money is still unrecorded \(the three crew rows' payment rows, corrections included, total less than 150000\)/);
+    expect(item).toMatch(/Once the money is recorded, this item is done for it/);
+    expect(item).toMatch(/A Venmo receipt is never crew mail either: 3 handles it as usual/);
+    expect(item).toMatch(/asking for FEWER blocks is 8b's case and stages its own row/);
+    expect(item).toMatch(/a release asked for by anyone other than the holder, Billy included, is 1e's/);
   });
 });
