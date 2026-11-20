@@ -220,40 +220,47 @@ describe("sweep prompt: 8c, Esgro's crew", () => {
     expect(item).toMatch(/Anthony Esgro \(Scro, blocks 11 and 28\), frank animal \(63 and 80\) and M & M \(70 and 77\)/);
     expect(item).toMatch(/Nicco Esgro is a SEPARATE participant/);
     expect(item).toMatch(/covers his own two blocks and nobody else's/);
-    expect(item).toMatch(/Nicco's mail about his own blocks is not crew mail/);
   });
 
-  it("reads any Esgro mail as about all three rows, and never records their money on anyone's word", () => {
-    expect(item).toMatch(/ANY ESGRO MAIL, in any thread/);
-    expect(item).toMatch(/about all three rows at once/);
-    expect(item).toMatch(/Until a valid DECISION TNF: records the crew's money/);
+  it("reads crew mail as about all three rows, and keeps receipts, Nicco and Anthony's own intake out of it", () => {
+    expect(item).toMatch(/CREW MAIL is any message, in any thread/);
+    expect(item).toMatch(/it is about all three rows at once/);
+    expect(item).toMatch(/Nicco's mail about his own blocks/);
+    expect(item).toMatch(/a Venmo receipt, under 3 whoever sent it/);
+    expect(item).toMatch(/Anthony's own DECISION TNF:, UPDATE TNF: and NOTE TNF: mail, under 4 and 1b/);
+  });
+
+  // Review of PR 41: "recorded" follows each member's live balance, never a
+  // constant, so a dropped block or a partial payment cannot keep it alive.
+  it("tracks the money per member from the ledger, recorded only by Anthony's DECISION mails", () => {
+    expect(item).toMatch(/amount_due_cents minus amount_paid_cents in v_participant_finance is above 0/);
+    expect(item).not.toMatch(/150000/);
+    expect(item).toMatch(/one per crew member for that member's own balance/);
     expect(item).toMatch(/never record a payment, never promote a block and never reply about the money/);
+    expect(item).toMatch(/WHEN NOBODY OWES, this item is done/);
   });
 
-  it("keeps at most one open row for the money, found by its payload, and outranks the per-message rule", () => {
+  it("keeps at most one open money row, staged with no source message so it never collides", () => {
     expect(item).toMatch(/KEEP AT MOST ONE OPEN QUEUE ROW FOR IT/);
     expect(item).toMatch(/payload ->> 'crew' = 'esgro'/);
-    expect(item).toMatch(/crew mail about the money stages NOTHING/);
+    expect(item).toMatch(/crew mail about the money stages NOTHING more/);
     expect(item).toMatch(/outranks 1c's one row per message, 5, 10c and 11e for it/);
+    expect(item).toMatch(/p_source_message_id null so it never collides/);
+    expect(item).toMatch(/amount_cents equal to what they still owe in total/);
+    expect(item).toMatch(/Never stage one for a message dated before the last crew row was resolved/);
     const eleven = PROMPT.split("\n").find((l) => /^11\. /.test(l.trim())) ?? "";
     expect(eleven).toMatch(/8a, 8b and 8c still hold/);
   });
 
-  it("labels only once the crew row is confirmed open, and never re-stages what Anthony has seen", () => {
-    const confirm = item.indexOf("Confirm the crew row is open");
-    const label = item.indexOf("then label the message Pool-TNF-Done");
-    expect(confirm).toBeGreaterThan(-1);
-    expect(label).toBeGreaterThan(confirm);
-    expect(item).toMatch(/Never stage a crew row for a message dated before the last crew row was resolved/);
+  it("leaves a waiting money question unlabelled, as 8b does, and never routes around 11g", () => {
+    expect(item).toMatch(/stays unlabelled while the crew row is open/);
+    expect(item).toMatch(/Once the crew row is resolved, or Anthony has written to the sender after the message, label it Pool-TNF-Done/);
+    expect(item).not.toMatch(/11g does not hold it back|exception to 11g/);
   });
 
-  // Review of PR 41: the item has to end once the money is recorded, and the
-  // one-row cap must not swallow a receipt or a different decision.
-  it("stops once the money is recorded, and never swallows a receipt or another decision", () => {
-    expect(item).toMatch(/money is still unrecorded \(the three crew rows' payment rows, corrections included, total less than 150000\)/);
-    expect(item).toMatch(/Once the money is recorded, this item is done for it/);
-    expect(item).toMatch(/A Venmo receipt is never crew mail either: 3 handles it as usual/);
-    expect(item).toMatch(/asking for FEWER blocks is 8b's case and stages its own row/);
+  it("sends every other decision through its own step, beside the crew row", () => {
+    expect(item).toMatch(/asking for FEWER blocks is 8b's/);
     expect(item).toMatch(/a release asked for by anyone other than the holder, Billy included, is 1e's/);
+    expect(item).toMatch(/A message that carries the money and anything else gets no reply while the crew row is open/);
   });
 });

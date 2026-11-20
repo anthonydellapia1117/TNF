@@ -66,8 +66,12 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
     email records it." The six per-message rows it staged from Oct 26 to Nov
     18 were dismissed as superseded by that one on 2026-11-20. A Venmo
     receipt, a fewer-blocks request or a release asked for by someone else is
-    a different decision and gets its own row, as it would for anyone. Once a
-    DECISION records the $1,500, crew mail goes back to the ordinary steps.
+    a different decision and gets its own row, as it would for anyone. The
+    money is recorded by one `DECISION TNF:` payment per crew member, each
+    for that member's own balance ($500 each today; the grammar takes no
+    combined amount). Once none of the three owes anything, crew mail goes
+    back to the ordinary steps. Crew money mail stays unlabelled while the
+    crew row is open, as 8b does with fewer-blocks mail.
   - The sweep's "two of whom are not on file" was wrong: frank animal and
     M & M are on file. They share one contact address and are two people
     (Anthony, 2026-08-24).
@@ -626,9 +630,6 @@ rule, for any session or routine that reads the mail:
 - **Pool-TNF-Done goes on only after the reply is sent or the message is
   classed no-reply.** Never on a question still waiting for an answer: a
   labelled thread is not read again. The command applies it after the send.
-  One exception (Anthony, 2026-11-20, Part M): Esgro crew mail about the
-  crew's money, once the one open crew queue row is confirmed, because the
-  question waits in that row (`docs/SWEEP_PROMPT.md` 8c).
 - **What the live sweep runs:** `docs/SWEEP_PROMPT.md`, since 2026-10-09.
   The routine's prompt is a pointer to the file and each run reads it from
   main, so a merge to main changes the next run. Until then it ran an older
