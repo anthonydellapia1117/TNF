@@ -1,15 +1,15 @@
 # Routines
 
-Four routines are defined for this pool: TNF Sweep and TNF Game Day (the morning run) are on; TNF Results is created and paused until its connectors are added (Part N, below); TNF Draw Window is paused (Part N). Rewritten 2026-09-10
+Four routines are defined for this pool. Two are on: TNF Sweep, and TNF Game Day, which since Part O (2026-11-23) runs both the morning run and the results run through `docs/DISPATCH_PROMPT.md`. Two are paused: TNF Results, which has no connectors and is unused (Part O, below), and TNF Draw Window (Part N). Rewritten 2026-09-10
 from a set of six, of which all six were disabled and three had a stored cron
 that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
 | 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
-| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15 1,24-28,31 1,11,12 *` (Part N: 9:10 AM ET and a 10:10 AM re-fire) | `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline, a failed clone or install included | Gmail, Supabase |
+| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15,21-23,0-7 1,24-28,31 1,11,12 *` (Part O: 9:10 and 10:10 AM ET the morning run, 4:10 PM to 2:10 AM ET the results run) | the morning run: `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline, a failed clone or install included. The results run: scores through `admin_score_game` from ESPN, the winners email, and one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed; **paused 2026-11-23 (Part N)**, its checks fold into TNF Game Day steps 2, 4a and 6 |
-| 4 | TNF Results | `trig_01CJpJ6NAj9o9TEN1oRSUtwY` (Part N, created 2026-11-24 02:46 UTC; PAUSED until Supabase and Gmail are added in the UI) | `25 0-7,21-23 1,24-28,31 1,11,12 *` | scores through `admin_score_game` from ESPN, the winners email, one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
+| 4 | TNF Results | `trig_01CJpJ6NAj9o9TEN1oRSUtwY`, named `TNF Results (unused, no connectors)` since Part O; **paused, never fired**, kept and not deleted | `25 0-7,21-23 1,24-28,31 1,11,12 *` | nothing: TNF Game Day runs the results run (Part O) | **none, and none can be added** (`docs/INCIDENTS.md`) |
 
 **Part N (Anthony, 2026-11-23, approved in the TNF PM chat at 2:53 PM ET).**
 Digits are drawn per day, not per week: the morning run calls `admin_draw_day`
@@ -20,6 +20,24 @@ sends the winners email. All three are templates in
 `src/lib/email/events/day.ts`, To Anthony, Cc RM and MAP, Bcc holders, one
 send per event key. The prompts are `docs/GAME_DAY_PROMPT.md` and
 `docs/RESULTS_PROMPT.md`.
+
+**Part O (Anthony, 2026-11-23, approved in the TNF PM chat at 9:59 PM ET).**
+TNF Game Day runs both jobs. TNF Results was created that evening through the
+routine tools, and a routine made that way carries no connectors: neither
+`create_trigger` nor `update_trigger` can attach one, and Anthony could not
+find the routine in the UI to add them by hand (`docs/INCIDENTS.md`). Without
+Supabase it can do nothing, so it stays paused, renamed `TNF Results (unused,
+no connectors)`, and is not deleted. TNF Game Day already holds Gmail and
+Supabase, runs in the environment with the three `GMAIL_OAUTH_*` variables,
+and was made by a session, so `update_trigger` works on it: its cron now also
+fires hourly from 4:10 PM to 2:10 AM ET, and its stored prompt points at
+`docs/DISPATCH_PROMPT.md`, which sends each fire to the morning run
+(`docs/GAME_DAY_PROMPT.md`, ET hour 9 or 10), to the results run
+(`docs/RESULTS_PROMPT.md`, ET hour 16 to 23 or 0 to 2) or to nothing (any
+other hour). After the morning run, the 9:10 and 10:10 fires also follow the
+results run when yesterday had a game and its winners email has not gone. In
+this file "the morning run" and "the results run" are those two paths of the
+one routine.
 
 **The sweep has been live on `docs/SWEEP_PROMPT.md` since 2026-10-09.** It is
 still named `TNF Gmail Sweep`, enabled, on the cron above, with Gmail and
@@ -39,8 +57,8 @@ Retired the same day, disabled and kept for their run history:
 | TNF Post-Game Check | `trig_01HJ81a3TUtwMozA32vaqMLN` | 2026-09-10 | TNF Game Day, phase B |
 
 The phase names are the 2026-09-10 prompt's, kept as history. Since Part N
-the digits check is TNF Game Day step 1 (the lock) and the post-game scoring is
-TNF Results.
+the digits check is the morning run's step 1 (the lock) and the post-game
+scoring is the results run.
 
 Never delete one of these. A delete loses the run history and, for the three
 live ones, the repo source and the connectors, which `update_trigger` cannot
@@ -78,7 +96,7 @@ a session could write are byte-identical to their source in this repo:
 
 | Routine | Stored prompt vs repo | Checked |
 |---------|----------------------|---------|
-| TNF Game Day | the pointer in section 2, verbatim, read back after `update_trigger` | 2026-10-13 |
+| TNF Game Day | the pointer in section 2 (to `docs/DISPATCH_PROMPT.md`), verbatim, read back after `update_trigger` | 2026-11-23, Part O |
 | TNF Draw Window | identical, 3,100 chars, against the fenced block below | 2026-09-10 |
 | TNF Sweep | the pointer under "The sweep's hand edits", verbatim; set by Anthony in the UI | 2026-10-09 |
 
@@ -94,13 +112,14 @@ session does.
   Ignore any date injected into the conversation.
 - CLAUDE.md outranks the prompt. A prompt restates a rule only so the session
   knows where to look.
-- Three routines write to the database, each only within its own prompt:
-  TNF Sweep (`docs/SWEEP_PROMPT.md`), TNF Game Day (`admin_draw_day`, the
-  claim and record of its two emails and one queue row per date,
-  `docs/GAME_DAY_PROMPT.md`) and TNF Results (`admin_score_game` as `npm run
-  scores` prints it, one queue row per problem class and date, and the claim
-  and record of the winners email, `docs/RESULTS_PROMPT.md`). Part N,
-  2026-11-23. TNF Draw Window, paused, reads the anon projection only.
+- Two routines write to the database, each only within its own prompts:
+  TNF Sweep (`docs/SWEEP_PROMPT.md`) and TNF Game Day, on two paths: the
+  morning run (`admin_draw_day`, the claim and record of its two emails and
+  one queue row per date, `docs/GAME_DAY_PROMPT.md`) and the results run
+  (`admin_score_game` as `npm run scores` prints it, one queue row per problem
+  class and date, and the claim and record of the winners email,
+  `docs/RESULTS_PROMPT.md`). Parts N and O, 2026-11-23. TNF Results, unused,
+  and TNF Draw Window, paused, write nothing.
 - **Email is a closed list, and each routine holds only its own part of it**
   (Part N, 2026-11-23). TNF Sweep sends its replies, each to its sender only
   (T1-T6, and the `answer_` and `game_list_` replies in Anthony's voice,
@@ -108,8 +127,8 @@ session does.
   alone (he authorised that one send on 2026-09-10, because it goes to him and
   he is not watching a screen). TNF Game Day sends `kickoff_<date>` on the
   claim deadline and `gameday_<date>` on each game date
-  (`docs/GAME_DAY_PROMPT.md`). TNF Results sends `winners_<date>` once a game
-  date is scored (`docs/RESULTS_PROMPT.md`). Each sends only within its own
+  (`docs/GAME_DAY_PROMPT.md`), and on its results run `winners_<date>` once a
+  game date is scored (`docs/RESULTS_PROMPT.md`). Each sends only within its own
   prompt, and each email is claimed in `email_sends` before it goes and
   recorded after. Nothing else: no free-form mail, no reply outside the
   sweep's list, no recipient the envelope does not derive.
@@ -127,12 +146,12 @@ session does.
   its pack was a draft Anthony pressed send on; until 2026-09-10 it read "no
   routine ever sends an email", which contradicted the two sends the sweep
   prompt already authorised. `docs/SWEEP_PROMPT.md` 1d and the other two
-  prompts' 0c are the same list and are meant to be read together.
+  prompts' 0c (the morning run's and the results run's) are the same list and are meant to be read together.
 - No routine marks a payout Paid, moves money, confirms a date or resolves an
   identity. TNF Game Day draws and publishes digits only through `admin_draw_day`,
   for that ET date's games only: the 9:10 run calls it once per game date, and
   the 10:10 re-fire calls it again, a call that changes nothing when the 9:10
-  run did its work. TNF Results scores a game only through the
+  run did its work. The results run scores a game only through the
   `admin_score_game` lines `npm run scores` prints, never a typed score and
   never a re-score. Drawing at `/admin/digits` and entering or
   correcting a score at `/admin/score` stay Anthony's.
@@ -169,16 +188,28 @@ whose America/New_York hour is 22. That is 02:43 UTC in EDT and 03:43 UTC in
 EST, and both are in the set, so the digest fires exactly once a day in either
 offset.
 
-### TNF Game Day: `10 14,15 1,24-28,31 1,11,12 *`
+### TNF Game Day: `10 14,15,21-23,0-7 1,24-28,31 1,11,12 *`
 
-9:10 AM EST, and 10:10 AM EST, a re-fire that changes nothing when the 9:10
-run did its work (Part N): `admin_draw_day` changes nothing on a repeat call,
-an email whose key is already in `email_sends` is never claimed or sent again,
-and the `gameday:<date>` queue row is refused while it is open. If the 9:10
-run did not fire or stopped partway, the 10:10 one finishes the day. Nov 24 is
-the kickoff email (the claim deadline). The game dates draw, publish and send
-the game-day email. Scoring is TNF Results' job (section 4); the morning run
-only names a game that kicked off before today and is not final.
+One routine, two paths, routed by the ET hour in `docs/DISPATCH_PROMPT.md`
+(Part O). A 5-field cron holds one minute and a list of hours, so every fire
+is on the :10. The season is all EST, so no hour moves.
+
+| UTC hours | EST | Path |
+|-----------|-----|------|
+| 14, 15 | 9:10 and 10:10 AM | the morning run |
+| 21, 22, 23 | 4:10, 5:10, 6:10 PM | the results run |
+| 0 to 7 | 7:10 PM to 2:10 AM, the evening of the UTC date before | the results run |
+
+**The morning run** is the 9:10 fire, and the 10:10 one is a re-fire that
+changes nothing when the 9:10 run did its work (Part N): `admin_draw_day`
+changes nothing on a repeat call, an email whose key is already in
+`email_sends` is never claimed or sent again, and the `gameday:<date>` queue
+row is refused while it is open. If the 9:10 run did not fire or stopped
+partway, the 10:10 one finishes the day. Nov 24 is the kickoff email (the
+claim deadline). The game dates draw, publish and send the game-day email.
+Scoring is the results run's; the morning run only names a game that kicked
+off before today and is not final, and then, when yesterday had a game and its
+winners email has not gone, follows the results run once more.
 
 | Date | Drawn, published, game-day email | Named if not final |
 |------|----------------------------------|--------------------|
@@ -193,15 +224,29 @@ only names a game that kicked off before today and is not final.
 | Thu Dec 31 | G10 | - |
 | Fri Jan 1 | - | G10 |
 
-A 5-field cron holds one minute and a list of hours, so the two fires share
-the :10 and the hours are 14 and 15 UTC, 9 and 10 AM EST. The season is all
-EST, so neither moves.
+**The results run** settles one game date per fire: today's from 4:10 PM, and
+yesterday's from 12:10 AM, so a game that ends after midnight is covered. A
+night's fires after 7 PM EST fall on the next UTC date, which is why the days
+list runs one past each game date (28 after Nov 27, 1 after Dec 31).
+
+| Game night | Last kickoff (ET) | Results fires, ET | UTC dates the cron needs |
+|------------|-------------------|-------------------|--------------------------|
+| Wed Nov 25, G01 | 8:00 PM | 4:10 PM Wed to 2:10 AM Thu | Nov 25, Nov 26 |
+| Thu Nov 26, G02-G04 | 8:20 PM | 4:10 PM Thu to 2:10 AM Fri | Nov 26, Nov 27 |
+| Fri Nov 27, G05 | 3:00 PM | 4:10 PM Fri to 2:10 AM Sat | Nov 27, Nov 28 |
+| Thu Dec 24, G06 | 8:15 PM | 4:10 PM Thu to 2:10 AM Fri | Dec 24, Dec 25 |
+| Fri Dec 25, G07-G09 | 8:15 PM | 4:10 PM Fri to 2:10 AM Sat | Dec 25, Dec 26 |
+| Thu Dec 31, G10 | 8:15 PM | 4:10 PM Thu to 2:10 AM Fri | Dec 31, Jan 1 |
+
+Until 4 hours 30 minutes after the night's last kickoff a game not final only
+waits; the first fire after that stages it. A winners email still held at
+2:10 AM gets the two morning fires, and after 10:10 AM it is by hand.
 
 Days `1,24-28,31` across months `1,11,12` is 20 dates a year: 7 in January,
-6 in November (it has no 31st) and 7 in December. Two fires on each date make
-40 fires a year. Ten of the dates are the table above. The other 10 read the
-games table, find nothing due and nothing to name, and report `NO ACTION`,
-twice.
+6 in November (it has no 31st) and 7 in December. Thirteen fires on each date
+make 260 fires a year. Most find nothing: a results fire on a date with no
+game reads one count and reports `NO ACTION`, and so does a morning fire with
+nothing due.
 
 ### TNF Draw Window: `37 14 22,24,29 11,12 *`
 
@@ -237,10 +282,14 @@ An earlier version of this line said every routine came from a session, which
 hid exactly the fact an operator needs. Two things about the session path
 that path matter and the older version of this file had both wrong.
 
-- **`create_trigger` does take a `connectors` list.** The claim that the org
-  rejects it was stale. All three live routines already carry the connectors
-  they need, verified 2026-09-10 by reading `mcp_connections` back off each
-  trigger.
+- **`create_trigger` does not attach connectors in this organization.** On
+  2026-11-23 it refused the list outright (`the connectors parameter is not
+  available for this organization`) and, called without it, made TNF Results
+  with `mcp_connections` empty and a warning that its sessions run with no
+  connector tools. An earlier version of this line said the opposite; the
+  routines that carry connectors got them some other way, and they are the
+  only ones that can use Gmail or Supabase. Read `mcp_connections` back off a
+  trigger before relying on it. The incident is in `docs/INCIDENTS.md`.
 - **`update_trigger` cannot change a connector, a repo source, an allowed
   tool or an environment variable.** It takes `name`, `cron_expression`,
   `enabled`, `model` and `prompt`, and nothing else. So a connector change on
@@ -252,8 +301,8 @@ that path matter and the older version of this file had both wrong.
 | Routine | Gmail | Supabase | Repo source | Environment |
 |---------|-------|----------|-------------|-------------|
 | TNF Sweep | yes | yes | `anthonydellapia1117/TNF` | the three `GMAIL_OAUTH_*` variables are needed for it to send through `npm run email` (2026-10-07) |
-| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | The three `GMAIL_OAUTH_*` variables send its two emails through `npm run email` (set, verified 2026-10-13). No owner addresses: the envelope comes from the `owners` table |
-| TNF Results | yes | yes | `anthonydellapia1117/TNF` | The same environment as TNF Game Day: the three `GMAIL_OAUTH_*` variables, open network for ESPN's public scoreboard (HTTP 200 on 2026-11-23) |
+| TNF Game Day | yes | yes | `anthonydellapia1117/TNF` | The three `GMAIL_OAUTH_*` variables send its three emails through `npm run email` (set, verified 2026-10-13), and open network reaches ESPN's public scoreboard for the results run (HTTP 200 on 2026-11-23). No owner addresses: the envelope comes from the `owners` table |
+| TNF Results (unused) | no | no | not on the trigger record | The same environment as TNF Game Day, which does not help it: with no connectors it cannot read or write the database |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
 The day emails carry each grid as its bare link (`/grid?g=<n>`), nothing is
@@ -325,18 +374,23 @@ Reserved blocks with no payment recorded; it is now the first section of the
 
 ## 2. TNF Game Day
 
-- **When:** 9:10 AM EST, and a 10:10 AM EST re-fire, on the 20 dates the
-  cron names; the ten with work are in the table above.
-- **Stored cron (UTC):** `10 14,15 1,24-28,31 1,11,12 *`
+- **When:** 9:10 and 10:10 AM EST (the morning run), then hourly from 4:10 PM
+  to 2:10 AM EST (the results run), on the 20 dates the cron names; the ones
+  with work are in the tables above.
+- **Stored cron (UTC):** `10 14,15,21-23,0-7 1,24-28,31 1,11,12 *`
 - **Trigger:** `trig_01QLquSeCUP8wc3DxPfzzQRY`
 - **Absorbed, 2026-09-10:** TNF Game Day Digits and TNF Post-Game Check. It
   was TNF Game Day Pack. Since Part N it draws and publishes through
   `admin_draw_day` and sends the kickoff and game-day emails; it drafts
-  nothing, and the post-game scoring is TNF Results'.
+  nothing. Since Part O it also runs the post-game scoring and the winners
+  email, at the results hours.
 
-- **Prompt:** `docs/GAME_DAY_PROMPT.md`. Since 2026-10-13 the routine stores
-  only the pointer below and reads the file from main at every fire, the same
-  shape as the sweep, so a merge to main is a deploy. Grids go out as links,
+- **Prompt:** `docs/DISPATCH_PROMPT.md` since Part O (2026-11-23), which
+  routes each fire by the ET hour to `docs/GAME_DAY_PROMPT.md` or
+  `docs/RESULTS_PROMPT.md`. Since 2026-10-13 the routine stores only the
+  pointer below and reads the files from main at every fire, the same shape
+  as the sweep, so a merge to main is a deploy. Until Part O the pointer
+  named `docs/GAME_DAY_PROMPT.md` itself. Grids go out as links,
   never uploads, so the routine needs no admin password (Anthony, 2026-10-13).
 - **State:** enabled (Part N, 2026-11-23). It was paused from 2026-10-13
   until a dry fire on a non-game day came back clean (Anthony).
@@ -345,7 +399,7 @@ The pointer, verbatim. If the routine's prompt is ever lost, this is what goes
 back:
 
 ```
-Your prompt is in this repo, anthonydellapia1117/TNF, at docs/GAME_DAY_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. Every execute_sql call that runs an admin_* function begins with select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true); in the same call. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/GAME_DAY_PROMPT.md. Hyphens only.
+Your prompt is in this repo, anthonydellapia1117/TNF, at docs/DISPATCH_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. Every execute_sql call that runs an admin_* function begins with select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true); in the same call. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/DISPATCH_PROMPT.md. Hyphens only.
 ```
 
 ### The owners query
@@ -412,27 +466,29 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 6. Report. If there is at least one line, the report is a section titled NEEDS ANTHONY with those lines and nothing else. Otherwise the entire report is the words NO ACTION.
 ```
 
-## 4. TNF Results
+## 4. TNF Results (unused, no connectors)
 
-- **When:** hourly at :25, 4:25 PM to 2:25 AM ET, on the game dates and the
-  mornings after; a fire with nothing to settle reports NO ACTION.
-- **Stored cron (UTC):** `25 0-7,21-23 1,24-28,31 1,11,12 *`
-- **Trigger:** `trig_01CJpJ6NAj9o9TEN1oRSUtwY`, named `TNF Results`, created
-  2026-11-24 02:46 UTC (Mon Nov 23, 9:46 PM ET) from this repo's Part N
-  session, a fresh session per fire, in the same environment as TNF Game Day
-  (DELLA: the three `GMAIL_OAUTH_*` variables, open network for ESPN).
-- **State:** PAUSED at creation. A trigger created through the routine tools
-  in this organization carries no connectors (the tools refuse to pass them),
-  and without Supabase every fire would fail. Anthony adds them in the UI:
-  claude.ai/code > Routines > TNF Results > Edit > Connectors > add Supabase
-  and Gmail > Save, then turn the routine on (labels are a best guess; the
-  routine's own settings page holds its connectors). It must be on before 4:25 PM ET
-  Wed Nov 25, the first fire that can settle G01. Until then the winners
-  email is Anthony's by hand: enter the scores at /admin/score.
-- **Connectors:** Gmail, Supabase.
-- **Prompt:** `docs/RESULTS_PROMPT.md`, through the pointer below.
+- **State:** PAUSED, never fired, unused. Kept, not deleted. Renamed
+  `TNF Results (unused, no connectors)` on 2026-11-23 (Part O).
+- **Why:** it was created on 2026-11-24 02:46 UTC (Mon Nov 23, 9:46 PM ET)
+  through the routine tools, which attach no connectors in this organization.
+  `update_trigger` cannot add one, and Anthony could not find the routine in
+  the UI to add them by hand. With no Supabase it cannot read a game or write
+  a score (`docs/INCIDENTS.md`).
+- **What does its job:** TNF Game Day, through `docs/DISPATCH_PROMPT.md`
+  (section 2). `docs/RESULTS_PROMPT.md` is unchanged in what it does.
+- **Stored cron (UTC):** `25 0-7,21-23 1,24-28,31 1,11,12 *`. It does not
+  fire while the routine is paused.
+- **Trigger:** `trig_01CJpJ6NAj9o9TEN1oRSUtwY`, a fresh session per fire, in
+  the DELLA environment.
+- **Connectors:** none.
+- **If it is ever given Supabase and Gmail in the UI:** leave it paused all
+  the same. Two routines running the results run would race each other for
+  the same scores and the same claim; the ledger would hold the email to one
+  send, but nothing is gained. Turning it on means taking the results hours
+  back out of TNF Game Day's cron first.
 
-The pointer, verbatim:
+Its stored pointer, verbatim:
 
 ```
 Your prompt is in this repo, anthonydellapia1117/TNF, at docs/RESULTS_PROMPT.md. Open that file and follow everything between its two code fences, word for word, as this run's instructions. CLAUDE.md in the same repo outranks it. Every execute_sql call that runs an admin_* function begins with select set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true); in the same call. If the repo is not checked out, run git clone --depth 1 https://github.com/anthonydellapia1117/TNF and work inside it. If you cannot read the file, do nothing else and report one line: NEEDS ANTHONY: could not read docs/RESULTS_PROMPT.md. Hyphens only.
@@ -455,7 +511,7 @@ the list reads at a glance.
 - **TNF Post-Game Check**, `trig_01HJ81a3TUtwMozA32vaqMLN`. Recomputed
   winners, flagged a winner on a non-assigned block, confirmed payout rows.
   Absorbed verbatim as TNF Game Day phase B. Its last run was 2026-09-05.
-  Since Part N the scoring and the winners are TNF Results'.
+  Since Part N the scoring and the winners are the results run's.
 
 Reversing a retirement is `enabled = true` plus dropping the suffix from the
 name. The prompts above are the merged versions; the originals are in this
@@ -491,18 +547,18 @@ this section as "handled" until that is done:
    the three self-checks below. It has been a send to him alone since
    2026-09-10; before that it was a draft.
 
-Both Part N routines stage now. TNF Game Day stages its NEEDS ANTHONY lines as
+Both runs stage now. TNF Game Day stages its NEEDS ANTHONY lines as
 one `unclassified_mail` row per date (source `gameday:<date>`) on a game date
 or the claim deadline, a failed clone or install included (the lock, the slate
 and the draw still run through the Supabase connector, and no email goes): a
 failed draw or a lock mismatch on a game morning cannot wait for the next
-morning, because a game past kickoff can never be drawn. TNF Results stages one
+morning, because a game past kickoff can never be drawn. The results run stages one
 row per problem class and game date (sources `scores:<date>` and
 `winners:<date>`, a failed clone or install under `scores:<date>`), so a
 problem of the other class gets its own row; a second problem of the same
 class goes in the run report. What is still only a transcript: TNF Game Day's
 lines on a date with no game and no kickoff email (the morning after a game
-date, which names a game not final; TNF Results stages that one under
+date, which names a game not final; the results run stages that one under
 `scores:<date>`), and anything a stage refused because its row was already
 open. Draw Window is paused.
 
@@ -526,7 +582,7 @@ mail in Pool-TNF is not.
 - Drawing and publishing digits by hand, one day at a time at `/admin/digits`
   (the manual fallback), and entering or correcting a score at `/admin/score`
   are Anthony's. The routine path is `admin_draw_day` in TNF Game Day and the
-  printed `admin_score_game` lines in TNF Results, and nothing else. Until Part
+  printed `admin_score_game` lines in its results run, and nothing else. Until Part
   N (2026-11-23) drawing and publishing were two deliberate clicks with the
   numbers shown for review in between.
 - Marking a payout Paid, settling or reopening one, stays a click at
@@ -534,8 +590,8 @@ mail in Pool-TNF is not.
 - Releasing a block stays `admin_release_block`, case by case, never triggered
   by a date. Unpaid Reserved blocks are not released at the claim deadline.
 - The routines' sends are the closed list in the standing rules above: TNF
-  Sweep's replies and digest, TNF Game Day's `kickoff_` and `gameday_`, TNF
-  Results' `winners_`, each only within its own prompt, each claimed in
+  Sweep's replies and digest, TNF Game Day's `kickoff_` and `gameday_` and, on
+  its results run, `winners_`, each only within its own prompt, each claimed in
   `email_sends` first and rendered and sent by `npm run email`. Everything
   else, the game-day pack included, stays Anthony pressing send. History: this
   line said the digest was his to send until 2026-09-10, and that only TNF

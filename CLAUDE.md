@@ -94,6 +94,20 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   and the morning run one row per date (`gameday:<date>`) on a game date or
   the claim deadline. A game that reaches kickoff with no digits can never be
   drawn; it is Anthony's call.
+- **One routine runs both runs (Anthony, 2026-11-23, Part O, approved in the
+  TNF PM chat at 9:59 PM ET).** TNF Game Day fires at 9:10 and 10:10 AM ET
+  and hourly from 4:10 PM to 2:10 AM ET on the game dates and the nights
+  after, and `docs/DISPATCH_PROMPT.md` routes each fire by the ET hour and by
+  nothing else: hour 9 or 10 is the morning run (`docs/GAME_DAY_PROMPT.md`),
+  hour 16 to 23 or 0 to 2 is the results run (`docs/RESULTS_PROMPT.md`), and
+  any other hour does nothing. After the morning run, the 9:10 and 10:10
+  fires also follow the results run when yesterday had a game and its winners
+  email has not gone. A fire by hand follows the same clock.
+  - **Why: a routine made through the routine tools has no connectors, and
+    none can be added.** TNF Results was made that way on 2026-11-23. It is
+    paused, renamed "TNF Results (unused, no connectors)" and never deleted.
+    Before relying on a routine, read `mcp_connections` back off its trigger.
+    `docs/INCIDENTS.md` has the incident.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -575,8 +589,9 @@ it does not move blocks.
     does not touch these. The claim refuses a game-day email whose games are
     not drawn and published, and a winners email whose games are not scored
     or whose winning block has no payout behind it: an unpaid winning block
-    is Anthony's call, so nothing goes. TNF Game Day sends the first two and
-    TNF Results (`docs/RESULTS_PROMPT.md`) the third; the sweep sends none.
+    is Anthony's call, so nothing goes. TNF Game Day sends all three (Part O):
+    the first two on its morning run and the third on its results run
+    (`docs/RESULTS_PROMPT.md`); the sweep sends none.
     Sweep replies keep their one-to-one rule and copy no one.
   - **The game-day pack** (`game_day_g<NN>`, a draft with the grid) is a
     manual command since Part N (`npm run game-day`): no routine drafts or
@@ -644,6 +659,24 @@ it does not move blocks.
   google.com/url redirect and rewrites the plain-text part the same way; the
   only control left is the visible text, so hand it an HTML anchor whose
   text is the bare URL. Verified 2026-09-09 on two test drafts.
+
+## The code status email (Anthony, 2026-11-23, Part O)
+
+**Every Claude Code session that works on this pool ends by sending Anthony
+one status email, to his address alone.** Subject `TNF CODE STATUS - <session
+name>`, the session's own name as the app shows it. Plain text, under ten
+lines, exactly these fields in this order, one `KEY: value` line each:
+SESSION, RAN, MERGED, APPLIED, BLOCKED, NEXT, WATCHING.
+
+- It goes through the email module like every other TNF email:
+  `npm run email -- --event status_<date> --context <a context> --to-admin
+  --arg session="<session name>" --lines "<the seven lines>"`. The template
+  (`src/lib/email/events/status.ts`) refuses a missing or reordered field, a
+  tenth line or a missing session name.
+- It is a send to Anthony alone, so it is not claimed and adds no row to
+  `email_sends`. No owner, no holder, no Cc.
+- BLOCKED says "none" when nothing is. A session that changed nothing still
+  sends it, with RAN saying so.
 
 ## Replies (Anthony, 2026-10-08)
 

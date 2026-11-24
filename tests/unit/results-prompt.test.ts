@@ -102,7 +102,10 @@ describe("results prompt", () => {
     expect(five).toMatch(/a score problem from 3 or 3a is "Nothing was scored or sent\. Enter halftime and final at \/admin\/score/);
     expect(five).toMatch(/a winning block with no payout behind it \(4a or 4b\) is "Nothing was sent\. That is Anthony's call, for example record the payment and re-enter that score at \/admin\/score"/);
     expect(five).toMatch(/a claim with no send \(1, 4b when the envelope_md5 does not match, 4c, 4d\) is "Check Gmail Sent\./);
-    expect(five).toMatch(/<the action>, then run TNF Results again from claude\.ai\/code > Routines before noon ET the next day\."/);
+    // Part O: TNF Game Day runs the results run, so the row names its fires,
+    // never a routine with no connectors.
+    expect(five).toContain(`<the action>. TNF Game Day runs the results run again at its next fire: hourly from 4:10 PM to 2:10 AM ET, then 9:10 and 10:10 AM ET the morning after."`);
+    expect(PROMPT).not.toMatch(/run TNF Results again/);
     expect(five).toMatch(/If the stage refuses as already staged and still open, that row stands: do not stage again, and the new problem goes in the run report/);
     expect(five).toMatch(/Send nothing/);
     expect(PROMPT).not.toMatch(/'scores:G', 'tnf-results'/);
@@ -120,8 +123,12 @@ describe("results prompt", () => {
     expect(line("5.")).toMatch(/The source is 'scores:G' for a problem from 0a, 2 or 3,/);
     expect(line("5.")).toContain(`a failed clone or install (0a) is "Nothing was scored or sent. Fix what the message names"`);
     expect(flat(HEAD)).toMatch(/a failed clone or install included, under `scores:<date>`/);
-    const row = ROUTINES.split("\n").find((l) => l.startsWith("| 4 | TNF Results |")) ?? "";
+    // Part O: the results run is TNF Game Day's, so its row carries the writes.
+    const row = ROUTINES.split("\n").find((l) => l.startsWith("| 2 | TNF Game Day |")) ?? "";
     expect(row).toMatch(/when a check fails, a failed clone or install included/);
+    const unused = ROUTINES.split("\n").find((l) => l.startsWith("| 4 | TNF Results |")) ?? "";
+    expect(unused).toMatch(/paused, never fired/);
+    expect(unused).toMatch(/none, and none can be added/);
   });
 
   // A claim with no send is never sent by a re-run (1 stops on it), so its row
@@ -129,9 +136,9 @@ describe("results prompt", () => {
   it("tells Anthony how to settle a claim with no send, and does not end that row with the re-run sentence", () => {
     const five = line("5.");
     expect(five).toContain(
-      `a claim with no send (1, 4b when the envelope_md5 does not match, 4c, 4d) is "Check Gmail Sent. If it went, record it: select admin_email_record_sent_broadcast('winners_G', '<message id>', '<sha>', 'anthony'). If it did not, the claim stays and a send now is by hand; TNF Results will not send it."`,
+      `a claim with no send (1, 4b when the envelope_md5 does not match, 4c, 4d) is "Check Gmail Sent. If it went, record it: select admin_email_record_sent_broadcast('winners_G', '<message id>', '<sha>', 'anthony'). If it did not, the claim stays and a send now is by hand; the results run will not send it."`,
     );
-    expect(five).toMatch(/before noon ET the next day\.", except for a claim with no send, whose summary ends with its action\./);
+    expect(five).toMatch(/the morning after\.", except for a claim with no send, whose summary ends with its action\./);
     expect(five).not.toMatch(/The winners email is claimed and not recorded as sent\. Check Gmail Sent, then admin_email_unsent\(\)/);
   });
 
