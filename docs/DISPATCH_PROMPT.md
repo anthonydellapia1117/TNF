@@ -11,10 +11,9 @@ text is in `docs/ROUTINES.md`, section 2.
 - **Cron (UTC):** `10 14,15,21-23,0-7 1,24-28,31 1,11,12 *`: 9:10 and 10:10 AM
   EST, then hourly from 4:10 PM to 2:10 AM EST. The season is all EST.
 - **Connectors on the routine:** Gmail, Supabase.
-- **Why one routine runs both jobs.** A routine made through the routine tools
-  in this organization carries no connectors, and none can be added to it
-  afterwards (`docs/INCIDENTS.md`, 2026-11-23). TNF Results was made that way
-  and can do nothing. TNF Game Day already holds Gmail and Supabase, so it
+- **Why one routine runs both jobs.** TNF Results was made from a session
+  with `create_trigger` and came out with no connectors, and none can be
+  added to it afterwards (`docs/INCIDENTS.md`, 2026-11-23). It can do nothing. TNF Game Day already holds Gmail and Supabase, so it
   fires at the results hours too and this file sends each fire down the right
   path by the ET clock.
 - **The routes.** ET hour 9 or 10: the morning run, `docs/GAME_DAY_PROMPT.md`

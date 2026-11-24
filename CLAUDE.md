@@ -103,8 +103,9 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   any other hour does nothing. After the morning run, the 9:10 and 10:10
   fires also follow the results run when yesterday had a game and its winners
   email has not gone. A fire by hand follows the same clock.
-  - **Why: a routine made through the routine tools has no connectors, and
-    none can be added.** TNF Results was made that way on 2026-11-23. It is
+  - **Why: a routine made from a session came out with no connectors, and
+    none can be added.** TNF Results was made that way on 2026-11-23, with
+    `create_trigger`. It is
     paused, renamed "TNF Results (unused, no connectors)" and never deleted.
     Before relying on a routine, read `mcp_connections` back off its trigger.
     `docs/INCIDENTS.md` has the incident.
@@ -659,6 +660,13 @@ it does not move blocks.
   google.com/url redirect and rewrites the plain-text part the same way; the
   only control left is the visible text, so hand it an HTML anchor whose
   text is the bare URL. Verified 2026-09-09 on two test drafts.
+
+## Handoff
+
+`docs/2026-11-23_TNF_ONBOARDING.md` is the map for anyone new: the state on
+that date, the routines as read back, Thanksgiving day by day, the invariants
+and the open items. `docs/INCIDENTS.md` is the record of what went wrong.
+Neither outranks this file.
 
 ## The code status email (Anthony, 2026-11-23, Part O)
 
