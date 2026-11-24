@@ -6,7 +6,7 @@ that did not match what this file claimed.
 
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
-| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
+| 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `CRON_TZ=America/New_York 43 0,7-23 * * *`, enabled, read back 2026-11-23 (Anthony changed it in the UI on 2026-11-17; it was `43 11-23,0-4 * * *`) | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
 | 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15,21-23,0-7 1,24-28,31 1,11,12 *` (Part O: 9:10 and 10:10 AM ET the morning run, 4:10 PM to 2:10 AM ET the results run) | the morning run: `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline, a failed clone or install included. The results run: scores through `admin_score_game` from ESPN, the winners email, and one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed; **paused 2026-11-23 (Part N)**, its checks fold into TNF Game Day steps 2, 4a and 6 |
 | 4 | TNF Results | `trig_01CJpJ6NAj9o9TEN1oRSUtwY`, named `TNF Results (unused, no connectors)` since Part O; **paused, never fired**, kept and not deleted | `25 0-7,21-23 1,24-28,31 1,11,12 *` | nothing: TNF Game Day runs the results run (Part O) | **none, and none can be added** (`docs/INCIDENTS.md`) |
@@ -22,10 +22,11 @@ send per event key. The prompts are `docs/GAME_DAY_PROMPT.md` and
 `docs/RESULTS_PROMPT.md`.
 
 **Part O (Anthony, 2026-11-23, approved in the TNF PM chat at 9:59 PM ET).**
-TNF Game Day runs both jobs. TNF Results was created that evening through the
-routine tools, and a routine made that way carries no connectors: neither
-`create_trigger` nor `update_trigger` can attach one, and Anthony could not
-find the routine in the UI to add them by hand (`docs/INCIDENTS.md`). Without
+TNF Game Day runs both jobs. TNF Results was created that evening from a
+session with `create_trigger`, and it came out with no connectors: the call
+refused the connectors list, `update_trigger` cannot attach one, and Anthony
+could not find the routine in the UI to add them by hand
+(`docs/INCIDENTS.md`). Without
 Supabase it can do nothing, so it stays paused, renamed `TNF Results (unused,
 no connectors)`, and is not deleted. TNF Game Day already holds Gmail and
 Supabase, runs in the environment with the three `GMAIL_OAUTH_*` variables,
@@ -164,7 +165,12 @@ session does.
 Stored crons are UTC. The season is entirely after the November 1 clock
 change, so every game date reads as EST, UTC-5. Today is EDT, UTC-4.
 
-### TNF Sweep: `43 11-23,0-4 * * *`
+### TNF Sweep: `43 11-23,0-4 * * *` until 2026-11-17
+
+The stored cron read back on 2026-11-23 is `CRON_TZ=America/New_York 43 0,7-23
+* * *`: hourly on the :43 from 7:43 AM to 12:43 AM ET, in ET by name, so it no
+longer needs the union below. What follows is the UTC line it replaced and
+why that line was shaped as it was, kept as history.
 
 Intent: hourly on the :43, 7 AM to 11 PM ET, which is 17 runs.
 
@@ -282,13 +288,14 @@ An earlier version of this line said every routine came from a session, which
 hid exactly the fact an operator needs. Two things about the session path
 that path matter and the older version of this file had both wrong.
 
-- **`create_trigger` does not attach connectors in this organization.** On
+- **`create_trigger` from a session did not attach connectors.** On
   2026-11-23 it refused the list outright (`the connectors parameter is not
   available for this organization`) and, called without it, made TNF Results
   with `mcp_connections` empty and a warning that its sessions run with no
-  connector tools. An earlier version of this line said the opposite; the
-  routines that carry connectors got them some other way, and they are the
-  only ones that can use Gmail or Supabase. Read `mcp_connections` back off a
+  connector tools. The warning says a routine gets only the connectors its
+  creating session can pass on, and names the claude.ai Routines UI as the
+  other way; neither was tried. An earlier version of this line said
+  `create_trigger` simply takes the list, and was trusted. Read `mcp_connections` back off a
   trigger before relying on it. The incident is in `docs/INCIDENTS.md`.
 - **`update_trigger` cannot change a connector, a repo source, an allowed
   tool or an environment variable.** It takes `name`, `cron_expression`,
@@ -471,7 +478,7 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 - **State:** PAUSED, never fired, unused. Kept, not deleted. Renamed
   `TNF Results (unused, no connectors)` on 2026-11-23 (Part O).
 - **Why:** it was created on 2026-11-24 02:46 UTC (Mon Nov 23, 9:46 PM ET)
-  through the routine tools, which attach no connectors in this organization.
+  from a session with `create_trigger`, which attached no connectors.
   `update_trigger` cannot add one, and Anthony could not find the routine in
   the UI to add them by hand. With no Supabase it cannot read a game or write
   a score (`docs/INCIDENTS.md`).
