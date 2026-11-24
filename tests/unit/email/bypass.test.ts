@@ -12,7 +12,7 @@ import { ALL_EVENTS } from "./fixtures";
 
 const ROOT = join(__dirname, "..", "..", "..");
 const MODULE = join("src", "lib", "email");
-const ROUTINE_PROMPTS = ["docs/SWEEP_PROMPT.md", "docs/GAME_DAY_PROMPT.md", "docs/RESULTS_PROMPT.md", "docs/ROUTINES.md"];
+const ROUTINE_PROMPTS = ["docs/SWEEP_PROMPT.md", "docs/DISPATCH_PROMPT.md", "docs/GAME_DAY_PROMPT.md", "docs/RESULTS_PROMPT.md", "docs/ROUTINES.md"];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(join(ROOT, dir))) {

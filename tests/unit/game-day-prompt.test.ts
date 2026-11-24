@@ -22,7 +22,7 @@ const flat = (s: string) => s.replace(/\s+/g, " ");
 // S2 (review round two): digits written by hand with no draw have one exit,
 // Anthony's clear through admin_override_digits with null digits.
 const CLEAR =
-  "G<xx> has digits written with no draw. Anthony clears them with admin_override_digits(<game>, null, null, <reason>, 'anthony'). Before its kickoff, on its own date, running TNF Game Day again from claude.ai/code > Routines then draws it; past kickoff it can no longer be drawn, and what happens to it is Anthony's call. Until then nothing is sent.";
+  "G<xx> has digits written with no draw. Anthony clears them with admin_override_digits(<game>, null, null, <reason>, 'anthony'). Before its kickoff, on its own date, running TNF Game Day again from claude.ai/code > Routines before 11:00 AM ET then draws it; past kickoff it can no longer be drawn, and what happens to it is Anthony's call. Until then nothing is sent.";
 
 describe("game day prompt", () => {
   it("has exactly two code fences, so 'between its two code fences' is one block", () => {
@@ -122,14 +122,18 @@ describe("game day prompt", () => {
   });
 
   it("is what the routine's saved pointer names, verbatim in ROUTINES.md", () => {
+    // Part O: the pointer names the dispatcher, which names this file.
     expect(ROUTINES).toContain(
-      "Your prompt is in this repo, anthonydellapia1117/TNF, at docs/GAME_DAY_PROMPT.md. Open that file and follow everything between its two code fences",
+      "Your prompt is in this repo, anthonydellapia1117/TNF, at docs/DISPATCH_PROMPT.md. Open that file and follow everything between its two code fences",
     );
+    expect(ROUTINES).not.toContain("Your prompt is in this repo, anthonydellapia1117/TNF, at docs/GAME_DAY_PROMPT.md.");
+    expect(readFileSync(join(process.cwd(), "docs/DISPATCH_PROMPT.md"), "utf8")).toMatch(/when H is 9 or 10: open docs\/GAME_DAY_PROMPT\.md/);
   });
 
   it("fires at 9:10 and re-fires at 10:10 AM ET", () => {
-    expect(DOC).toContain("`10 14,15 1,24-28,31 1,11,12 *`");
-    expect(ROUTINES).toContain("10 14,15 1,24-28,31 1,11,12 *");
+    expect(DOC).toContain("`10 14,15,21-23,0-7 1,24-28,31 1,11,12 *`");
+    expect(ROUTINES).toContain("10 14,15,21-23,0-7 1,24-28,31 1,11,12 *");
+    expect(DOC).toMatch(/The morning run\s+is the 9:10 AM ET fire and the 10:10 AM ET re-fire/);
   });
 
   // Review of PR 42: the table said `10 14,15 ...` while section 2 still said
@@ -137,7 +141,7 @@ describe("game day prompt", () => {
   it("ROUTINES.md section 2 stores the table's cron, says enabled, and counts the cron's fires", () => {
     const row = ROUTINES.split("\n").find((l) => l.startsWith("| 2 | TNF Game Day |")) ?? "";
     const tableCron = row.split("|").map((c) => c.trim())[4]?.match(/`([^`]+)`/)?.[1];
-    expect(tableCron).toBe("10 14,15 1,24-28,31 1,11,12 *");
+    expect(tableCron).toBe("10 14,15,21-23,0-7 1,24-28,31 1,11,12 *");
     const section = ROUTINES.split("\n## 2. TNF Game Day\n")[1]?.split("\n## ")[0] ?? "";
     expect(section.match(/\*\*Stored cron \(UTC\):\*\* `([^`]+)`/)?.[1]).toBe(tableCron);
     expect(section).toMatch(/\*\*State:\*\* enabled/);

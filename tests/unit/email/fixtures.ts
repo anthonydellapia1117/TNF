@@ -115,7 +115,7 @@ export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("reply_t5_abc123"), { subject: "schedule" }],
   [ctx("reply_t6_abc123"), { subject: "pay" }],
   [ctx("digest_2026-10-07", { digest: DIGEST }), {}],
-  [ctx("status_2026-10-07"), { lines: "SESSION: x\nRAN: y" }],
+  [ctx("status_2026-10-07"), { session: "*v2-[TNF]", lines: "SESSION: x\nRAN: y\nMERGED: none\nAPPLIED: none\nBLOCKED: none\nNEXT: z\nWATCHING: nothing" }],
   [ctx("game_day_g01"), { grid: "attached" }],
   [ctx("game_day_g10"), { grid: "links", png_url: "https://x.test/a.png", pdf_url: "https://x.test/a.pdf" }],
   [ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7", thanks: "yes" }],

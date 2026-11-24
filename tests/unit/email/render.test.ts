@@ -555,11 +555,23 @@ describe("answer reply", () => {
 });
 
 describe("status report", () => {
-  it("is the standing format: the lines as rows, no greeting, no sign-off", () => {
-    const r = renderEvent(ctx("status_x"), { lines: "SESSION: a\nBLOCKED: none" });
-    expect(r.email.subject).toBe("TNF CODE STATUS - V2");
-    expect(r.email.text).toBe("SESSION: a\nBLOCKED: none\n");
-    expect(() => renderEvent(ctx("status_x"), { lines: "no colon" })).toThrow(/KEY: value/);
+  const LINES = "SESSION: x\nRAN: y\nMERGED: none\nAPPLIED: none\nBLOCKED: none\nNEXT: z\nWATCHING: nothing";
+  // Anthony's rule, 2026-11-23 (Part O): the subject carries the session's
+  // name, and the body is the seven fields, each once, in order, under ten lines.
+  it("is the standing format: the session in the subject, the seven fields as rows, no greeting, no sign-off", () => {
+    const r = renderEvent(ctx("status_x"), { session: "*v2-[TNF]", lines: LINES });
+    expect(r.email.subject).toBe("TNF CODE STATUS - *v2-[TNF]");
+    expect(r.email.text).toBe(LINES + "\n");
+    expect(r.problems).toEqual([]);
+  });
+
+  it("refuses a report with no session name, a missing field, a field out of order or a tenth line", () => {
+    expect(() => renderEvent(ctx("status_x"), { lines: LINES })).toThrow(/session=/);
+    expect(() => renderEvent(ctx("status_x"), { session: "s", lines: "no colon" })).toThrow(/KEY: value/);
+    expect(() => renderEvent(ctx("status_x"), { session: "s", lines: "SESSION: a\nBLOCKED: none" })).toThrow(/the fields are SESSION, RAN, MERGED, APPLIED, BLOCKED, NEXT, WATCHING/);
+    const swapped = LINES.replace("MERGED: none\nAPPLIED: none", "APPLIED: none\nMERGED: none");
+    expect(() => renderEvent(ctx("status_x"), { session: "s", lines: swapped })).toThrow(/in that order/);
+    expect(() => renderEvent(ctx("status_x"), { session: "s", lines: LINES + "\nA: 1\nB: 2\nC: 3" })).toThrow(/under ten/);
   });
 });
 
