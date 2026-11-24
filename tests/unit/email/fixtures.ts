@@ -2,7 +2,7 @@
 // 2026 slate (public on /schedule); people and addresses are invented and use
 // the reserved tnf.test domain only.
 
-import type { CommonFacts, EmailContext, HolderFacts } from "@/lib/email/types";
+import type { CommonFacts, DayFacts, DayGame, EmailContext, HolderFacts } from "@/lib/email/types";
 
 const g = (game_no: number, week: number, kickoff_at: string, holiday_label: string,
   away_team: string, home_team: string, network: string) =>
@@ -74,6 +74,34 @@ export const UNBACKED_HOLDER: HolderFacts = {
 export const ASKER = [{ full_name: "Dan Asker", display_alias: "DA", via: "primary" as const, owner_group: "MAP" }];
 
 /** One context and argument set per event family: what the render-lint test renders. */
+/** A game of email_day_facts (migration 43), G01 by default, not yet drawn. */
+export function dayGame(over: Partial<DayGame> = {}): DayGame {
+  return {
+    game_no: 1, week: 12, kickoff_at: "2026-11-26T01:00:00+00:00", holiday_label: "Thanksgiving Eve",
+    away_team: "Green Bay Packers", home_team: "Los Angeles Rams", network: "Netflix", status: "scheduled",
+    published: false, row_digits: null, col_digits: null, digits_ok: null,
+    halftime_away: null, halftime_home: null, halftime_block: null,
+    final_away: null, final_home: null, final_block: null,
+    halftime_name: null, final_name: null, halftime_paid_out: false, final_paid_out: false,
+    ...over,
+  };
+}
+
+/** G01 drawn and published Wed Nov 25. Rows (away) and columns (home). */
+export const DAY_PUBLISHED: DayFacts = {
+  date: "2026-11-25",
+  games: [dayGame({ status: "published", published: true, digits_ok: true,
+    row_digits: [4, 0, 7, 1, 9, 2, 8, 5, 3, 6], col_digits: [2, 9, 0, 6, 3, 8, 1, 7, 5, 4] })],
+};
+
+/** G01 final: Packers 10, Rams 7 at the half (block 18); Packers 24, Rams 27 final (block 8). */
+export const DAY_SCORED: DayFacts = {
+  date: "2026-11-25",
+  games: [{ ...DAY_PUBLISHED.games[0], status: "final",
+    halftime_away: 10, halftime_home: 7, halftime_block: 18, final_away: 24, final_home: 27, final_block: 8,
+    halftime_name: "Sal", final_name: "M & M", halftime_paid_out: true, final_paid_out: true }],
+};
+
 export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("holder_checkin_2026-10-07", { holder: SAMPLE_HOLDER }), {}],
   [ctx("holder_checkin_2026-10-07", { holder: UNBACKED_HOLDER }), {}],
@@ -92,4 +120,7 @@ export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("game_day_g10"), { grid: "links", png_url: "https://x.test/a.png", pdf_url: "https://x.test/a.pdf" }],
   [ctx("game_list_1a116ebc30d629eb", { people: ASKER }), { subject: "Re: TNF Holiday Pool 2026 | Your blocks | as of Oct 7", thanks: "yes" }],
   [ctx("answer_1a116ebc30d629eb", { people: ASKER }), { subject: "question", lines: "Block 30 is yours. Paid in full." }],
+  [ctx("kickoff_2026-11-24", { common: { ...COMMON, as_of_et: "2026-11-24" } }), {}],
+  [ctx("gameday_2026-11-25", { common: { ...COMMON, as_of_et: "2026-11-25" }, day: DAY_PUBLISHED }), {}],
+  [ctx("winners_2026-11-25", { common: { ...COMMON, as_of_et: "2026-11-26" }, day: DAY_SCORED }), {}],
 ];

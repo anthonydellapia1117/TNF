@@ -1,0 +1,178 @@
+{
+ "events": [
+  {
+   "name": "Green Bay Packers at Detroit Lions",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "name": "STATUS_FINAL",
+       "completed": true,
+       "state": "post"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "displayName": "Detroit Lions"
+       },
+       "score": "24",
+       "linescores": [
+        {
+         "value": 0.0
+        },
+        {
+         "value": 14.0
+        },
+        {
+         "value": 7.0
+        },
+        {
+         "value": 3.0
+        }
+       ]
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "displayName": "Green Bay Packers"
+       },
+       "score": "31",
+       "linescores": [
+        {
+         "value": 3.0
+        },
+        {
+         "value": 14.0
+        },
+        {
+         "value": 14.0
+        },
+        {
+         "value": 0.0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Kansas City Chiefs at Dallas Cowboys",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "name": "STATUS_FINAL",
+       "completed": true,
+       "state": "post"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "displayName": "Dallas Cowboys"
+       },
+       "score": "31",
+       "linescores": [
+        {
+         "value": 7.0
+        },
+        {
+         "value": 10.0
+        },
+        {
+         "value": 3.0
+        },
+        {
+         "value": 11.0
+        }
+       ]
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "displayName": "Kansas City Chiefs"
+       },
+       "score": "28",
+       "linescores": [
+        {
+         "value": 14.0
+        },
+        {
+         "value": 0.0
+        },
+        {
+         "value": 0.0
+        },
+        {
+         "value": 14.0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Cincinnati Bengals at Baltimore Ravens",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "name": "STATUS_FINAL",
+       "completed": true,
+       "state": "post"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "displayName": "Baltimore Ravens"
+       },
+       "score": "14",
+       "linescores": [
+        {
+         "value": 7.0
+        },
+        {
+         "value": 0.0
+        },
+        {
+         "value": 7.0
+        },
+        {
+         "value": 0.0
+        }
+       ]
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "displayName": "Cincinnati Bengals"
+       },
+       "score": "32",
+       "linescores": [
+        {
+         "value": 3.0
+        },
+        {
+         "value": 9.0
+        },
+        {
+         "value": 14.0
+        },
+        {
+         "value": 6.0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

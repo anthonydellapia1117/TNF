@@ -77,6 +77,23 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   - The sweep's "two of whom are not on file" was wrong: frank animal and
     M & M are on file. They share one contact address and are two people
     (Anthony, 2026-08-24).
+- **Thanksgiving game-day automation (Anthony, 2026-11-23, Part N).**
+  Digits are drawn and published per day by the morning run, scores come in
+  from ESPN's public scoreboard through `admin_score_game`, and the kickoff,
+  game-day and winners emails go out on their own, once each. The rules are
+  under *Data* (digits) and *Email to the pool* below; the routines are in
+  `docs/ROUTINES.md`. Scores are taken only when ESPN says final and every
+  period adds up to the total. Only a game not final (or not yet kicked off),
+  or ESPN not answering, waits: until 4 hours 30 minutes after the date's last
+  kickoff the results run tries again at the next fire, and after that it is
+  NEEDS ANTHONY. Any other problem is NEEDS ANTHONY at once. Either way
+  nothing is sent, and for a score problem Anthony enters the scores at
+  `/admin/score`. Each routine stages its NEEDS ANTHONY at `/admin/queue`, a failed clone or install
+  included: the results run one row per problem class and date
+  (`scores:<date>`, `winners:<date>`), saying what he does for that problem,
+  and the morning run one row per date (`gameday:<date>`) on a game date or
+  the claim deadline. A game that reaches kickoff with no digits can never be
+  drawn; it is Anthony's call.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -422,32 +439,42 @@ it does not move blocks.
   Assigned block produces a payout. This is a mechanical statement about how
   digits are assigned — it is not a statement about pool health, and nothing
   here is a reason to surface one.
-- **Digits are drawn one week at a time, the week they are needed.** This is
-  a rule about the data, not a convenience of the screen. Digits that exist
-  months early are digits someone could see or alter; under this model they
-  do not exist until their week comes up. Anthony considered pre-generating
-  the whole season on 2026-09-03 and decided against it for that reason.
-  - A game more than **7 days** from kickoff cannot be drawn, from any
-    surface. The gate lives in `src/lib/week-digits.ts` and is re-checked in
-    the server action against games read from the database, so a stale page
-    cannot get past it. Both `/admin/digits` surfaces ask the same question.
-  - A week is drawn as a unit, so the *furthest* game it would draw sets the
-    gate. A game the draw would skip anyway — void, unconfirmed date, past
-    kickoff, already drawn — never holds a week back.
-  - Every game is its own independent draw: a separate `admin_assign_digits`
-    call, a separate permutation of each axis, no shared seed and no
-    relationship to any prior game or week. Never batch them into one draw.
-  - Drawing and publishing stay two deliberate clicks, with the numbers shown
-    for review in between. Each reveal is scheduled for **8:00 AM ET on that
-    game's own date** — never one shared instant for a week.
-  - The three draw weeks of the restructured season: G01-G05 (week 12) open
-    Tuesday November 24, G06-G09 (week 16) Tuesday December 22, G10 (week
-    17) Tuesday December 29. Thanksgiving week is five games in three days
-    and Christmas week four in two; each game is still its own draw. Those
-    Tuesdays are the draw days; the gate itself opens 7 days before each
-    week's last kickoff: week 12 Fri Nov 20 3:00 PM ET (G05), week 16 Fri
-    Dec 18 8:15 PM ET (G09), week 17 Thu Dec 24 8:15 PM ET (G10), checked
-    against `weekPlans` on 2026-11-20 (Part M).
+- **Digits are drawn one day at a time, on the morning they are needed**
+  (Anthony, 2026-11-23, Part N; they were drawn a week at a time). This is a
+  rule about the data, not a convenience of the screen. Digits that exist
+  early are digits someone could see or alter; under this model they do not
+  exist until the morning of their game. Anthony considered pre-generating the
+  whole season on 2026-09-03 and decided against it for that reason.
+  - **A game is drawn only on its own kickoff date in ET, before kickoff.** On
+    each game date the 9:10 AM ET morning run (TNF Game Day,
+    `docs/GAME_DAY_PROMPT.md`) calls `admin_draw_day` once (migration 43). It
+    draws only that date's games, each its own independent draw with fresh
+    randomness (`gen_random_uuid`, a strong source), and **publishes them at
+    once**: the two-click review and the 8:00 AM ET reveal slot are retired.
+    A drawn game is never redrawn, and a repeat call changes nothing.
+  - The draw days: Nov 25 (G01), Nov 26 (G02, G03 and G04, whose 8:20 PM ET
+    kickoff is Nov 26 in ET), Nov 27 (G05), Dec 24 (G06), Dec 25 (G07-G09),
+    Dec 31 (G10). Nothing is drawn before Nov 25.
+  - **The manual fallback stays.** Anthony can draw and publish a day at
+    `/admin/digits`: the same per-day gate lives in `src/lib/week-digits.ts`
+    and is re-checked in both server actions against games read from the
+    database (the per-game one did not re-check before Part N). The morning
+    run then publishes anything he drew and left unpublished and sends
+    without redrawing. The screen still groups games by week; that is
+    navigation only.
+  - Every game is its own independent draw: no shared seed and no
+    relationship to any prior game. Never batch them into one draw.
+  - **The lock.** `games_digits_immutable` keeps rows, columns, seed and
+    assigned-at fixed once drawn, from every role and path, a raw UPDATE
+    included, and keeps a revealed reveal time fixed, so a past grid cannot
+    be hidden again. The single exception is `admin_override_digits`:
+    Anthony's alone, with a reason, writing its own `digits_override` audit
+    row (before and after hashes) in the same transaction, and never once a
+    game is scored.
+  - **Every draw's audit row carries `digits_sha256`** (sha256 of the rows
+    and columns), and `admin_verify_digits` re-checks every drawn game against
+    its latest draw or override row. The morning run and the results run call
+    it first; a mismatch sends nothing and is NEEDS ANTHONY.
 - **Owner groups are AVD, MAP, RM, JPOD, EJD, NL, GD, BG, TJA and DN.**
   Nothing else. `TJA` is TJ Auletto and `DN` is Dom Novelli, both added
   2026-10-08 (migration 34), code and name only, the way migration 19 added
@@ -507,10 +534,13 @@ it does not move blocks.
 - **Every broadcast email carries every owner in To**, except the format
   email (`format_change_<date>`, Part L), which Anthony addressed To himself
   alone with every other owner on Cc and each holder's own address in Bcc
-  (never a holder's `cc_email`, which can be someone else); it is the one
-  pool email with a Cc (`ownersOnCcEnvelope` in `src/lib/email/envelope.ts`,
-  migration 41). A broadcast is one
-  body to many recipients in Bcc (the game-day pack today). Its To is
+  (never a holder's `cc_email`, which can be someone else), and the three
+  game-day emails (Part N, below), which go To Anthony, Cc RM and MAP. Those
+  four are the pool emails with a Cc (`ownersOnCcEnvelope` and `dayEnvelope`
+  in `src/lib/email/envelope.ts`, migrations 41 and 43). A broadcast is one
+  body to many recipients in Bcc (the recruit broadcast, and the game-day
+  pack when Anthony runs it; the format and game-day emails are broadcasts
+  on their own envelopes, as above). Its To is
   Anthony's address first, then each other owner's primary address, read at
   send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL,
   BG, TJA and DN, ten addresses in all. Never an owner's `alt_email`, on To
@@ -518,7 +548,7 @@ it does not move blocks.
   already on To and minus every owner's `alt_email`, so an owner who also
   holds a block, or whose second address is a prospect or a holder's, gets
   one copy, at his primary (Anthony, 2026-10-14; MAP's is the one alt on
-  file). Nothing goes in Cc, the format email aside. Anthony's rule, set 2026-10-07; it replaced the
+  file). Nothing goes in Cc, the format email and the game-day emails aside. Anthony's rule, set 2026-10-07; it replaced the
   2026-09-09 version, which read the owner addresses from a routine variable.
   `src/lib/email/envelope.ts` builds it, and `tests/unit/email/envelope.test.ts`
   holds it.
@@ -529,14 +559,36 @@ it does not move blocks.
     address, and writes one `broadcast_owner_omitted` audit row per code. The
     default never changes. The recruit broadcast of 2026-10-13 left DN off
     this way (Anthony, Part G4).
+  - **The game-day emails (Anthony, 2026-11-23, Part N, approved in the TNF
+    PM chat at 2:53 PM ET; the approval is on every claim's audit row and on
+    its own `approval_recorded` row).** Three templates in
+    `src/lib/email/events/day.ts`, each one send per event key: the kickoff
+    email (`kickoff_<date>`, the claim deadline: the board, how a block wins,
+    the schedule, unpaid pay by the deadline), the game-day email
+    (`gameday_<date>`, each game date's morning: that day's games, kickoff
+    times, each game's drawn rows and columns, each grid) and the winners
+    email (`winners_<date>`, once that day's games are final: per game, the
+    halftime and final score, winning block, name and amount, the grid;
+    nothing about payment status). **To Anthony, Cc RM and MAP, Bcc every
+    holder's own address**, no other owner: an owner who holds a block gets
+    it in Bcc as a holder, and an owner's alt never. DN having no address
+    does not touch these. The claim refuses a game-day email whose games are
+    not drawn and published, and a winners email whose games are not scored
+    or whose winning block has no payout behind it: an unpaid winning block
+    is Anthony's call, so nothing goes. TNF Game Day sends the first two and
+    TNF Results (`docs/RESULTS_PROMPT.md`) the third; the sweep sends none.
+    Sweep replies keep their one-to-one rule and copy no one.
+  - **The game-day pack** (`game_day_g<NN>`, a draft with the grid) is a
+    manual command since Part N (`npm run game-day`): no routine drafts or
+    sends it, and TNF Game Day's prompt never runs it.
   - **The game-day pack leaves DN off the same way** (Anthony, 2026-11-20,
-    Part M). It is a draft Anthony sends himself, so it has no claim: its
-    audit row comes from `admin_email_omit_owners('game_day_g<NN>', ...)`
-    (migration 42), the claim's own check and the same
-    `broadcast_owner_omitted` row, once per game and nothing in
-    `email_sends`, and then `npm run game-day -- --omit-owner DN`. TNF Game
-    Day does this only while DN is the one owner with no address; any other
-    blank owner still stops the draft (`docs/GAME_DAY_PROMPT.md` A3).
+    Part M), when Anthony runs it. It is a draft he sends himself, so it has
+    no claim: its audit row comes from
+    `admin_email_omit_owners('game_day_g<NN>', ...)` (migration 42), the
+    claim's own check and the same `broadcast_owner_omitted` row, once per
+    game and nothing in `email_sends`, and then
+    `npm run game-day -- --omit-owner DN`. That holds only while DN is the
+    one owner with no address; any other blank owner still stops the draft.
   - **The recruit broadcast** (`recruit_broadcast_<date>`, Anthony
     2026-10-13): one message, To every owner with an address, Bcc every active
     prospect and every holder address (email and cc_email), deduped, minus To,
@@ -568,9 +620,11 @@ it does not move blocks.
   Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
   DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ
   Auletto, DN Dom Novelli. DN has no address on file yet (2026-10-08), so
-  every broadcast refuses until it is set unless the send names him in the
-  one-time override (the game-day pack does, each game, since Part M), and
-  the nightly digest carries one NEEDS ANTHONY line saying so.
+  every broadcast To every owner refuses until it is set unless the send
+  names him in the one-time override (the game-day pack does, each game it
+  is run, since Part M), and the nightly digest carries one NEEDS ANTHONY
+  line saying so. The game-day emails name no owner but Anthony, RM and MAP,
+  so DN does not touch them.
 - **Anthony's work email is never stored, written, or addressed anywhere in
   this pool.** Anthony, 2026-10-08. He has one address on this pool. AVD's
   `alt_email` was cleared that day and nothing replaced it. Migration 35 makes

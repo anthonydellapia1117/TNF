@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ASSIGN_WINDOW_DAYS,
   assignUnlockISO,
   defaultWeek,
   digitState,
@@ -90,31 +89,43 @@ describe("revealAtISO — 8:00 AM ET on each game's own date", () => {
   });
 });
 
-describe("the one-week window", () => {
-  it("refuses a game more than 7 days out and names it and the unlock time", () => {
-    // 2026-09-03 4:16 AM ET. G02 kicks off in 7d 16h.
-    const now = ms("2026-09-03T08:16:00Z");
-    const refusal = windowRefusal(G02, now);
+// Part N (Anthony, 2026-11-23): one day at a time. A game is drawn only on
+// its own ET kickoff date, before kickoff, and published at once.
+const TG1 = game({ game_no: 1, week: 12, kickoff_at: "2026-11-26T01:00:00Z" }); // Wed Nov 25 8:00 PM ET
+const TG2 = game({ game_no: 2, week: 12, kickoff_at: "2026-11-26T18:00:00Z" }); // Thu Nov 26 1:00 PM ET
+const TG4 = game({ game_no: 4, week: 12, kickoff_at: "2026-11-27T01:20:00Z" }); // Thu Nov 26 8:20 PM ET
+const TG5 = game({ game_no: 5, week: 12, kickoff_at: "2026-11-27T20:00:00Z" }); // Fri Nov 27 3:00 PM ET
+
+describe("the game-day window", () => {
+  it("refuses a game on any day but its own and names it and the unlock time", () => {
+    // Wed Nov 25 9:10 AM ET: G02 is Thursday's.
+    const refusal = windowRefusal(TG2, ms("2026-11-25T14:10:00Z"));
     expect(refusal).not.toBeNull();
     expect(refusal).toContain("G02");
-    expect(refusal).toContain(`more than ${ASSIGN_WINDOW_DAYS} days out`);
-    expect(refusal).toContain("Thu, Sep 3, 8:35 PM ET"); // when it unlocks
+    expect(refusal).toContain("drawn on game day only");
+    expect(refusal).toContain("Thu, Nov 26, 12:00 AM ET"); // midnight ET starting its day
   });
 
-  it("allows a game inside the window", () => {
-    // Same instant: G01 is 6d 16h out.
-    expect(windowRefusal(G01, ms("2026-09-03T08:16:00Z"))).toBeNull();
+  it("allows a game on its own ET date, the evening game included", () => {
+    // G01 kicks off Thu 01:00 UTC, which is Wed 8:00 PM ET: Wednesday's game.
+    expect(windowRefusal(TG1, ms("2026-11-25T14:10:00Z"))).toBeNull();
+    // G04 kicks off Fri 01:20 UTC, which is Thu 8:20 PM ET: Thursday's game.
+    expect(windowRefusal(TG4, ms("2026-11-26T14:10:00Z"))).toBeNull();
+    expect(windowRefusal(TG4, ms("2026-11-25T14:10:00Z"))).not.toBeNull();
   });
 
-  it("puts the boundary at exactly 7 days — inclusive", () => {
-    const kickoff = ms("2026-09-11T00:35:00Z");
-    const window = ASSIGN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-    expect(windowRefusal(G02, kickoff - window)).toBeNull();
-    expect(windowRefusal(G02, kickoff - window - 1)).not.toBeNull();
+  it("puts the boundary at midnight ET, in EST", () => {
+    // Thu Nov 26 00:00 ET is 05:00 UTC.
+    expect(windowRefusal(TG2, ms("2026-11-26T04:59:59.999Z"))).not.toBeNull();
+    expect(windowRefusal(TG2, ms("2026-11-26T05:00:00Z"))).toBeNull();
+    expect(assignUnlockISO(TG2)).toBe("2026-11-26T05:00:00.000Z");
   });
 
-  it("unlocks exactly one window before kickoff", () => {
-    expect(assignUnlockISO(G02)).toBe("2026-09-04T00:35:00.000Z");
+  it("never opens a week early: the old 7-day window is gone", () => {
+    // Fri Nov 20 3:00 PM ET opened week 12 under the week rule; now nothing is drawable.
+    const plan = weekPlan(12, [TG1, TG2, TG4, TG5], ms("2026-11-20T20:00:00Z"));
+    expect(plan.toAssign).toEqual([]);
+    expect(plan.assign.ok).toBe(false);
   });
 });
 
@@ -143,29 +154,28 @@ describe("weekGroups and weekLabel", () => {
 });
 
 describe("weekPlan", () => {
-  const now = ms("2026-09-03T08:16:00Z");
-
-  it("refuses the whole week when its furthest undrawn game is out of range", () => {
-    const plan = weekPlan(1, [G01, G02], now);
-    expect(plan.toAssign.map((g) => g.game_no)).toEqual([1, 2]);
-    expect(plan.assign.ok).toBe(false);
-    expect(plan.assign.ok === false && plan.assign.reason).toContain("G02");
-  });
-
-  it("allows the week once every game it would draw is inside the window", () => {
-    const plan = weekPlan(1, [G01, G02], ms("2026-09-04T01:00:00Z"));
-    expect(plan.assign.ok).toBe(true);
-  });
-
-  it("does not let a game it would never draw hold the week back", () => {
-    // G02 is out of range but void, so it is not part of the draw at all.
-    const plan = weekPlan(1, [G01, { ...G02, status: "void" }], now);
+  it("draws only today's games: Wednesday is G01 and nothing else", () => {
+    const plan = weekPlan(12, [TG1, TG2, TG4, TG5], ms("2026-11-25T14:10:00Z"));
     expect(plan.toAssign.map((g) => g.game_no)).toEqual([1]);
-    expect(plan.blocked.map((b) => b.reason)).toEqual(["void"]);
+    expect(plan.blocked.map((b) => `${b.game.game_no}:${b.reason}`)).toEqual([
+      "2:drawn on game day, Thu, Nov 26",
+      "4:drawn on game day, Thu, Nov 26",
+      "5:drawn on game day, Fri, Nov 27",
+    ]);
     expect(plan.assign.ok).toBe(true);
+  });
+
+  it("draws Thursday's three on Thursday, never Wednesday's again", () => {
+    const g1 = { ...TG1, digits_assigned_at: "2026-11-25T14:10:00Z", digits_published_at: "2026-11-25T14:10:00Z" };
+    const g3 = game({ game_no: 3, week: 12, kickoff_at: "2026-11-26T21:30:00Z" });
+    const plan = weekPlan(12, [g1, TG2, g3, TG4, TG5], ms("2026-11-26T14:10:00Z"));
+    expect(plan.toAssign.map((g) => g.game_no)).toEqual([2, 3, 4]);
+    expect(plan.blocked.map((b) => b.game.game_no)).toEqual([5]);
+    expect(plan.toSchedule).toEqual([]);
   });
 
   it("mirrors the RPC's own gates as blocked reasons", () => {
+    const now = ms("2026-09-03T08:16:00Z");
     const plan = weekPlan(
       5,
       [
@@ -187,53 +197,24 @@ describe("weekPlan", () => {
   });
 
   it("says so plainly when the week is already drawn", () => {
-    const drawn = { ...G01, digits_assigned_at: "2026-09-03T09:00:00Z" };
-    const plan = weekPlan(1, [drawn], now);
+    const drawn = { ...TG1, digits_assigned_at: "2026-11-25T14:10:00Z" };
+    const plan = weekPlan(12, [drawn], ms("2026-11-25T15:00:00Z"));
     expect(plan.assign.ok).toBe(false);
-    expect(plan.assign.ok === false && plan.assign.reason).toContain(
-      "already drawn",
-    );
+    expect(plan.assign.ok === false && plan.assign.reason).toContain("already drawn");
   });
 
-  it("queues drawn-but-unpublished games for review, each at its own 8:00 AM", () => {
-    const plan = weekPlan(
-      1,
-      [
-        { ...G01, digits_assigned_at: "2026-09-03T09:00:00Z" },
-        { ...G02, digits_assigned_at: "2026-09-03T09:00:00Z" },
-      ],
-      now,
-    );
-    expect(plan.toSchedule.map((r) => r.game.game_no)).toEqual([1, 2]);
-    expect(plan.toSchedule.map((r) => r.revealAtISO)).toEqual([
-      "2026-09-09T12:00:00.000Z",
-      "2026-09-10T12:00:00.000Z",
-    ]);
-    expect(plan.toSchedule.every((r) => r.immediate)).toBe(false);
-  });
-
-  it("publishes immediately when 8:00 AM on game day has already passed", () => {
-    // Drawn on game day at 10:00 AM ET — the 8:00 AM slot is behind us.
-    const plan = weekPlan(
-      1,
-      [{ ...G01, digits_assigned_at: "2026-09-09T14:00:00Z" }],
-      ms("2026-09-09T14:00:00Z"),
-    );
+  it("publishes a drawn-but-unpublished game at once, never at a later slot", () => {
+    const plan = weekPlan(12, [{ ...TG1, digits_assigned_at: "2026-11-25T14:10:00Z" }], ms("2026-11-25T14:11:00Z"));
+    expect(plan.toSchedule.map((r) => r.game.game_no)).toEqual([1]);
     expect(plan.toSchedule[0].immediate).toBe(true);
     expect(plan.toSchedule[0].revealAtISO).toBeNull();
   });
 
-  it("leaves an already-scheduled game out of the publish queue", () => {
+  it("leaves an already-published game out of the publish queue", () => {
     const plan = weekPlan(
-      1,
-      [
-        {
-          ...G01,
-          digits_assigned_at: "2026-09-03T09:00:00Z",
-          digits_published_at: "2026-09-09T12:00:00Z",
-        },
-      ],
-      now,
+      12,
+      [{ ...TG1, digits_assigned_at: "2026-11-25T14:10:00Z", digits_published_at: "2026-11-25T14:10:00Z" }],
+      ms("2026-11-25T15:00:00Z"),
     );
     expect(plan.toSchedule).toEqual([]);
   });
