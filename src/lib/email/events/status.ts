@@ -8,6 +8,7 @@
 
 import type { EmailContext, EmailSpec, EventArgs, Row } from "../types.ts";
 import { hyphenate } from "../format.ts";
+import { MAX_LINE } from "../wrap.ts";
 
 export const STATUS_SUBJECT = "TNF CODE STATUS";
 export const STATUS_FIELDS = ["SESSION", "RAN", "MERGED", "APPLIED", "BLOCKED", "NEXT", "WATCHING"] as const;
@@ -25,6 +26,12 @@ export function status(_ctx: EmailContext, args: EventArgs): EmailSpec {
     if (i <= 0) throw new Error(`status: "${l}" is not KEY: value`);
     return [l.slice(0, i), hyphenate(l.slice(i + 2))] as const;
   });
+  // A longer line wraps in the plain text, and seven fields become sixteen
+  // lines: each one has to fit on its own line.
+  for (const [k, v] of rows) {
+    const n = `${k}: ${v}`.length;
+    if (n > MAX_LINE) throw new Error(`status: the ${k} line is ${n} characters; each line fits in ${MAX_LINE} so the report stays under ten lines`);
+  }
   const keys = rows.map((r) => r[0]);
   if (keys.join(",") !== STATUS_FIELDS.join(",")) {
     throw new Error(`status: the fields are ${STATUS_FIELDS.join(", ")}, each once and in that order; got ${keys.join(", ")}`);
