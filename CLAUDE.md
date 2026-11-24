@@ -680,7 +680,8 @@ SESSION, RAN, MERGED, APPLIED, BLOCKED, NEXT, WATCHING.
   `npm run email -- --event status_<date> --context <a context> --to-admin
   --arg session="<session name>" --lines "<the seven lines>"`. The template
   (`src/lib/email/events/status.ts`) refuses a missing or reordered field, a
-  tenth line or a missing session name.
+  tenth line, a line too long to sit on one line (69 characters) or a missing
+  session name.
 - It is a send to Anthony alone, so it is not claimed and adds no row to
   `email_sends`. No owner, no holder, no Cc.
 - BLOCKED says "none" when nothing is. A session that changed nothing still

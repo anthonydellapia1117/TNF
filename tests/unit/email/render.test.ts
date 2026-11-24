@@ -573,6 +573,15 @@ describe("status report", () => {
     expect(() => renderEvent(ctx("status_x"), { session: "s", lines: swapped })).toThrow(/in that order/);
     expect(() => renderEvent(ctx("status_x"), { session: "s", lines: LINES + "\nA: 1\nB: 2\nC: 3" })).toThrow(/under ten/);
   });
+
+  // A long line wraps, and the first status sent under this rule came out at
+  // sixteen lines in its dry run: each field fits on one line.
+  it("refuses a line that would wrap, so seven fields are seven lines", () => {
+    const long = LINES.replace("RAN: y", "RAN: " + "x".repeat(70));
+    expect(() => renderEvent(ctx("status_x"), { session: "s", lines: long })).toThrow(/the RAN line is 75 characters/);
+    const r = renderEvent(ctx("status_x"), { session: "s", lines: LINES });
+    expect(r.email.text.trimEnd().split("\n")).toHaveLength(7);
+  });
 });
 
 describe("game day", () => {
