@@ -255,6 +255,15 @@ describe("the game /grid opens on (Part Q)", () => {
     expect(pick(s, "2026-11-27T04:59:00Z")).toBe(4); // 11:59 PM ET, all final
   });
 
+  it("a night game stays up until 4 AM ET, so its winners email after midnight opens it", () => {
+    const s = SLATE();
+    expect(pick(s, "2026-11-26T05:10:00Z")).toBe(1); // 12:10 AM ET Thu, the results run
+    s[0].status = "final";
+    expect(pick(s, "2026-11-26T08:59:00Z")).toBe(1); // 3:59 AM ET
+    expect(pick(s, "2026-11-26T09:01:00Z")).toBe(2); // 4:01 AM ET, Thanksgiving
+    expect(pick(s, "2026-11-26T14:10:00Z")).toBe(2); // 9:10 AM ET
+  });
+
   it("a game being played wins over everything", () => {
     const s = SLATE();
     s[0].status = "in_progress";

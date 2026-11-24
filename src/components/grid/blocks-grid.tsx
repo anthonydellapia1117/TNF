@@ -166,7 +166,7 @@ export function BlocksGrid({
                 the hand-built grid has always put it. */}
             <div
               className={cn(
-                "sticky left-0 z-10 flex items-center justify-center bg-background",
+                "sticky left-0 z-20 flex items-center justify-center bg-background",
                 !comfortable && "static",
               )}
             >
@@ -187,7 +187,7 @@ export function BlocksGrid({
 
             <div
               className={cn(
-                "sticky left-0 z-10 bg-background",
+                "sticky left-0 z-20 bg-background",
                 !comfortable && "static",
               )}
             />
@@ -261,7 +261,8 @@ function RowCells({
         className={cn(
           "digit-in flex items-center justify-center rounded-[4px] text-sm font-semibold tabular-nums",
           !published && "opacity-70",
-          comfortable && "sticky left-0 z-10",
+          // Above a highlighted block (z-10) as the grid scrolls under it.
+          comfortable && "sticky left-0 z-20",
         )}
         style={{
           backgroundColor: rowBar.bg,
@@ -343,7 +344,7 @@ function GridCell({
   const winOutline = cell.isHalf && !review;
   // A search match fills yellow, unless the block is a winner or under
   // review: those keep their colour and take the yellow border instead.
-  const matchFill = cell.isMatch && !winFill && !review;
+  const matchFill = cell.isMatch && !winFill && !winOutline && !review;
 
   const label = [
     `Block ${cell.n}`,
@@ -426,11 +427,10 @@ function GridCell({
               borderStyle: "solid",
             }
           : {}),
+        // A matched winner or review block keeps every marking of its own
+        // and takes a yellow outline, which no border or ring uses.
         ...(cell.isMatch && !matchFill
-          ? ({
-              borderColor: SEARCH_FILL,
-              boxShadow: `0 0 0 2px ${SEARCH_BORDER}`,
-            } as React.CSSProperties)
+          ? { outline: `3px solid ${SEARCH_FILL}`, outlineOffset: "1px" }
           : {}),
       }}
     >

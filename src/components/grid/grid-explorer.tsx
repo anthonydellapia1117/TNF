@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
@@ -39,6 +39,7 @@ export function GridExplorer({
   // view, so switching either keeps them (Part Q).
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     try {
@@ -80,6 +81,8 @@ export function GridExplorer({
   const clearSearch = () => {
     setQuery("");
     setSelected(null);
+    // The x unmounts as it clears: keep focus in the box, not on the page.
+    inputRef.current?.focus();
   };
 
   const selectGame = (n: number) => {
@@ -190,6 +193,7 @@ export function GridExplorer({
             className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
           />
           <input
+            ref={inputRef}
             type="text"
             inputMode="search"
             enterKeyHint="search"
@@ -215,32 +219,6 @@ export function GridExplorer({
             </button>
           )}
         </div>
-        {selected !== null && (
-          <div
-            className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
-            data-testid="selected-block"
-          >
-            <p className="min-w-0">
-              <span className="font-semibold" data-numeric>
-                Block {selected}
-              </span>
-              {" · "}
-              <span className="break-words">{nameOf(selected) ?? "Open"}</span>
-              <span
-                className="block text-xs text-muted-foreground"
-                data-numeric
-              >
-                {digitsText(selected)}
-              </span>
-            </p>
-            <Link
-              href={`/block/${selected}`}
-              className="shrink-0 text-xs font-medium text-pool-accent hover:underline"
-            >
-              Block page
-            </Link>
-          </div>
-        )}
       </div>
 
       {searching && (
@@ -281,6 +259,40 @@ export function GridExplorer({
         onSelect={(n) => setSelected((cur) => (cur === n ? null : n))}
       />
 
+      {/* The tapped block, as a sheet over the bottom of the screen: in the
+          page flow it pushed the grid down under the finger (Part Q review). */}
+      {selected !== null && (
+        <div
+          className="fixed inset-x-3 bottom-3 z-40 mx-auto flex max-w-md items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm shadow-lg"
+          data-testid="selected-block"
+        >
+          <p className="min-w-0">
+            <span className="font-semibold" data-numeric>
+              Block {selected}
+            </span>
+            {" · "}
+            <span className="break-words">{nameOf(selected) ?? "Open"}</span>
+            <span className="block text-xs text-muted-foreground" data-numeric>
+              {digitsText(selected)}
+            </span>
+          </p>
+          <Link
+            href={`/block/${selected}`}
+            className="shrink-0 text-xs font-medium text-pool-accent hover:underline"
+          >
+            Block page
+          </Link>
+          <button
+            type="button"
+            onClick={() => setSelected(null)}
+            aria-label="Close"
+            className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+      )}
+
       {!game.digits_published_at && (
         <p className="text-center text-xs text-muted-foreground">
           Digits publish before kickoff - every ? becomes a number, freshly
@@ -289,6 +301,9 @@ export function GridExplorer({
       )}
 
       <WinnerPanel game={game} blocks={blocks} config={config} />
+
+      {/* Room under the page so the last row can scroll clear of the sheet. */}
+      {selected !== null && <div aria-hidden className="h-20" />}
     </div>
   );
 }

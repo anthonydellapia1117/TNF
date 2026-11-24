@@ -56,6 +56,9 @@ const etDate = (iso: string, tz: string) =>
     day: "2-digit",
   }).format(new Date(iso));
 
+/** A pool day ends at 4 AM ET (Part Q review). */
+const DAY_ROLLOVER_MS = 4 * 60 * 60 * 1000;
+
 const byKickoff = (a: PublicGame, b: PublicGame) =>
   (a.kickoff_at ?? "9999").localeCompare(b.kickoff_at ?? "9999");
 
@@ -63,7 +66,8 @@ const byKickoff = (a: PublicGame, b: PublicGame) =>
  * The game /grid opens on when no ?g= names one: a game marked in progress or
  * at halftime, else today's game in ET (the latest of today's that has kicked
  * off, or before the first kickoff, the first of them), else the next game to
- * be played, else the last game. Void games never.
+ * be played, else the last game. Void games never. "Today" runs to 4 AM ET,
+ * so a night game's winners stay up while its email goes out after midnight.
  *
  * Today's game goes by kickoff time, not status: the results run leaves every
  * game of a day "published" until the whole day is final (score-plan), so on
@@ -80,7 +84,13 @@ export function defaultGridGame(
     (g) => g.status === "in_progress" || g.status === "halftime",
   );
   if (playing) return playing;
-  const today = etDate(nowIso, tz);
+  // A pool day runs to 4 AM ET, not midnight: the winners email for a night
+  // game goes out after midnight and links the bare /grid, which must still
+  // open that game.
+  const today = etDate(
+    new Date(Date.parse(nowIso) - DAY_ROLLOVER_MS).toISOString(),
+    tz,
+  );
   const todays = live
     .filter((g) => g.kickoff_at && etDate(g.kickoff_at, tz) === today)
     .sort(byKickoff);
