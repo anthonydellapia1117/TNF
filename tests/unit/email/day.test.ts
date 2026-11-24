@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderEvent, envelopeFor } from "@/lib/email/registry";
+import { renderEvent, envelopeFor, EARLY_SENDS } from "@/lib/email/registry";
 import { checkBroadcast, type BroadcastPlan } from "@/lib/email/broadcast";
 import { dayEnvelope, type OwnerAddress } from "@/lib/email/envelope";
 import { sampleDay, SAMPLE_COLS, SAMPLE_ROWS } from "@/lib/email/sample";
@@ -76,6 +76,41 @@ describe("gameday", () => {
   it("refuses day facts for another date, or none", () => {
     expect(() => renderEvent(ctx("gameday_2026-11-25", { common: on("2026-11-25") }))).toThrow(/no day facts/);
     expect(() => renderEvent(ctx("gameday_2026-11-25", { common: on("2026-11-25"), day: { ...DAY_PUBLISHED, date: "2026-11-26" } }))).toThrow(/for 2026-11-26/);
+  });
+});
+
+// Part P (Anthony, 2026-11-24 8:27 AM ET): G01's game-day email goes one
+// day early, once. Exactly one key on exactly one database date; nothing else
+// moves, and the exception has no off switch because it needs none.
+describe("the one early game-day send", () => {
+  it("lets gameday_2026-11-25 render on Nov 24, and on its own day", () => {
+    expect(EARLY_SENDS).toEqual({ "gameday_2026-11-25": "2026-11-24" });
+    expect(Object.isFrozen(EARLY_SENDS)).toBe(true);
+    for (const d of ["2026-11-24", "2026-11-25"]) {
+      const r = renderEvent(ctx("gameday_2026-11-25", { common: on(d), day: DAY_PUBLISHED }));
+      expect(r.email.text).toContain("Numbers are in for the Wed Nov 25 game.");
+    }
+  });
+
+  it("refuses it on any other day", () => {
+    for (const d of ["2026-11-23", "2026-11-26", "2026-12-24", "2027-11-24"]) {
+      expect(() => renderEvent(ctx("gameday_2026-11-25", { common: on(d), day: DAY_PUBLISHED }))).toThrow(/renders only on its own day/);
+    }
+  });
+
+  it("refuses every other game-day key early, Nov 26's on Nov 24 and Nov 25 included", () => {
+    const d26 = { ...DAY_PUBLISHED, date: "2026-11-26" };
+    for (const d of ["2026-11-24", "2026-11-25"]) {
+      expect(() => renderEvent(ctx("gameday_2026-11-26", { common: on(d), day: d26 }))).toThrow(/renders only on its own day/);
+    }
+    expect(() => renderEvent(ctx("gameday_2026-11-24", { common: on("2026-11-23"), day: { ...DAY_PUBLISHED, date: "2026-11-24" } }))).toThrow(/renders only on its own day/);
+  });
+
+  it("leaves kickoff and winners exactly as they were", () => {
+    expect(() => renderEvent(ctx("kickoff_2026-11-24", { common: on("2026-11-23") }))).toThrow(/database date is 2026-11-23/);
+    expect(() => renderEvent(ctx("kickoff_2026-11-25", { common: on("2026-11-24") }))).toThrow(/renders only on its own day/);
+    expect(() => renderEvent(ctx("winners_2026-11-25", { common: on("2026-11-24"), day: DAY_SCORED }))).toThrow(/game date or the morning after/);
+    expect(() => renderEvent(ctx("winners_2026-11-25", { common: on("2026-11-27"), day: DAY_SCORED }))).toThrow(/game date or the morning after/);
   });
 });
 

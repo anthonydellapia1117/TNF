@@ -85,6 +85,17 @@ export interface Rendered {
   problems: string[];
 }
 
+/**
+ * One-time early sends (Anthony, 2026-11-24 8:27 AM ET, Part P): an event key
+ * that may render on one named ET date besides its own. It expires by itself:
+ * the database date is never that day again. Mirrored, key and date, in the
+ * database claim's email_day_not_ready (migration 44). Nothing else may go
+ * early.
+ */
+export const EARLY_SENDS: Readonly<Record<string, string>> = Object.freeze({
+  "gameday_2026-11-25": "2026-11-24",
+});
+
 export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
   const f = familyOf(ctx.event_key);
   // A sample is a review copy drafted To Anthony, never sent: it may render
@@ -97,7 +108,8 @@ export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
   }
   if (f.dated && !ctx.sample) {
     const day = f.match.exec(ctx.event_key)?.[1];
-    if (day !== ctx.common.as_of_et) {
+    const early = f.name === "gameday" && EARLY_SENDS[ctx.event_key] === ctx.common.as_of_et;
+    if (day !== ctx.common.as_of_et && !early) {
       throw new Error(`${ctx.event_key}: the database date is ${ctx.common.as_of_et}; a dated event renders only on its own day`);
     }
   }
