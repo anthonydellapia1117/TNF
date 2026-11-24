@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { matchupLabel } from "@/lib/nfl";
+import {
+  matchBlocks,
+  matchDigits,
+  matchSummary,
+  normalizeQuery,
+} from "@/lib/grid-search";
 import type { PoolConfig, PublicBlock, PublicGame } from "@/lib/types";
 import { BlocksGrid, type GridMode } from "./blocks-grid";
 import { GameHeader } from "./game-header";
 import { WinnerPanel } from "./winner-panel";
 
 const MODE_KEY = "tnf-grid-mode";
+/** Per-block lines under the search only while the list is short. */
+const MAX_DETAIL = 10;
 
 export function GridExplorer({
   games,
@@ -25,6 +35,10 @@ export function GridExplorer({
   const router = useRouter();
   const [gameNo, setGameNo] = useState(initialGameNo);
   const [mode, setMode] = useState<GridMode>("fit");
+  // The name search and the tapped block live here, above the game and the
+  // view, so switching either keeps them (Part Q).
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<number | null>(null);
 
   useEffect(() => {
     try {
@@ -50,6 +64,23 @@ export function GridExplorer({
   );
   const game = games.find((g) => g.game_no === gameNo) ?? games[0];
   const weekGames = games.filter((g) => g.week === game.week);
+
+  const matches = useMemo(() => matchBlocks(blocks, query), [blocks, query]);
+  const searching = normalizeQuery(query) !== "";
+  const nameOf = (n: number) =>
+    blocks.find((b) => b.block_number === n)?.display_name ?? null;
+  const awayShort = game.away_team.split(" ").pop();
+  const homeShort = game.home_team.split(" ").pop();
+  const digitsText = (n: number) => {
+    const d = matchDigits(n, game);
+    return d
+      ? `${awayShort} ${d.away}, ${homeShort} ${d.home}`
+      : "digits not drawn yet";
+  };
+  const clearSearch = () => {
+    setQuery("");
+    setSelected(null);
+  };
 
   const selectGame = (n: number) => {
     setGameNo(n);
@@ -150,7 +181,105 @@ export function GridExplorer({
         ))}
       </div>
 
-      <BlocksGrid game={game} blocks={blocks} config={config} mode={mode} />
+      {/* Find your name (Part Q): live, any part of the name the board
+          shows, any case. 16px text so iPhone Safari does not zoom. */}
+      <div className="sticky top-12 z-30 -mx-1 space-y-1.5 bg-background/95 px-1 py-1.5 backdrop-blur">
+        <div className="relative">
+          <Search
+            aria-hidden
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            type="text"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your name"
+            aria-label="Search your name"
+            className="h-11 w-full rounded-md border border-border bg-surface pr-11 pl-9 text-foreground placeholder:text-muted-foreground focus:border-pool-accent focus:outline-none"
+            style={{ fontSize: "16px" }}
+          />
+          {query !== "" && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              aria-label="Clear search"
+              className="absolute top-1/2 right-1 flex size-9 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-4" aria-hidden />
+            </button>
+          )}
+        </div>
+        {selected !== null && (
+          <div
+            className="flex items-center justify-between gap-2 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm"
+            data-testid="selected-block"
+          >
+            <p className="min-w-0">
+              <span className="font-semibold" data-numeric>
+                Block {selected}
+              </span>
+              {" · "}
+              <span className="break-words">{nameOf(selected) ?? "Open"}</span>
+              <span
+                className="block text-xs text-muted-foreground"
+                data-numeric
+              >
+                {digitsText(selected)}
+              </span>
+            </p>
+            <Link
+              href={`/block/${selected}`}
+              className="shrink-0 text-xs font-medium text-pool-accent hover:underline"
+            >
+              Block page
+            </Link>
+          </div>
+        )}
+      </div>
+
+      {searching && (
+        <div
+          aria-live="polite"
+          className="text-sm"
+          data-testid="search-summary"
+        >
+          <p className="font-semibold">{matchSummary(matches)}</p>
+          {matches.length > 0 && matches.length <= MAX_DETAIL && (
+            <ul className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
+              {matches.map((n) => (
+                <li key={n} data-numeric>
+                  <span className="font-semibold text-foreground">{n}</span>
+                  {" · "}
+                  {nameOf(n)}
+                  {" · "}
+                  {digitsText(n)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {matches.length > MAX_DETAIL && (
+            <p className="text-xs text-muted-foreground">
+              Keep typing to narrow it down.
+            </p>
+          )}
+        </div>
+      )}
+
+      <BlocksGrid
+        game={game}
+        blocks={blocks}
+        config={config}
+        mode={mode}
+        matches={matches}
+        selected={selected}
+        onSelect={(n) => setSelected((cur) => (cur === n ? null : n))}
+      />
 
       {!game.digits_published_at && (
         <p className="text-center text-xs text-muted-foreground">

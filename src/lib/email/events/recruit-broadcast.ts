@@ -8,7 +8,7 @@
 import type { EmailContext, EmailSpec } from "../types.ts";
 import { amount, longDate, monthDay } from "../format.ts";
 import { claimDeadline, firstGame, lastGame, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
-import { HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, SITE } from "../copy.ts";
+import { HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, BOARD } from "../copy.ts";
 import { gameListRows } from "./game-list.ts";
 
 export const RECRUIT_BROADCAST_KEY = /^recruit_broadcast_(\d{4}-\d{2}-\d{2})$/;
@@ -32,7 +32,7 @@ export function recruitBroadcast(ctx: EmailContext): EmailSpec {
       `Claim by ${longDate(claimDeadline(c))}. To claim, reply with how many blocks you want, or which numbers.`,
     ],
     rows: gameListRows(ctx),
-    next: SITE,
+    next: BOARD,
     deadline: null,
     signoff: SIGNOFF,
   };

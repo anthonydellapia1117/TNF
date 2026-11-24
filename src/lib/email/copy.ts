@@ -1,7 +1,11 @@
 // Fixed wording shared by more than one event. Values never live here.
 
-export const BOARD = "ad-26-tnf.vercel.app/blocks";
-export const BOARD_URL = "https://ad-26-tnf.vercel.app/blocks";
+// One link everywhere (Anthony, 2026-11-24, Part Q): every template and every
+// reply sends people to the grid, which has the name search. /grid?g=N links
+// already sent keep working.
+export const GRID_URL = "https://ad-26-tnf.vercel.app/grid";
+export const BOARD = "ad-26-tnf.vercel.app/grid";
+export const BOARD_URL = GRID_URL;
 export const SITE_URL = "https://ad-26-tnf.vercel.app";
 /** The site as a reply writes it: the bare host, which the layout links. */
 export const SITE = "ad-26-tnf.vercel.app";

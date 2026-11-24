@@ -14,7 +14,7 @@ import type { EmailContext, EmailSpec, EventArgs, Row } from "../types.ts";
 import { clock, shortDate, teamShort } from "../format.ts";
 import { kickoffOf, ymdOfGame } from "../facts.ts";
 import { greetingFor } from "../greeting.ts";
-import { SIGNOFF, SITE } from "../copy.ts";
+import { SIGNOFF, BOARD } from "../copy.ts";
 import { reSubject } from "./replies.ts";
 
 export const GAME_LIST_KEY = /^game_list_([0-9a-f]+)$/;
@@ -40,7 +40,7 @@ export function gameList(ctx: EmailContext, args: EventArgs): EmailSpec {
     subject: reSubject(args.subject),
     greeting: greetingFor(ctx.people ?? []),
     opening: null,
-    prose: [`${thanks}Here are all ${n} games, kickoffs ET. ${c.open_count} blocks still open, ${SITE}`],
+    prose: [`${thanks}Here are all ${n} games, kickoffs ET. ${c.open_count} blocks still open, ${BOARD}`],
     rows: gameListRows(ctx),
     next: null,
     deadline: null,
