@@ -13,11 +13,16 @@
 //   void                         void            skipped, no line
 //
 // ESPN must say final with periods that add up (checkGame) before any of that.
+// When ESPN cannot confirm a game (missing, flipped, listed twice, not final,
+// periods wrong), a game with all four numbers entered (Anthony at
+// /admin/score, after a staged problem) stands as entered: already_scored, no
+// line, and a note naming what ESPN could not confirm. Any less entered is a
+// problem, as is any entered number ESPN confirms differently.
 // One problem anywhere means ready is false and sql is empty for every game:
 // a date is scored whole or not at all, and the rest is Anthony's call at
 // /admin/score.
 
-import { checkGame, findGame, type EspnGame, type Score } from "./espn.ts";
+import { checkGame, findGame, type CheckedGame, type EspnGame, type Score } from "./espn.ts";
 import type { DayFacts } from "./email/types.ts";
 
 /** The actor every scoring call is audited under. */
@@ -35,6 +40,8 @@ export interface PlannedGame {
   final?: Score;
   action: ScoreAction;
   problems: string[];
+  /** Only on an already_scored game ESPN could not confirm: why, and that it stands as entered. */
+  note?: string;
 }
 
 export interface ScorePlan {
@@ -49,6 +56,7 @@ export interface ScorePlan {
 const show = (v: number | null) => (v === null ? "none" : String(v));
 const entered = (a: number | null, b: number | null) => a !== null || b !== null;
 const same = (a: number | null, b: number | null, s: Score) => a === s.away && b === s.home;
+const scores = (g: DayFacts["games"][number]) => [g.halftime_away, g.halftime_home, g.final_away, g.final_home];
 
 function planGame(g: DayFacts["games"][number], board: EspnGame[]): PlannedGame {
   if (g.status === "void") return { game_no: g.game_no, action: "void", problems: [] };
@@ -56,10 +64,22 @@ function planGame(g: DayFacts["games"][number], board: EspnGame[]): PlannedGame 
   if (!Number.isInteger(g.game_no) || g.game_no < 1) {
     return { game_no: g.game_no, action: "problem", problems: [`game_no ${String(g.game_no)} is not a whole number`] };
   }
+  // A game is scored only behind published digits that match their draw:
+  // admin_score_game needs them, and a score with no digits has no block.
+  if (g.published !== true || g.digits_ok !== true) {
+    return { game_no: g.game_no, action: "problem", problems: ["digits are not published or do not match their draw row; nothing is scored"] };
+  }
+  const ours = scores(g).map(show).join("-");
   const hit = findGame(board, g.away_team, g.home_team);
-  if (typeof hit === "string") return { game_no: g.game_no, action: "problem", problems: [hit] };
-  const c = checkGame(hit);
-  if (!c.ok || !c.halftime || !c.final) return { game_no: g.game_no, action: "problem", problems: c.problems };
+  const c: CheckedGame =
+    typeof hit === "string" ? { ok: false, halftime: null, final: null, problems: [hit] } : checkGame(hit);
+  if (!c.ok || !c.halftime || !c.final) {
+    if (scores(g).every((v) => v !== null)) {
+      const note = `ESPN could not confirm the score entered, ${ours} (away-home halftime, away-home final), so it stands as entered: ${c.problems.join("; ")}`;
+      return { game_no: g.game_no, action: "already_scored", problems: [], note };
+    }
+    return { game_no: g.game_no, action: "problem", problems: c.problems };
+  }
 
   const base = { game_no: g.game_no, halftime: c.halftime, final: c.final };
   const htIn = entered(g.halftime_away, g.halftime_home);
@@ -67,7 +87,6 @@ function planGame(g: DayFacts["games"][number], board: EspnGame[]): PlannedGame 
   const htOff = htIn && !same(g.halftime_away, g.halftime_home, c.halftime);
   const fnOff = fnIn && !same(g.final_away, g.final_home, c.final);
   if (htOff || fnOff) {
-    const ours = [g.halftime_away, g.halftime_home, g.final_away, g.final_home].map(show).join("-");
     const espn = [c.halftime.away, c.halftime.home, c.final.away, c.final.home].join("-");
     return {
       ...base,

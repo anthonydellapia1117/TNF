@@ -83,15 +83,17 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   game-day and winners emails go out on their own, once each. The rules are
   under *Data* (digits) and *Email to the pool* below; the routines are in
   `docs/ROUTINES.md`. Scores are taken only when ESPN says final and every
-  period adds up to the total. Until 4 hours 30 minutes after a date's last
-  kickoff, a game not final (or not yet kicked off) means the results run
-  waits; after that, anything else is NEEDS ANTHONY, nothing is sent, and
-  Anthony enters the scores at `/admin/score`. Each routine stages its NEEDS
-  ANTHONY at `/admin/queue`: the results run one row per problem class and
-  date (`scores:<date>`, `winners:<date>`), saying what he does for that
-  problem, and the morning run one row per date (`gameday:<date>`) on a game
-  date or the claim deadline. A game that reaches kickoff with no digits can
-  never be drawn; it is Anthony's call.
+  period adds up to the total. Only a game not final (or not yet kicked off),
+  or ESPN not answering, waits: until 4 hours 30 minutes after the date's last
+  kickoff the results run tries again at the next fire, and after that it is
+  NEEDS ANTHONY. Any other problem is NEEDS ANTHONY at once. Either way
+  nothing is sent, and for a score problem Anthony enters the scores at
+  `/admin/score`. Each routine stages its NEEDS ANTHONY at `/admin/queue`, a failed clone or install
+  included: the results run one row per problem class and date
+  (`scores:<date>`, `winners:<date>`), saying what he does for that problem,
+  and the morning run one row per date (`gameday:<date>`) on a game date or
+  the claim deadline. A game that reaches kickoff with no digits can never be
+  drawn; it is Anthony's call.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action

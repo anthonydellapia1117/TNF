@@ -9,9 +9,12 @@
 //   ready     true only when every game of the date is final, checked
 //             (src/lib/espn.ts: periods sum to the total, halftime = Q1 + Q2,
 //             final includes OT), and each score type is either unscored or
-//             already scored with exactly these numbers
+//             already scored with exactly these numbers; or, when ESPN cannot
+//             confirm a game, it has halftime and final both entered, and
+//             stands as entered
 //   games     per game: the scores, what to do (score | score_halftime |
-//             score_final | already_scored | problem | void) and any problem
+//             score_final | already_scored | problem | void), any problem,
+//             and a note when a game stands as entered without ESPN's word
 //   sql       the admin_score_game calls to run, in order, each its own
 //             execute_sql with the admin claim first (empty unless ready)
 //
@@ -43,16 +46,31 @@ async function main() {
   if (!day.games.some((g) => g.status !== "void")) die(`no games on ${day.date}`);
 
   const fixture = opt("fixture");
-  let json: unknown;
-  if (fixture) {
-    json = JSON.parse(readFileSync(fixture, "utf8"));
-  } else {
-    const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${day.date.replace(/-/g, "")}`;
-    const res = await fetch(url, { headers: { accept: "application/json" } });
-    if (!res.ok) die(`ESPN answered ${res.status} for ${url}`);
-    json = await res.json();
+  let board;
+  try {
+    let json: unknown;
+    if (fixture) {
+      json = JSON.parse(readFileSync(fixture, "utf8"));
+    } else {
+      const url = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${day.date.replace(/-/g, "")}`;
+      const res = await fetch(url, { headers: { accept: "application/json" } });
+      if (!res.ok) throw new Error(`ESPN answered ${res.status} for ${url}`);
+      json = await res.json();
+    }
+    board = parseScoreboard(json);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // ESPN unreadable: scores Anthony entered at /admin/score in full still
+    // stand (planScores with no board marks each one unconfirmed); anything
+    // short of that waits for ESPN, as before.
+    const allEntered = day.games
+      .filter((g) => g.status !== "void")
+      .every((g) => [g.halftime_away, g.halftime_home, g.final_away, g.final_home].every((v) => v !== null));
+    if (!allEntered) die(msg);
+    console.log(JSON.stringify({ ...planScores(day, []), espn_error: msg }, null, 2));
+    return;
   }
-  console.log(JSON.stringify(planScores(day, parseScoreboard(json)), null, 2));
+  console.log(JSON.stringify(planScores(day, board), null, 2));
 }
 
 main().catch((e) => die(e instanceof Error ? e.message : String(e)));

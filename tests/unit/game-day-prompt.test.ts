@@ -16,6 +16,13 @@ const CLAIM = `set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail
 const APPROVAL =
   "Anthony approved the game-day flow and the kickoff, game-day and winners templates in the TNF PM chat on 2026-11-23 at 2:53 PM ET (Part N)";
 const line = (p: string) => PROMPT.split("\n").find((l) => l.startsWith(p)) ?? "";
+const HEAD = DOC.split("```")[0] ?? "";
+const CLAUDE_MD = readFileSync(join(process.cwd(), "CLAUDE.md"), "utf8");
+const flat = (s: string) => s.replace(/\s+/g, " ");
+// S2 (review round two): digits written by hand with no draw have one exit,
+// Anthony's clear through admin_override_digits with null digits.
+const CLEAR =
+  "G<xx> has digits written with no draw. Anthony clears them with admin_override_digits(<game>, null, null, <reason>, 'anthony'). Before its kickoff, on its own date, running TNF Game Day again from claude.ai/code > Routines then draws it; past kickoff it can no longer be drawn, and what happens to it is Anthony's call. Until then nothing is sent.";
 
 describe("game day prompt", () => {
   it("has exactly two code fences, so 'between its two code fences' is one block", () => {
@@ -162,5 +169,79 @@ describe("game day prompt", () => {
     expect(ROUTINES).toMatch(/draws and publishes digits only through `admin_draw_day`/);
     expect(CLAUDE).not.toMatch(/GAME_DAY_PROMPT\.md` A3/);
     expect(CLAUDE).not.toMatch(/TNF Game\s+Day does this/);
+  });
+
+  // Review round two: a failed clone or install on a game morning was a report
+  // line only, though the lock, the slate and the draw need only the Supabase
+  // connector, and a game past kickoff can never be drawn.
+  it("on a failed clone or install still runs 1, 2 and 4a, sends no email, and stages as in 6", () => {
+    const a = line("0a.");
+    expect(a).not.toMatch(/the report is one NEEDS ANTHONY line naming the failed step/);
+    expect(a).toMatch(/If the clone or the install fails, add the NEEDS ANTHONY line "<the failed step> failed: <its message>\." and still run 1, 2 and 4a/);
+    expect(a).toMatch(/they need only the Supabase connector, not the repo/);
+    expect(a).toContain(`skip every email due today (3, 4b) with the line "K not sent: <the failed step>."`);
+    // Round three: a 9:10 clone failure alone stages nothing (the 10:10 re-fire
+    // retries, and a row saying the kickoff did not go would go stale); the
+    // re-fire stages it.
+    expect(a).toContain(`At the 9:10 run (ET hour before 10) the failed step alone stages nothing: add "The 10:10 re-fire tries again." At the 10:10 re-fire it is staged as in 6.`);
+    expect(line("6.")).toContain("at least one NEEDS ANTHONY line other than a 9:10 clone or install failure:");
+    expect(a).not.toMatch(/and stage as in 6\./);
+  });
+
+  it("says in every header that a failed clone or install is staged", () => {
+    expect(flat(HEAD)).toMatch(/any NEEDS ANTHONY line \(a failed clone or install,[^)]*\) is staged/);
+    const part = flat(CLAUDE_MD.split("- **Thanksgiving game-day automation")[1]?.split("\n- **")[0] ?? "");
+    expect(part).toMatch(/Each routine stages its NEEDS ANTHONY at `\/admin\/queue`, a failed clone or install included/);
+    expect(flat(ROUTINES)).toMatch(/TNF Game Day stages its NEEDS ANTHONY lines as one `unclassified_mail` row per date \(source `gameday:<date>`\) on a game date or the claim deadline, a failed clone or install included/);
+    const row = ROUTINES.split("\n").find((l) => l.startsWith("| 2 | TNF Game Day |")) ?? "";
+    expect(row).toMatch(/on a game date or the claim deadline, a failed clone or install included/);
+  });
+
+  it("words each draw problem once, and sends digits with no draw to Anthony's clear", () => {
+    const a = line("4a.");
+    expect(a).toContain(`anything else: add "G<xx>: <problem>."`);
+    expect(a).not.toMatch(/<problem>\. Anthony's call/);
+    expect(a).toContain(`digits present with no draw; Anthony's call: add "${CLEAR}"`);
+    expect(a).toContain(`date unconfirmed, not drawn: add "G<xx> has not kicked off`);
+  });
+
+  it("names the 5c dry run or the 5d claim as where an unpublished game is refused, and never says fix and re-run", () => {
+    expect(line("4b.")).toMatch(/^4b\. Send gameday_D by the steps in 5\. If the dry run or the claim refuses because a game's digits are not published, send nothing/);
+    expect(line("4b.")).not.toContain("Fix at /admin/digits, then run TNF Game Day again.");
+  });
+
+  it("prints the lock's hashes with none for a missing draw row, and sends digits with no draw row to the clear", () => {
+    expect(line("1.")).toContain(`"G<xx> digits do not match their draw row (expected <first 12 of expected, or none>, now <first 12 of actual>). Nothing sent."`);
+    expect(line("1.")).toContain(`A game whose drawn is false (digits written with no draw) also gets, right after its line, "${CLEAR}"`);
+    expect(line("1.")).toContain(`A game whose drawn is true gets instead "G<xx> digits changed after their draw. Anthony's call: admin_override_digits with the drawn digits (its draw audit row has them) restores them."`);
+    expect(PROMPT).not.toMatch(/the next run draws it/);
+    expect(PROMPT).not.toMatch(/whose expected is none/);
+  });
+
+  it("stages a summary that counts the items and claims nothing about them", () => {
+    expect(line("6.")).toContain(`summary "NEEDS ANTHONY - TNF Game Day D: <n> items.", date D`);
+    expect(line("6.")).not.toMatch(/each naming where Anthony acts/);
+  });
+
+  it("says Draw Window's checks are steps 2, 4a and 6, here and in ROUTINES.md", () => {
+    expect(flat(HEAD)).toContain("The TNF Draw Window routine is paused** (Part N); its checks are steps 2, 4a and 6 below.");
+    const row = ROUTINES.split("\n").find((l) => l.startsWith("| 3 | TNF Draw Window |")) ?? "";
+    expect(row).toContain("its checks fold into TNF Game Day steps 2, 4a and 6");
+  });
+
+  it("says the 10:10 re-fire calls admin_draw_day again and that call changes nothing", () => {
+    const f = flat(ROUTINES);
+    expect(f).toContain(
+      "TNF Game Day draws and publishes digits only through `admin_draw_day`, for that ET date's games only: the 9:10 run calls it once per game date, and the 10:10 re-fire calls it again, a call that changes nothing when the 9:10 run did its work.",
+    );
+    expect(f).not.toMatch(/`admin_draw_day`, once per game date,/);
+  });
+
+  // Round one fixed both of these and nothing guarded them.
+  it("CLAUDE.md carries the Part N season bullet and names the game-day emails as the other pool emails with a Cc", () => {
+    expect(CLAUDE_MD).toContain("- **Thanksgiving game-day automation (Anthony, 2026-11-23, Part N).**");
+    expect(flat(CLAUDE_MD)).toContain(
+      "and the three game-day emails (Part N, below), which go To Anthony, Cc RM and MAP. Those four are the pool emails with a Cc",
+    );
   });
 });

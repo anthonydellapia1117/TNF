@@ -19,7 +19,15 @@
 -- (5) or a scored game (10b); drop the delete or the truncate trigger (5);
 -- leave raw digits out of verify, or call them ok with a matching row (7b);
 -- let the morning run draw over them (7b); let the per-recipient claim take
--- a broadcast key (8b).
+-- a broadcast key (8b). Review round two, each verified to raise: check the
+-- date before kickoff (2b); drop the id or the game-number lock, or keep it
+-- to drawn games only (5b); refuse every NULL clear, take one NULL side as a
+-- clear, clear a drawn game or one with no digits, drop the score check, the
+-- cleared mark or the old digits from the clear row (7c); drop the lock's
+-- clear path or any one of its conditions: the GUC, the name, the reason, the
+-- txid, the cleared mark, rows or columns null, the seed, assigned-at before
+-- or after, the halftime or final score (7c); let digits_ok pass digits with
+-- no draw (7d).
 --
 -- Every assertion that reads a value is NULL-safe (CLAUDE.md, migrations 15
 -- and 16): IS DISTINCT FROM, IS NOT TRUE, or coalesce, never a bare <> or
@@ -160,6 +168,34 @@ begin
   end if;
   if (v -> 'verify' ->> 'all_ok')::boolean is not true then
     raise exception 'TEST FAILURE: verify after the draw: %', v -> 'verify';
+  end if;
+end $$;
+
+-- 2b. Past kickoff is checked before the date, so 'date unconfirmed, not
+--     drawn' always means kickoff is still ahead: G04, past kickoff, with its
+--     date unconfirmed for this block, reports past kickoff; G05, ahead,
+--     still reports its date. Rolled back.
+do $$
+declare
+  v jsonb;
+begin
+  begin
+    update games set date_confirmed = false where game_no = 4;
+    v := admin_draw_day('tnf-game-day');
+    if (select x ->> 'problem' from jsonb_array_elements(v -> 'problems') x where (x ->> 'game_no')::int = 4)
+       is distinct from 'past kickoff, not drawn' then
+      raise exception 'TEST FAILURE: an unconfirmed game past kickoff was not reported past kickoff: %', v -> 'problems';
+    end if;
+    if (select x ->> 'problem' from jsonb_array_elements(v -> 'problems') x where (x ->> 'game_no')::int = 5)
+       is distinct from 'date unconfirmed, not drawn' then
+      raise exception 'TEST FAILURE: an unconfirmed game before kickoff was not reported unconfirmed: %', v -> 'problems';
+    end if;
+    raise exception 'ROLLBACK 2b';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 2b' then raise; end if;
+  end;
+  if (select date_confirmed from games where game_no = 4) is not true then
+    raise exception 'TEST FAILURE: 2b did not roll back';
   end if;
 end $$;
 
@@ -343,6 +379,70 @@ begin
   end;
 end $$;
 
+-- 5b. Once any digits exist the id and game number are fixed too:
+--     renumbering would redraw a published grid without a delete. Refused on
+--     a drawn game (G01) and on digits written with no draw (G05, rolled
+--     back); an undrawn game (G06) can still be renumbered, rolled back.
+do $$
+declare
+  stmt text;
+  v_id uuid := (select id from games where game_no = 6);
+begin
+  foreach stmt in array array[
+    'update games set game_no = 99 where game_no = 1',
+    'update games set id = gen_random_uuid() where game_no = 1'] loop
+    begin
+      execute stmt;
+      raise exception 'TEST FAILURE: allowed on a drawn game: %', stmt;
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G01: a game with digits keeps its id and game number%' then
+        raise exception 'TEST FAILURE: wrong refusal for %: %', stmt, sqlerrm;
+      end if;
+    end;
+  end loop;
+  begin
+    update games set row_digits = array[0,1,2,3,4,5,6,7,8,9], col_digits = array[9,8,7,6,5,4,3,2,1,0]
+     where game_no = 5 and digits_assigned_at is null and row_digits is null and col_digits is null;
+    if (select row_digits from games where game_no = 5) is null then
+      raise exception 'TEST FAILURE: fixture: G05 raw digits not written';
+    end if;
+    foreach stmt in array array[
+      'update games set game_no = 98 where game_no = 5',
+      'update games set id = gen_random_uuid() where game_no = 5'] loop
+      begin
+        execute stmt;
+        raise exception 'TEST FAILURE: allowed on digits with no draw: %', stmt;
+      exception when others then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        if sqlerrm not like '%G05: a game with digits keeps its id and game number%' then
+          raise exception 'TEST FAILURE: wrong refusal for %: %', stmt, sqlerrm;
+        end if;
+      end;
+    end loop;
+    raise exception 'ROLLBACK 5b raw';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 5b raw' then raise; end if;
+  end;
+  begin
+    update games set game_no = 99 where game_no = 6;
+    update games set id = gen_random_uuid() where game_no = 99;
+    if (select id from games where game_no = 99) is not distinct from v_id then
+      raise exception 'TEST FAILURE: control: an undrawn game was not renumbered';
+    end if;
+    raise exception 'ROLLBACK 5b control';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 5b control' then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      raise exception 'TEST FAILURE: control: renumbering an undrawn game raised: %', sqlerrm;
+    end if;
+  end;
+  if (select id from games where game_no = 6) is distinct from v_id
+     or (select row_digits from games where game_no = 5) is not null then
+    raise exception 'TEST FAILURE: 5b did not roll back';
+  end if;
+end $$;
+
 -- 6. The one exception: Anthony's override, with a reason, its own audit row,
 --    before any score; verify follows the new digits.
 do $$
@@ -511,6 +611,311 @@ begin
   if (select row_digits from games where id = g) is not null
      or (admin_verify_digits() ->> 'all_ok')::boolean is not true then
     raise exception 'TEST FAILURE: 7b did not roll back';
+  end if;
+end $$;
+
+-- 7c. The one exit for digits written with no draw: admin_override_digits
+--     with NULL rows and NULL columns clears them back to none, Anthony's
+--     alone, with a reason, before any score, on its own audit row; verify
+--     then passes and the morning run draws the game on its day. The lock
+--     admits a clear only on a row in the shape the function writes; any
+--     other NULL is refused, and a drawn game is never cleared. G05, today,
+--     confirmed for this block; rolled back.
+do $$
+declare
+  g uuid := (select id from games where game_no = 5);
+  r0 int[] := array[0,1,2,3,4,5,6,7,8,9];
+  c0 int[] := array[9,8,7,6,5,4,3,2,1,0];
+  good text := 'a reason that is long enough';
+  v jsonb;
+  v_case text;
+  c record;
+begin
+  begin
+    update games set date_confirmed = true, row_digits = r0, col_digits = c0
+     where id = g and digits_assigned_at is null and digit_seed is null and row_digits is null and col_digits is null;
+    if (select row_digits from games where id = g) is distinct from r0 then
+      raise exception 'TEST FAILURE: fixture: G05 raw digits not written';
+    end if;
+    v := admin_verify_digits();
+    if (select (x ->> 'ok')::boolean from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5) is distinct from false
+       or (v ->> 'all_ok')::boolean is distinct from false then
+      raise exception 'TEST FAILURE: fixture: verify passed digits with no draw: %', v;
+    end if;
+
+    -- The function refuses: the sweep's name, a short reason, a scored game.
+    begin
+      perform admin_override_digits(g, null, null, good, 'tnf-sweep');
+      raise exception 'TEST FAILURE: the sweep cleared digits';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%Anthony''s alone%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    begin
+      perform admin_override_digits(g, null, null, 'short', 'anthony');
+      raise exception 'TEST FAILURE: a clear with no real reason';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%needs a reason%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    foreach v_case in array array['halftime_scored_at', 'final_scored_at'] loop
+      begin
+        execute format('update games set %I = now() where id = %L', v_case, g);
+        perform admin_override_digits(g, null, null, good, 'anthony');
+        raise exception 'TEST FAILURE: a scored game was cleared (%)', v_case;
+      exception when others then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        if sqlerrm not like '%G05: scored; digits behind a score never change%' then
+          raise exception 'TEST FAILURE: wrong refusal for the scored clear (%): %', v_case, sqlerrm;
+        end if;
+      end;
+    end loop;
+    -- Any other NULL stays refused: one side only, a drawn game, no digits.
+    begin
+      perform admin_override_digits(g, null, c0, good, 'anthony');
+      raise exception 'TEST FAILURE: NULL rows with columns were taken';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%permutation of 0-9%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    begin
+      perform admin_override_digits(g, r0, null, good, 'anthony');
+      raise exception 'TEST FAILURE: rows with NULL columns were taken';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%permutation of 0-9%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    begin
+      perform admin_override_digits((select id from games where game_no = 2), null, null, good, 'anthony');
+      raise exception 'TEST FAILURE: a drawn game was cleared';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G02: drawn; only digits written with no draw are cleared%' then
+        raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm;
+      end if;
+    end;
+    begin
+      perform admin_override_digits((select id from games where game_no = 4), null, null, good, 'anthony');
+      raise exception 'TEST FAILURE: a game with no digits was cleared';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G04: no digits to clear%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    if (select row_digits from games where id = g) is distinct from r0
+       or (select col_digits from games where id = g) is distinct from c0
+       or exists (select 1 from audit_log where action = 'digits_override'
+                     and target_id in (g::text, (select id::text from games where game_no = 2))
+                     and after ? 'cleared') then
+      raise exception 'TEST FAILURE: a refused clear changed the digits or left a row';
+    end if;
+
+    -- The lock without the function: a hand-written clear row, the GUC set,
+    -- refused unless it is the row the function writes, for a clear the
+    -- function would make.
+    for c in select * from (values
+        ('the sweep''s name',         'tnf-sweep', good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('a short reason',            'anthony',   'short', '{"cleared": true}',  'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('no cleared mark',           'anthony',   good,    '{}',                 'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('cleared false',             'anthony',   good,    '{"cleared": false}', 'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('another txid',              'anthony',   good,    '{"cleared": true, "txid": "1"}', 'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('the GUC alone',             null,        null,    null,                 'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, null),
+        ('the GUC for another game',  'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null where game_no = 5', 5, 2, null),
+        ('rows only',                 'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null where game_no = 5', 5, 5, null),
+        ('columns only',              'anthony',   good,    '{"cleared": true}',  'update games set col_digits = null where game_no = 5', 5, 5, null),
+        ('the seed changed',          'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null, digit_seed = ''x'' where game_no = 5', 5, 5, null),
+        ('assigned-at set',           'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null, digits_assigned_at = now() where game_no = 5', 5, 5, null),
+        ('a halftime-scored game',    'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, 'halftime_scored_at'),
+        ('a final-scored game',       'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null where game_no = 5', 5, 5, 'final_scored_at'),
+        ('a drawn game',              'anthony',   good,    '{"cleared": true}',  'update games set row_digits = null, col_digits = null, digits_assigned_at = null where game_no = 2', 2, 2, null)
+      ) t(label, actor, reason, extra, stmt, game_no, guc_game_no, scored)
+    loop
+      begin
+        if c.scored is not null then
+          execute format('update games set %I = now() where game_no = %s', c.scored, c.game_no);
+        end if;
+        if c.actor is not null then
+          insert into audit_log (actor, action, target_table, target_id, after)
+          values (c.actor, 'digits_override', 'games', (select id::text from games where game_no = c.game_no),
+                  jsonb_build_object('txid', txid_current()::text, 'reason', c.reason) || c.extra::jsonb);
+        end if;
+        perform set_config('tnf.digits_override', (select id::text from games where game_no = c.guc_game_no), true);
+        execute c.stmt;
+        raise exception 'TEST FAILURE: a hand-written clear (%) changed the digits', c.label;
+      exception when others then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        if sqlerrm not like '%immutable once assigned%' then
+          raise exception 'TEST FAILURE: wrong refusal for the hand-written clear (%): %', c.label, sqlerrm;
+        end if;
+      end;
+    end loop;
+    -- Control: the row the function writes opens the lock, so the refusals
+    -- above are their cases, not the fixture. Rolled back.
+    begin
+      insert into audit_log (actor, action, target_table, target_id, after)
+      values ('anthony', 'digits_override', 'games', g::text,
+              jsonb_build_object('game_no', 5, 'cleared', true, 'txid', txid_current()::text, 'reason', good));
+      perform set_config('tnf.digits_override', g::text, true);
+      update games set row_digits = null, col_digits = null where id = g;
+      if (select row_digits is null and col_digits is null from games where id = g) is not true then
+        raise exception 'TEST FAILURE: control: the clear row did not open the lock';
+      end if;
+      raise exception 'ROLLBACK 7c control';
+    exception when others then
+      if sqlerrm <> 'ROLLBACK 7c control' then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        raise exception 'TEST FAILURE: control: a clear row in the function''s shape was refused: %', sqlerrm;
+      end if;
+    end;
+    if (select row_digits from games where id = g) is distinct from r0
+       or coalesce(current_setting('tnf.digits_override', true), '') <> '' then
+      raise exception 'TEST FAILURE: the 7c control did not roll back';
+    end if;
+
+    -- Anthony's clear, with a reason: no digits, seed and assigned-at still
+    -- null, its own audit row with the old digits and their hash.
+    v := admin_override_digits(g, null, null, 'hand-written digits, cleared with Anthony', 'anthony');
+    if (select row_digits is null and col_digits is null and digit_seed is null and digits_assigned_at is null
+          from games where id = g) is not true then
+      raise exception 'TEST FAILURE: the clear did not leave G05 with no digits';
+    end if;
+    if (v ->> 'cleared')::boolean is not true or v ->> 'before_sha256' is distinct from digits_sha256(r0, c0)
+       or coalesce(current_setting('tnf.digits_override', true), '') <> '' then
+      raise exception 'TEST FAILURE: the clear returned %, or left the GUC set', v;
+    end if;
+    if not exists (select 1 from audit_log a
+                    where a.action = 'digits_override' and a.target_table = 'games' and a.target_id = g::text
+                      and a.actor = 'anthony'
+                      and a.note = 'hand-written digits, cleared with Anthony'
+                      and a.after = jsonb_build_object('game_no', 5, 'cleared', true, 'txid', txid_current()::text,
+                                                       'reason', 'hand-written digits, cleared with Anthony')
+                      and a.before = jsonb_build_object('game_no', 5, 'row_digits', r0, 'col_digits', c0,
+                                                        'digits_sha256', digits_sha256(r0, c0))) then
+      raise exception 'TEST FAILURE: no clear audit row with the old digits, their hash, cleared, txid and reason';
+    end if;
+    v := admin_verify_digits();
+    if (v ->> 'all_ok')::boolean is not true
+       or exists (select 1 from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5) then
+      raise exception 'TEST FAILURE: verify after the clear: %', v;
+    end if;
+    -- The morning run draws it on its day, and verify follows the draw.
+    v := admin_draw_day('tnf-game-day');
+    if (select x ->> 'state' from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5)
+       is distinct from 'drawn_and_published' then
+      raise exception 'TEST FAILURE: the morning run did not draw G05 after the clear: games %, problems %', v -> 'games', v -> 'problems';
+    end if;
+    if (select digits_assigned_at is not null and row_digits is not null and col_digits is not null
+               and digits_published_at <= now() from games where id = g) is not true
+       or (v -> 'verify' ->> 'all_ok')::boolean is not true then
+      raise exception 'TEST FAILURE: G05 after the draw: %', v -> 'verify';
+    end if;
+    raise exception 'ROLLBACK 7c';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 7c' then raise; end if;
+  end;
+  if (select row_digits is not null or digits_assigned_at is not null or date_confirmed from games where id = g) is not false
+     or exists (select 1 from audit_log where action = 'digits_override' and target_id = g::text)
+     or (admin_verify_digits() ->> 'all_ok')::boolean is not true then
+    raise exception 'TEST FAILURE: 7c did not roll back';
+  end if;
+end $$;
+
+-- 7d. A day email's digits_ok needs a draw: digits written by hand and
+--     published (G05), beside a draw row that matches them, are not ok, and
+--     the game-day email does not go. G04 voided for this block so G05 is the
+--     first game the check reaches; rolled back.
+do $$
+declare
+  g uuid := (select id from games where game_no = 5);
+  r0 int[] := array[0,1,2,3,4,5,6,7,8,9];
+  c0 int[] := array[9,8,7,6,5,4,3,2,1,0];
+  d jsonb;
+begin
+  begin
+    update games set row_digits = r0, col_digits = c0, digits_published_at = now() - interval '1 minute'
+     where id = g and digits_assigned_at is null and row_digits is null and col_digits is null;
+    insert into audit_log (actor, action, target_table, target_id, after)
+    values ('fx', 'assign_digits', 'games', g::text,
+            jsonb_build_object('game_no', 5, 'row_digits', r0, 'col_digits', c0, 'digits_sha256', digits_sha256(r0, c0)));
+    if digits_expected_sha256(g) is distinct from digits_sha256(r0, c0) then
+      raise exception 'TEST FAILURE: fixture: G05''s draw row does not match its digits';
+    end if;
+    d := email_day_facts((select today from t_when));
+    if (select x -> 'digits_ok' from jsonb_array_elements(d -> 'games') x where (x ->> 'game_no')::int = 5)
+       is distinct from 'false'::jsonb then
+      raise exception 'TEST FAILURE: digits with no draw read digits_ok: %', d -> 'games';
+    end if;
+    if exists (select 1 from jsonb_array_elements(d -> 'games') x
+                where (x ->> 'game_no')::int in (1, 2, 3) and x -> 'digits_ok' is distinct from 'true'::jsonb) then
+      raise exception 'TEST FAILURE: control: a drawn game read not ok: %', d -> 'games';
+    end if;
+    update games set status = 'void' where game_no = 4;
+    if email_day_not_ready('gameday_' || (select today from t_when)) is distinct from 'G05 digits do not match their draw row' then
+      raise exception 'TEST FAILURE: the game-day email was not stopped by digits with no draw: %',
+        email_day_not_ready('gameday_' || (select today from t_when));
+    end if;
+    raise exception 'ROLLBACK 7d';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 7d' then raise; end if;
+  end;
+  if (select row_digits is not null or digits_published_at is not null from games where id = g) is not false
+     or (select status from games where game_no = 4) = 'void' then
+    raise exception 'TEST FAILURE: 7d did not roll back';
+  end if;
+end $$;
+
+-- 7e. After a clear nothing is expected: digits written by hand again show
+--     expected none and drawn false in verify (so the routines give the clear
+--     instruction, not the override one), and a game whose digits were
+--     cleared after being published is never scored. G05; rolled back.
+do $$
+declare
+  g uuid := (select id from games where game_no = 5);
+  r0 int[] := array[0,1,2,3,4,5,6,7,8,9];
+  c0 int[] := array[9,8,7,6,5,4,3,2,1,0];
+  v jsonb;
+  x jsonb;
+begin
+  begin
+    update games set date_confirmed = true, row_digits = r0, col_digits = c0,
+                     digits_published_at = now() - interval '1 minute'
+     where id = g and digits_assigned_at is null and row_digits is null and col_digits is null;
+    perform admin_override_digits(g, null, null, 'hand-written digits, cleared with Anthony', 'anthony');
+    if digits_expected_sha256(g) is not null then
+      raise exception 'TEST FAILURE: a clear left an expected hash: %', digits_expected_sha256(g);
+    end if;
+    -- a cleared game, still published, is never scored
+    begin
+      perform admin_score_game(g, 'halftime', 7, 3, 'tnf-results');
+      raise exception 'TEST FAILURE: a game with no digits was scored';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G05: no digits; a game is never scored without them%' then
+        raise exception 'TEST FAILURE: wrong refusal for scoring a cleared game: %', sqlerrm;
+      end if;
+    end;
+    if (select halftime_scored_at is not null from games where id = g) then
+      raise exception 'TEST FAILURE: the refused score left a mark';
+    end if;
+    -- the same mistake again: expected none, drawn false
+    update games set row_digits = r0, col_digits = c0 where id = g;
+    v := admin_verify_digits();
+    select y into x from jsonb_array_elements(v -> 'games') y where (y ->> 'game_no')::int = 5;
+    if x is null or x -> 'expected' is distinct from 'null'::jsonb or x -> 'drawn' is distinct from 'false'::jsonb
+       or x -> 'ok' is distinct from 'false'::jsonb then
+      raise exception 'TEST FAILURE: verify after a re-written clear: %', x;
+    end if;
+    -- control: a drawn game reads drawn true
+    if exists (select 1 from jsonb_array_elements(v -> 'games') y
+                where (y ->> 'game_no')::int in (1, 2, 3) and y -> 'drawn' is distinct from 'true'::jsonb) then
+      raise exception 'TEST FAILURE: a drawn game read drawn false: %', v;
+    end if;
+    raise exception 'ROLLBACK 7e';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 7e' then raise; end if;
+  end;
+  if (select row_digits is not null or digits_published_at is not null or date_confirmed from games where id = g) is not false
+     or exists (select 1 from audit_log where action = 'digits_override' and target_id = g::text) then
+    raise exception 'TEST FAILURE: 7e did not roll back';
   end if;
 end $$;
 

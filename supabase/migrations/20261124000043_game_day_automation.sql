@@ -62,10 +62,14 @@ returns text
 language sql stable
 set search_path = public, pg_temp
 as $$
-  select coalesce(a.after ->> 'digits_sha256',
+  -- A clear (admin_override_digits with no digits) leaves nothing expected:
+  -- digits written after it have no draw behind them.
+  select case when a.after -> 'cleared' = 'true'::jsonb then null
+              else coalesce(a.after ->> 'digits_sha256',
                   digits_sha256(
                     array(select x::int from jsonb_array_elements_text(a.after -> 'row_digits') with ordinality t(x, i) order by i),
                     array(select x::int from jsonb_array_elements_text(a.after -> 'col_digits') with ordinality t(x, i) order by i)))
+         end
     from audit_log a
    where a.target_table = 'games'
      and a.target_id = p_game_id::text
@@ -147,7 +151,11 @@ end $$;
 -- naming this game and the new digits' hash. The lock re-checks what the
 -- function checks (a drawn game, no score, Anthony's name, a reason of 10 or
 -- more characters) on that row, so a row inserted by hand opens nothing the
--- function would refuse.
+-- function would refuse. The same goes for its one other use, clearing digits
+-- written by hand with no draw (assigned-at null) back to null, unscored, seed
+-- and assigned-at untouched, on its row marked cleared. Once any digits exist
+-- the id and game number are fixed too: renumbering would redraw a published
+-- grid without a delete.
 -- ---------------------------------------------------------------------------
 
 create or replace function games_digits_immutable_guard()
@@ -156,6 +164,10 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
+  if (old.digits_assigned_at is not null or old.row_digits is not null or old.col_digits is not null)
+     and (new.id is distinct from old.id or new.game_no is distinct from old.game_no) then
+    raise exception 'G%: a game with digits keeps its id and game number', lpad(old.game_no::text, 2, '0');
+  end if;
   if (old.digits_assigned_at is not null or old.row_digits is not null or old.col_digits is not null) and (
        new.row_digits is distinct from old.row_digits
     or new.col_digits is distinct from old.col_digits
@@ -177,6 +189,24 @@ begin
                     and length(btrim(coalesce(a.after ->> 'reason', ''))) >= 10
                     and a.after ->> 'txid' = txid_current()::text
                     and a.after ->> 'digits_sha256' = digits_sha256(new.row_digits, new.col_digits))
+    ) and not (
+         -- The clear: digits written with no draw, back to none.
+         coalesce(current_setting('tnf.digits_override', true), '') = old.id::text
+     and old.digits_assigned_at is null
+     and new.digits_assigned_at is null
+     and new.row_digits is null
+     and new.col_digits is null
+     and old.halftime_scored_at is null
+     and old.final_scored_at is null
+     and new.digit_seed is not distinct from old.digit_seed
+     and exists (select 1 from audit_log a
+                  where a.action = 'digits_override'
+                    and a.target_table = 'games'
+                    and a.target_id = old.id::text
+                    and a.actor ~* '^anthony'
+                    and length(btrim(coalesce(a.after ->> 'reason', ''))) >= 10
+                    and a.after ->> 'txid' = txid_current()::text
+                    and a.after -> 'cleared' = 'true'::jsonb)
     ) then
       raise exception 'digits are immutable once assigned (game G%)', lpad(old.game_no::text, 2, '0');
     end if;
@@ -231,7 +261,30 @@ revoke execute on function games_never_truncate_drawn_guard() from public, anon,
 create trigger games_never_truncate_drawn before truncate on games
   for each statement execute function games_never_truncate_drawn_guard();
 
+-- A game is never scored without digits: a score with none has no winning
+-- block (and admin_score_game's note would come out null). Only reachable
+-- after digits written by hand were published and then cleared.
+create or replace function games_score_needs_digits_guard()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if ((new.halftime_scored_at is not null and new.halftime_scored_at is distinct from old.halftime_scored_at)
+      or (new.final_scored_at is not null and new.final_scored_at is distinct from old.final_scored_at))
+     and (new.row_digits is null or new.col_digits is null) then
+    raise exception 'G%: no digits; a game is never scored without them', lpad(new.game_no::text, 2, '0');
+  end if;
+  return new;
+end $$;
+
+create trigger games_score_needs_digits before update on games
+  for each row execute function games_score_needs_digits_guard();
+
 -- The audited override: Anthony's alone, with a reason, before any score.
+-- NULL rows and NULL columns together are the clear: digits written by hand
+-- with no draw (assigned-at null) go back to none, so the game can be drawn on
+-- its day. Any other NULL is refused, and a drawn game is never cleared.
 create or replace function admin_override_digits(
   p_game_id uuid,
   p_row_digits int[],
@@ -246,6 +299,7 @@ as $$
 declare
   g games;
   v_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  v_clear boolean := p_row_digits is null and p_col_digits is null;
   v_before text;
   v_after text;
 begin
@@ -256,20 +310,41 @@ begin
   if v_reason is null or length(v_reason) < 10 then
     raise exception 'the digits override needs a reason';
   end if;
-  if cardinality(p_row_digits) is distinct from 10 or cardinality(p_col_digits) is distinct from 10
+  if not v_clear and (
+        cardinality(p_row_digits) is distinct from 10 or cardinality(p_col_digits) is distinct from 10
      or (select array_agg(x order by x) from unnest(p_row_digits) x) is distinct from array[0,1,2,3,4,5,6,7,8,9]
-     or (select array_agg(x order by x) from unnest(p_col_digits) x) is distinct from array[0,1,2,3,4,5,6,7,8,9] then
+     or (select array_agg(x order by x) from unnest(p_col_digits) x) is distinct from array[0,1,2,3,4,5,6,7,8,9]) then
     raise exception 'rows and columns must each be a permutation of 0-9';
   end if;
   select * into g from games where id = p_game_id for update;
   if g.id is null then
     raise exception 'game not found';
   end if;
-  if g.digits_assigned_at is null then
+  if v_clear then
+    if g.digits_assigned_at is not null then
+      raise exception 'G%: drawn; only digits written with no draw are cleared', lpad(g.game_no::text, 2, '0');
+    end if;
+    if g.row_digits is null and g.col_digits is null then
+      raise exception 'G%: no digits to clear', lpad(g.game_no::text, 2, '0');
+    end if;
+  elsif g.digits_assigned_at is null then
     raise exception 'G%: not drawn; draw it instead', lpad(g.game_no::text, 2, '0');
   end if;
   if g.halftime_scored_at is not null or g.final_scored_at is not null then
     raise exception 'G%: scored; digits behind a score never change', lpad(g.game_no::text, 2, '0');
+  end if;
+  if v_clear then
+    v_before := digits_sha256(g.row_digits, g.col_digits);
+    insert into audit_log (actor, action, target_table, target_id, before, after, note)
+    values (p_actor, 'digits_override', 'games', g.id::text,
+            jsonb_build_object('game_no', g.game_no, 'row_digits', g.row_digits, 'col_digits', g.col_digits,
+                               'digits_sha256', v_before),
+            jsonb_build_object('game_no', g.game_no, 'cleared', true, 'txid', txid_current()::text, 'reason', v_reason),
+            v_reason);
+    perform set_config('tnf.digits_override', g.id::text, true);
+    update games set row_digits = null, col_digits = null where id = g.id;
+    perform set_config('tnf.digits_override', '', true);
+    return jsonb_build_object('game_no', g.game_no, 'before_sha256', v_before, 'after_sha256', null, 'cleared', true);
   end if;
   v_before := digits_sha256(g.row_digits, g.col_digits);
   v_after := digits_sha256(p_row_digits, p_col_digits);
@@ -305,6 +380,8 @@ begin
            'game_no', g.game_no,
            'actual', digits_sha256(g.row_digits, g.col_digits),
            'expected', digits_expected_sha256(g.id),
+           -- drawn false: digits written with no draw; their exit is the clear.
+           'drawn', g.digits_assigned_at is not null,
            'ok', g.digits_assigned_at is not null
                  and digits_expected_sha256(g.id) is not null
                  and digits_expected_sha256(g.id) = digits_sha256(g.row_digits, g.col_digits))
@@ -357,12 +434,13 @@ begin
         v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'digits present with no draw; Anthony''s call');
         continue;
       end if;
-      if not g.date_confirmed then
-        v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'date unconfirmed, not drawn');
-        continue;
-      end if;
+      -- Past kickoff first, so 'date unconfirmed' always means kickoff is ahead.
       if g.kickoff_at <= now() then
         v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'past kickoff, not drawn');
+        continue;
+      end if;
+      if not g.date_confirmed then
+        v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'date unconfirmed, not drawn');
         continue;
       end if;
       v_rows := digit_permutation();
@@ -480,7 +558,8 @@ as $$
       'published', d.pub,
       'row_digits', case when d.pub then to_jsonb(d.row_digits) end,
       'col_digits', case when d.pub then to_jsonb(d.col_digits) end,
-      'digits_ok', case when d.pub then digits_expected_sha256(d.id) = digits_sha256(d.row_digits, d.col_digits) end,
+      'digits_ok', case when d.pub then d.digits_assigned_at is not null
+                                        and digits_expected_sha256(d.id) = digits_sha256(d.row_digits, d.col_digits) end,
       'halftime_away', d.halftime_away,
       'halftime_home', d.halftime_home,
       'halftime_block', d.halftime_block,

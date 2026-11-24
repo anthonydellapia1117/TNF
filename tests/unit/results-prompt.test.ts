@@ -13,7 +13,10 @@ const CLAIM = `set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail
 const APPROVAL =
   "Anthony approved the game-day flow and the kickoff, game-day and winners templates in the TNF PM chat on 2026-11-23 at 2:53 PM ET (Part N)";
 const line = (p: string) => PROMPT.split("\n").find((l) => l.startsWith(p)) ?? "";
-
+const HEAD = DOC.split("```")[0] ?? "";
+const CLAUDE_MD = readFileSync(join(process.cwd(), "CLAUDE.md"), "utf8");
+const flat = (s: string) => s.replace(/\s+/g, " ");
+// S2 (review round two): digits written by hand with no draw have one exit.
 describe("results prompt", () => {
   it("has exactly two code fences", () => {
     expect(FENCES).toHaveLength(2);
@@ -95,14 +98,88 @@ describe("results prompt", () => {
   it("stages one row per problem class and date, each saying what Anthony does for that problem", () => {
     const five = line("5.");
     expect(five).toMatch(/select admin_stage_pending\('unclassified_mail', <payload>, '<source>', 'tnf-results'\)::text \(with the claim\)/);
-    expect(five).toMatch(/The source is 'scores:G' for a problem from 2 or 3, and 'winners:G' for a problem from 1 or 4/);
-    expect(five).toMatch(/a score problem from 3 is "Nothing was scored or sent\. Enter halftime and final at \/admin\/score"/);
-    expect(five).toMatch(/a winning block with no payout behind it \(4b\) is "Nothing was sent\. That is Anthony's call, for example record the payment and re-enter that score at \/admin\/score"/);
-    expect(five).toMatch(/a claim with no send \(1, 4b, 4c, 4d\) is "[^"]*Check Gmail Sent, then admin_email_unsent\(\)"/);
+    expect(five).toMatch(/The source is 'scores:G' for a problem from 0a, 2 or 3, and 'winners:G' for a problem from 1 or 4/);
+    expect(five).toMatch(/a score problem from 3 or 3a is "Nothing was scored or sent\. Enter halftime and final at \/admin\/score/);
+    expect(five).toMatch(/a winning block with no payout behind it \(4a or 4b\) is "Nothing was sent\. That is Anthony's call, for example record the payment and re-enter that score at \/admin\/score"/);
+    expect(five).toMatch(/a claim with no send \(1, 4b when the envelope_md5 does not match, 4c, 4d\) is "Check Gmail Sent\./);
     expect(five).toMatch(/<the action>, then run TNF Results again from claude\.ai\/code > Routines before noon ET the next day\."/);
     expect(five).toMatch(/If the stage refuses as already staged and still open, that row stands: do not stage again, and the new problem goes in the run report/);
     expect(five).toMatch(/Send nothing/);
     expect(PROMPT).not.toMatch(/'scores:G', 'tnf-results'/);
+  });
+
+  // Review round two: a failed clone or install was a report line only.
+  it("stages a failed clone or install under scores:G through the connector when there is work, and stops", () => {
+    const a = line("0a.");
+    expect(a).not.toMatch(/the report is one NEEDS ANTHONY line naming the failed step/);
+    expect(a).toMatch(/If the clone or the install fails, run 1 with the Supabase connector, which needs no repo\./);
+    expect(a).toMatch(/If 1 ends the run, its report stands, with one NEEDS ANTHONY line naming the failed step added\./);
+    // Round three: before the cutoff a clone failure stages nothing (the next
+    // run retries; a row now would hold the source a real problem needs).
+    expect(a).toContain("Otherwise, earlier than the cutoff (4 hours 30 minutes after last_kickoff from 1), the report is that one NEEDS ANTHONY line, nothing is staged and the next run tries again; at the cutoff or later, stage as in 5 (source 'scores:G', step 0a, the summary naming the failed step). Either way stop.");
+    expect(line("5.")).toMatch(/The source is 'scores:G' for a problem from 0a, 2 or 3,/);
+    expect(line("5.")).toContain(`a failed clone or install (0a) is "Nothing was scored or sent. Fix what the message names"`);
+    expect(flat(HEAD)).toMatch(/a failed clone or install included, under `scores:<date>`/);
+    const row = ROUTINES.split("\n").find((l) => l.startsWith("| 4 | TNF Results |")) ?? "";
+    expect(row).toMatch(/when a check fails, a failed clone or install included/);
+  });
+
+  // A claim with no send is never sent by a re-run (1 stops on it), so its row
+  // says how Anthony settles it and does not tell him to run TNF Results again.
+  it("tells Anthony how to settle a claim with no send, and does not end that row with the re-run sentence", () => {
+    const five = line("5.");
+    expect(five).toContain(
+      `a claim with no send (1, 4b when the envelope_md5 does not match, 4c, 4d) is "Check Gmail Sent. If it went, record it: select admin_email_record_sent_broadcast('winners_G', '<message id>', '<sha>', 'anthony'). If it did not, the claim stays and a send now is by hand; TNF Results will not send it."`,
+    );
+    expect(five).toMatch(/before noon ET the next day\.", except for a claim with no send, whose summary ends with its action\./);
+    expect(five).not.toMatch(/The winners email is claimed and not recorded as sent\. Check Gmail Sent, then admin_email_unsent\(\)/);
+  });
+
+  it("keys the no-payout refusal to the renderer or the claim", () => {
+    expect(line("5.")).toContain("a winning block with no payout behind it (4a or 4b) is");
+    expect(line("5.")).not.toContain("a winning block with no payout behind it (4b) is");
+  });
+
+  it("says a failure partway through 3b leaves what was written standing", () => {
+    expect(line("5.")).toContain(
+      `a failure in 3b is "Some scores may be written; what was written stands and the next run finishes the rest. If it keeps failing, enter halftime and final at /admin/score"`,
+    );
+  });
+
+  // S5: once Anthony enters both scores at /admin/score, npm run scores lets
+  // them stand when ESPN cannot confirm them, so a re-run sends the email.
+  it("tells Anthony a re-run sends the winners email once both scores are entered", () => {
+    expect(line("5.")).toContain(
+      `a score problem from 3 or 3a is "Nothing was scored or sent. Enter halftime and final at /admin/score (once both are entered there, a re-run sends the winners email even if ESPN still cannot confirm them)"`,
+    );
+  });
+
+  it("prints the lock's hashes with none for a missing draw row, and sends digits with no draw to the clear", () => {
+    expect(line("2.")).toContain(`"G<xx> digits do not match their draw row (expected <first 12 of expected, or none>, now <first 12 of actual>)"`);
+    expect(line("5.")).toContain(`digits written with no draw (2, drawn false) are "Nothing was scored or sent. G<xx> has digits written with no draw, and past kickoff it can no longer be drawn or scored: Anthony's call (admin_override_digits(<game>, null, null, <reason>, 'anthony') clears them)"`);
+    expect(line("5.")).toContain(`digits that changed after their draw (2, drawn true) are "Nothing was scored or sent. Anthony's call: admin_override_digits with the drawn digits (its draw audit row has them) restores them, before any score"`);
+    expect(PROMPT).not.toMatch(/the next run draws it/);
+  });
+
+  it("says a problem of the other class gets its own row and a second of the same class goes in the report", () => {
+    expect(line("5.")).toContain(
+      "so a problem of the other class gets its own row; a second problem of the same class goes in the run report",
+    );
+    expect(PROMPT).not.toMatch(/a later, different problem/);
+    expect(flat(ROUTINES)).not.toMatch(/a later, different problem gets its/);
+    expect(flat(ROUTINES)).toContain(
+      "so a problem of the other class gets its own row; a second problem of the same class goes in the run report",
+    );
+  });
+
+  // Review round two: CLAUDE.md read as if every problem waited for the
+  // cutoff. Only a game not final, or ESPN not answering, waits.
+  it("CLAUDE.md says any problem other than not final is staged at once", () => {
+    const part = flat(CLAUDE_MD.split("- **Thanksgiving game-day automation")[1]?.split("\n- **")[0] ?? "");
+    expect(part).toContain(
+      "Only a game not final (or not yet kicked off), or ESPN not answering, waits: until 4 hours 30 minutes after the date's last kickoff the results run tries again at the next fire, and after that it is NEEDS ANTHONY. Any other problem is NEEDS ANTHONY at once.",
+    );
+    expect(part).not.toMatch(/after that, anything else is NEEDS ANTHONY/);
   });
 
   it("is what the routine's saved pointer names", () => {

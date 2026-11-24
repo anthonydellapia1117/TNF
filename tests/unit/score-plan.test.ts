@@ -215,4 +215,127 @@ describe("score plan", () => {
     expect(p.games[0].action).toBe("problem");
     expect(p.sql).toEqual([]);
   });
+
+  it("refuses game_no 0, since no game is numbered below 1", () => {
+    const p = planScores(day(GB({ game_no: 0 }), KC()), TG());
+    expect(p.ready).toBe(false);
+    expect(p.games[0].action).toBe("problem");
+    expect(p.games[0].problems[0]).toMatch(/^game_no 0 /);
+    expect(p.games[1].action).toBe("score");
+    expect(p.sql).toEqual([]);
+  });
+
+  // S5: once Anthony enters both halves at /admin/score for a staged problem,
+  // a re-run has to let the game stand so the winners email can go.
+  const noGB = () => TG().filter((g) => g.away.name !== "Green Bay Packers");
+  const KC_CIN_SQL = [
+    sqlLine(3, "halftime", 14, 17),
+    sqlLine(3, "final", 28, 31),
+    sqlLine(4, "halftime", 12, 7),
+    sqlLine(4, "final", 32, 14),
+  ];
+
+  it("lets a fully entered game ESPN does not list stand as entered: no line, a note, and the date ready", () => {
+    const p = planScores(day(GB(GB_DONE), KC(), CIN()), noGB());
+    expect(p.ready).toBe(true);
+    expect(p.games[0]).toEqual({
+      game_no: 2,
+      action: "already_scored",
+      problems: [],
+      note: "ESPN could not confirm the score entered, 17-14-31-24 (away-home halftime, away-home final), so it stands as entered: ESPN has no Green Bay Packers at Detroit Lions on that date",
+    });
+    expect(p.games[0].halftime).toBeUndefined();
+    expect(p.games[0].final).toBeUndefined();
+    expect(p.games.map((g) => g.action)).toEqual(["already_scored", "score", "score"]);
+    expect(p.sql).toEqual(KC_CIN_SQL);
+  });
+
+  it("lets a fully entered game ESPN says is not final stand as entered, with ESPN's problem in the note", () => {
+    const board = TG();
+    board[0] = { ...board[0], completed: false, statusName: "STATUS_IN_PROGRESS" };
+    const p = planScores(day(GB(GB_DONE), KC(), CIN()), board);
+    expect(p.ready).toBe(true);
+    expect(p.games[0].action).toBe("already_scored");
+    expect(p.games[0].problems).toEqual([]);
+    expect(p.games[0].note).toBe(
+      "ESPN could not confirm the score entered, 17-14-31-24 (away-home halftime, away-home final), so it stands as entered: not final (STATUS_IN_PROGRESS)",
+    );
+    expect(p.sql).toEqual(KC_CIN_SQL);
+  });
+
+  it("lets a fully entered game stand when ESPN lists it flipped, twice or with periods that do not add up", () => {
+    const flipped = TG().map((g, i) => (i === 0 ? { ...g, away: g.home, home: g.away } : g));
+    const twice = [...TG(), structuredClone(TG()[0])];
+    const badSum = TG().map((g, i) => (i === 0 ? { ...g, away: { ...g.away, periods: [17, 0, 0, 0] } } : g));
+    for (const [board, why] of [
+      [flipped, "ESPN lists Detroit Lions at Green Bay Packers, the other way round from the pool"],
+      [twice, "ESPN has 2 games Green Bay Packers at Detroit Lions"],
+      [badSum, "away periods sum to 17, total says 31"],
+    ] as const) {
+      const p = planScores(day(GB(GB_DONE), KC(), CIN()), [...board]);
+      expect(p.ready).toBe(true);
+      expect(p.games[0].action).toBe("already_scored");
+      expect(p.games[0].note).toMatch(new RegExp(`stands as entered: ${why}$`));
+      expect(p.sql).toEqual(KC_CIN_SQL);
+    }
+  });
+
+  it("keeps a fully entered game ESPN confirms with other numbers a problem, with no note", () => {
+    const p = planScores(day(GB({ ...GB_DONE, halftime_home: 10 }), KC(), CIN()), TG());
+    expect(p.ready).toBe(false);
+    expect(p.games[0].action).toBe("problem");
+    expect(p.games[0].problems).toEqual([
+      "already scored 17-10-31-24 (away-home halftime, away-home final), ESPN says 17-14-31-24; never re-scored automatically",
+    ]);
+    expect(p.games[0].note).toBeUndefined();
+    expect(p.sql).toEqual([]);
+  });
+
+  it("keeps a game with only part of its score entered a problem when ESPN cannot confirm it", () => {
+    for (const over of [
+      { halftime_away: 17, halftime_home: 14 },
+      { final_away: 31, final_home: 24 },
+      { ...GB_DONE, final_home: null },
+    ]) {
+      const p = planScores(day(GB(over), KC(), CIN()), noGB());
+      expect(p.ready).toBe(false);
+      expect(p.games[0].action).toBe("problem");
+      expect(p.games[0].problems).toEqual(["ESPN has no Green Bay Packers at Detroit Lions on that date"]);
+      expect(p.games[0].note).toBeUndefined();
+      expect(p.sql).toEqual([]);
+    }
+  });
+
+  // Round three of the Part N review: a game is planned only behind published
+  // digits that match their draw; a cleared or tampered grid is never scored.
+  it("refuses a game whose digits are not published or do not match their draw", () => {
+    for (const over of [{ published: false }, { digits_ok: false }, { digits_ok: null }] as Partial<DayGame>[]) {
+      const p = planScores(day(GB(over), KC()), TG());
+      expect(p.ready).toBe(false);
+      expect(p.sql).toEqual([]);
+      expect(p.games[0].action).toBe("problem");
+      expect(p.games[0].problems.join(" ")).toMatch(/digits are not published or do not match their draw row/);
+    }
+  });
+
+  it("stands a game as entered only with all four scores in, each one checked", () => {
+    for (const k of ["halftime_away", "halftime_home", "final_away", "final_home"] as const) {
+      const p = planScores(day(GB({ ...GB_DONE, [k]: null })), []);
+      expect(p.games[0].action).toBe("problem");
+      expect(p.ready).toBe(false);
+    }
+  });
+
+  it("joins every ESPN problem into the note", () => {
+    const bad = TG();
+    const g = bad.find((x) => x.away.name === "Green Bay Packers") as EspnGame;
+    g.completed = false;
+    g.statusName = "STATUS_IN_PROGRESS";
+    const p = planScores(day(GB(GB_DONE)), bad);
+    expect(p.games[0].action).toBe("already_scored");
+    expect(p.games[0].note).toMatch(/stands as entered: not final \(STATUS_IN_PROGRESS\)$/);
+    const two = planScores(day(GB(GB_DONE)), [...TG(), ...TG()]);
+    expect(two.games[0].note).toMatch(/stands as entered: ESPN has 2 games/);
+  });
+
 });

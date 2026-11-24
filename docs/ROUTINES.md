@@ -7,9 +7,9 @@ that did not match what this file claimed.
 | # | Name | Trigger | Stored cron (UTC) | Writes | Connectors on it |
 |---|------|---------|-------------------|--------|------------------|
 | 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
-| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15 1,24-28,31 1,11,12 *` (Part N: 9:10 AM ET and a 10:10 AM re-fire) | `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline | Gmail, Supabase |
-| 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed; **paused 2026-11-23 (Part N)**, its checks fold into TNF Game Day step 2 |
-| 4 | TNF Results | `TNF Results` (Part N, created 2026-11-23; id in list_triggers) | `25 0-7,21-23 1,24-28,31 1,11,12 *` | scores through `admin_score_game` from ESPN, the winners email, one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails | Gmail, Supabase |
+| 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15 1,24-28,31 1,11,12 *` (Part N: 9:10 AM ET and a 10:10 AM re-fire) | `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline, a failed clone or install included | Gmail, Supabase |
+| 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed; **paused 2026-11-23 (Part N)**, its checks fold into TNF Game Day steps 2, 4a and 6 |
+| 4 | TNF Results | `TNF Results` (Part N, created 2026-11-23; id in list_triggers) | `25 0-7,21-23 1,24-28,31 1,11,12 *` | scores through `admin_score_game` from ESPN, the winners email, one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
 
 **Part N (Anthony, 2026-11-23, approved in the TNF PM chat at 2:53 PM ET).**
 Digits are drawn per day, not per week: the morning run calls `admin_draw_day`
@@ -130,9 +130,11 @@ session does.
   prompts' 0c are the same list and are meant to be read together.
 - No routine marks a payout Paid, moves money, confirms a date or resolves an
   identity. TNF Game Day draws and publishes digits only through `admin_draw_day`,
-  once per game date, for that ET date's games only. TNF Results scores a game
-  only through the `admin_score_game` lines `npm run scores` prints, never a
-  typed score and never a re-score. Drawing at `/admin/digits` and entering or
+  for that ET date's games only: the 9:10 run calls it once per game date, and
+  the 10:10 re-fire calls it again, a call that changes nothing when the 9:10
+  run did its work. TNF Results scores a game only through the
+  `admin_score_game` lines `npm run scores` prints, never a typed score and
+  never a re-score. Drawing at `/admin/digits` and entering or
   correcting a score at `/admin/score` stay Anthony's.
 - The Survivor pool is never read, referenced or mentioned.
 - A report is a `NEEDS ANTHONY` section, one line per item with the admin
@@ -482,15 +484,18 @@ this section as "handled" until that is done:
 
 Both Part N routines stage now. TNF Game Day stages its NEEDS ANTHONY lines as
 one `unclassified_mail` row per date (source `gameday:<date>`) on a game date
-or the claim deadline: a failed draw or a lock mismatch on a game morning
-cannot wait for the next morning, because a game past kickoff can never be
-drawn. TNF Results stages one row per problem class and game date (sources
-`scores:<date>` and `winners:<date>`), so a later, different problem gets its
-own row. What is still only a transcript: TNF Game Day's lines on a date with
-no game and no kickoff email (the morning after a game date, which names a
-game not final; TNF Results stages that one under `scores:<date>`), and
-anything a stage refused because its row was already open. Draw Window is
-paused.
+or the claim deadline, a failed clone or install included (the lock, the slate
+and the draw still run through the Supabase connector, and no email goes): a
+failed draw or a lock mismatch on a game morning cannot wait for the next
+morning, because a game past kickoff can never be drawn. TNF Results stages one
+row per problem class and game date (sources `scores:<date>` and
+`winners:<date>`, a failed clone or install under `scores:<date>`), so a
+problem of the other class gets its own row; a second problem of the same
+class goes in the run report. What is still only a transcript: TNF Game Day's
+lines on a date with no game and no kickoff email (the morning after a game
+date, which names a game not final; TNF Results stages that one under
+`scores:<date>`), and anything a stage refused because its row was already
+open. Draw Window is paused.
 
 ## Health checks
 
