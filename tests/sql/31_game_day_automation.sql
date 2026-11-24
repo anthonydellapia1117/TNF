@@ -13,7 +13,17 @@
 -- redraw a drawn game (3); drop the hash from the draw row (2); let the
 -- guard pass without the override's audit row (5); let anyone but Anthony
 -- override (6); drop the claim's ready check (9); put DN or GD on Cc (8);
--- let the claim take an omitted owner (9).
+-- let the claim take an omitted owner (9). Review of PR 42, each verified to
+-- raise: lock only drawn games, not digits written with no draw (7b); let a
+-- hand-written override row through for the sweep's name, a short reason
+-- (5) or a scored game (10b); drop the delete or the truncate trigger (5);
+-- leave raw digits out of verify, or call them ok with a matching row (7b);
+-- let the morning run draw over them (7b); let the per-recipient claim take
+-- a broadcast key (8b).
+--
+-- Every assertion that reads a value is NULL-safe (CLAUDE.md, migrations 15
+-- and 16): IS DISTINCT FROM, IS NOT TRUE, or coalesce, never a bare <> or
+-- NOT LIKE that a NULL turns into a silent pass.
 
 begin;
 
@@ -92,13 +102,13 @@ begin
   end;
   perform set_config('request.jwt.claims', '{"email":"anthonydellapia@gmail.com"}', true);
   if digits_sha256(array[0,1,2,3,4,5,6,7,8,9], array[9,8,7,6,5,4,3,2,1,0])
-     <> encode(sha256(convert_to('0,1,2,3,4,5,6,7,8,9|9,8,7,6,5,4,3,2,1,0', 'UTF8')), 'hex') then
+     is distinct from encode(sha256(convert_to('0,1,2,3,4,5,6,7,8,9|9,8,7,6,5,4,3,2,1,0', 'UTF8')), 'hex') then
     raise exception 'TEST FAILURE: digits_sha256 is not sha256 of rows|cols';
   end if;
   for i in 1..20 loop
     a := digit_permutation();
     b := digit_permutation();
-    if (select array_agg(x order by x) from unnest(a) x) <> array[0,1,2,3,4,5,6,7,8,9] then
+    if (select array_agg(x order by x) from unnest(a) x) is distinct from array[0,1,2,3,4,5,6,7,8,9] then
       raise exception 'TEST FAILURE: digit_permutation is not a permutation: %', a;
     end if;
     if a = b then same := same + 1; end if;
@@ -126,7 +136,7 @@ begin
      is distinct from array[4, 5] then
     raise exception 'TEST FAILURE: problems %, expected G04 past kickoff and G05 unconfirmed', v -> 'problems';
   end if;
-  if exists (select 1 from jsonb_array_elements(v -> 'games') x where x ->> 'state' <> 'drawn_and_published') then
+  if exists (select 1 from jsonb_array_elements(v -> 'games') x where x ->> 'state' is distinct from 'drawn_and_published') then
     raise exception 'TEST FAILURE: states %', v -> 'games';
   end if;
   if exists (select 1 from games where game_no in (3, 4, 5) and digits_assigned_at is not null) then
@@ -137,7 +147,7 @@ begin
   if g1.digits_published_at is null or g1.digits_published_at > now() or g1.status <> 'published' then
     raise exception 'TEST FAILURE: G01 not published at once (%, %)', g1.digits_published_at, g1.status;
   end if;
-  if g1.row_digits = g2.row_digits and g1.col_digits = g2.col_digits then
+  if g1.row_digits is not distinct from g2.row_digits and g1.col_digits is not distinct from g2.col_digits then
     raise exception 'TEST FAILURE: G01 and G02 share a permutation';
   end if;
   select count(*) into n from audit_log
@@ -148,7 +158,7 @@ begin
   if n <> 2 then
     raise exception 'TEST FAILURE: % draw rows carry the right hash, expected 2', n;
   end if;
-  if not (v -> 'verify' ->> 'all_ok')::boolean then
+  if (v -> 'verify' ->> 'all_ok')::boolean is not true then
     raise exception 'TEST FAILURE: verify after the draw: %', v -> 'verify';
   end if;
 end $$;
@@ -163,14 +173,17 @@ declare
 begin
   select count(*) into n0 from audit_log;
   select digits_sha256(row_digits, col_digits) into h0 from games where game_no = 1;
+  if h0 is null then
+    raise exception 'TEST FAILURE: fixture: G01 has no digits before the re-run';
+  end if;
   v := admin_draw_day('tnf-game-day');
   if (select count(*) from audit_log) <> n0 then
     raise exception 'TEST FAILURE: the re-run wrote % audit rows', (select count(*) from audit_log) - n0;
   end if;
-  if exists (select 1 from jsonb_array_elements(v -> 'games') x where x ->> 'state' <> 'already_drawn') then
+  if exists (select 1 from jsonb_array_elements(v -> 'games') x where x ->> 'state' is distinct from 'already_drawn') then
     raise exception 'TEST FAILURE: re-run states %', v -> 'games';
   end if;
-  if (select digits_sha256(row_digits, col_digits) from games where game_no = 1) <> h0 then
+  if (select digits_sha256(row_digits, col_digits) from games where game_no = 1) is distinct from h0 then
     raise exception 'TEST FAILURE: G01 changed on the re-run';
   end if;
 end $$;
@@ -185,25 +198,32 @@ begin
   update games set kickoff_at = (select later_today from t_when) + interval '4 minutes' where game_no = 3;
   perform admin_assign_digits((select id from games where game_no = 3), 'anthony');
   select digits_sha256(row_digits, col_digits) into h0 from games where game_no = 3;
+  if h0 is null then
+    raise exception 'TEST FAILURE: G03 has no digits after the manual draw';
+  end if;
   if (select after ->> 'digits_sha256' from audit_log where action = 'assign_digits'
-        and target_id = (select id::text from games where game_no = 3) order by id desc limit 1) <> h0 then
+        and target_id = (select id::text from games where game_no = 3) order by id desc limit 1) is distinct from h0 then
     raise exception 'TEST FAILURE: the manual draw row has no hash, or the wrong one';
   end if;
   v := admin_draw_day('tnf-game-day');
-  if (select x ->> 'state' from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 3) <> 'already_drawn_and_published' then
+  if (select x ->> 'state' from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 3) is distinct from 'already_drawn_and_published' then
     raise exception 'TEST FAILURE: G03 state %', v -> 'games';
   end if;
-  if (select digits_sha256(row_digits, col_digits) from games where game_no = 3) <> h0 then
+  if (select digits_sha256(row_digits, col_digits) from games where game_no = 3) is distinct from h0 then
     raise exception 'TEST FAILURE: G03 was redrawn';
   end if;
 end $$;
 
 -- 5. The lock: rows, columns, seed and assigned-at are fixed from every path,
---    a raw UPDATE included; so is a revealed reveal time.
+--    a raw UPDATE included; so is a revealed reveal time. An override row
+--    written by hand opens nothing unless it is one admin_override_digits
+--    itself would write. A drawn game is never deleted or truncated.
 do $$
 declare
   g uuid := (select id from games where game_no = 1);
   stmt text;
+  v_new int[];
+  v_forged text[];
 begin
   foreach stmt in array array[
     'update games set row_digits = array[0,1,2,3,4,5,6,7,8,9] where game_no = 1',
@@ -229,8 +249,91 @@ begin
     raise exception 'TEST FAILURE: the GUC alone let the digits change';
   exception when others then
     if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%immutable once assigned%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
   end;
   perform set_config('tnf.digits_override', '', true);
+
+  -- A hand-written override row, right game, right txid, right hash, the GUC
+  -- set: refused under the sweep's name, and with a reason under 10
+  -- characters. The new rows are G01's reversed, so they always differ.
+  select array(select x from unnest(row_digits) with ordinality t(x, i) order by i desc) into v_new from games where id = g;
+  foreach v_forged slice 1 in array array[array['tnf-sweep', 'a reason that is long enough'],
+                                          array['anthony', 'short'],
+                                          array['anthony', '   short   ']] loop
+    begin
+      insert into audit_log (actor, action, target_table, target_id, after)
+      values (v_forged[1], 'digits_override', 'games', g::text,
+              jsonb_build_object('digits_sha256', digits_sha256(v_new, (select col_digits from games where id = g)),
+                                 'txid', txid_current()::text, 'reason', v_forged[2]));
+      perform set_config('tnf.digits_override', g::text, true);
+      update games set row_digits = v_new where id = g;
+      raise exception 'TEST FAILURE: a hand-written override row (%) let the digits change', array_to_string(v_forged, ' / ');
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%immutable once assigned%' then
+        raise exception 'TEST FAILURE: wrong refusal for the override row (%): %', array_to_string(v_forged, ' / '), sqlerrm;
+      end if;
+    end;
+  end loop;
+  -- Control: the same row under Anthony's name with a real reason is the row
+  -- admin_override_digits writes, and opens the lock, so the refusals above
+  -- are the name and the reason, not the fixture. Rolled back.
+  begin
+    insert into audit_log (actor, action, target_table, target_id, after)
+    values ('anthony', 'digits_override', 'games', g::text,
+            jsonb_build_object('digits_sha256', digits_sha256(v_new, (select col_digits from games where id = g)),
+                               'txid', txid_current()::text, 'reason', 'a reason that is long enough'));
+    perform set_config('tnf.digits_override', g::text, true);
+    update games set row_digits = v_new where id = g;
+    if (select row_digits from games where id = g) is distinct from v_new then
+      raise exception 'TEST FAILURE: control: the override row did not open the lock';
+    end if;
+    raise exception 'ROLLBACK 5 control';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 5 control' then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      raise exception 'TEST FAILURE: control: Anthony''s override row was refused: %', sqlerrm;
+    end if;
+  end;
+  if (select row_digits from games where id = g) is not distinct from v_new
+     or coalesce(current_setting('tnf.digits_override', true), '') <> '' then
+    raise exception 'TEST FAILURE: the control did not roll back';
+  end if;
+
+  -- A drawn game is never deleted (delete and insert would redraw it under a
+  -- new id) or truncated; an undrawn one still can be, rolled back here.
+  begin
+    delete from games where id = g;
+    raise exception 'TEST FAILURE: a drawn game was deleted';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%G01: a drawn game is never deleted%' then raise exception 'TEST FAILURE: wrong refusal for the delete: %', sqlerrm; end if;
+  end;
+  begin
+    perform set_config('client_min_messages', 'warning', true);  -- the cascade notice; reverted with this block
+    truncate games cascade;
+    raise exception 'TEST FAILURE: games were truncated with a drawn game in them';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%a drawn game is never deleted, truncate included%' then
+      raise exception 'TEST FAILURE: wrong refusal for the truncate: %', sqlerrm;
+    end if;
+  end;
+  begin
+    delete from games where game_no = 6 and row_digits is null and col_digits is null and digits_assigned_at is null;
+    if exists (select 1 from games where game_no = 6) then
+      raise exception 'TEST FAILURE: control: an undrawn game could not be deleted';
+    end if;
+    raise exception 'ROLLBACK 5 delete';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 5 delete' then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      raise exception 'TEST FAILURE: control: deleting an undrawn game raised: %', sqlerrm;
+    end if;
+  end;
+  if not exists (select 1 from games where game_no = 6) then
+    raise exception 'TEST FAILURE: the delete control did not roll back';
+  end if;
   begin
     perform admin_assign_digits(g, 'anthony');
     raise exception 'TEST FAILURE: a drawn game was drawn again';
@@ -269,7 +372,7 @@ begin
     if sqlerrm not like '%permutation%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
   end;
   v := admin_override_digits(g, array[0,1,2,3,4,5,6,7,8,9], array[9,8,7,6,5,4,3,2,1,0], 'draw row typo, fixed with Anthony', 'anthony');
-  if (select row_digits from games where id = g) <> array[0,1,2,3,4,5,6,7,8,9] then
+  if (select row_digits from games where id = g) is distinct from array[0,1,2,3,4,5,6,7,8,9] then
     raise exception 'TEST FAILURE: the override did not change the digits';
   end if;
   if not exists (select 1 from audit_log where action = 'digits_override' and target_id = g::text
@@ -278,7 +381,7 @@ begin
                    and after ->> 'digits_sha256' = v ->> 'after_sha256') then
     raise exception 'TEST FAILURE: no override audit row with both hashes and the reason';
   end if;
-  if not (admin_verify_digits() ->> 'all_ok')::boolean then
+  if (admin_verify_digits() ->> 'all_ok')::boolean is not true then
     raise exception 'TEST FAILURE: verify does not follow the override';
   end if;
 end $$;
@@ -292,13 +395,122 @@ begin
   values ('fx', 'assign_digits', 'games', (select id::text from games where game_no = 1),
           jsonb_build_object('game_no', 1, 'row_digits', array[1,0,2,3,4,5,6,7,8,9], 'col_digits', array[0,1,2,3,4,5,6,7,8,9]));
   v := admin_verify_digits();
-  if (v ->> 'all_ok')::boolean
-     or (select (x ->> 'ok')::boolean from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 1) then
+  if (v ->> 'all_ok')::boolean is distinct from false
+     or (select (x ->> 'ok')::boolean from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 1) is distinct from false then
     raise exception 'TEST FAILURE: verify missed a mismatch: %', v;
   end if;
   delete from audit_log where actor = 'fx' and action = 'assign_digits';
-  if not (admin_verify_digits() ->> 'all_ok')::boolean then
+  if (admin_verify_digits() ->> 'all_ok')::boolean is not true then
     raise exception 'TEST FAILURE: verify after the fixture row was removed';
+  end if;
+end $$;
+
+-- 7b. Digits written straight to a game, assigned-at left null (G05, today,
+--     confirmed for this block): locked as if drawn, in verify and never ok,
+--     even beside a matching draw row; reported by the morning run and never
+--     drawn over or published; refused by the manual draw; never deleted.
+--     Rolled back at the end of the block.
+do $$
+declare
+  g uuid := (select id from games where game_no = 5);
+  v jsonb;
+  stmt text;
+begin
+  begin
+    update games set date_confirmed = true,
+                     row_digits = array[0,1,2,3,4,5,6,7,8,9], col_digits = array[9,8,7,6,5,4,3,2,1,0]
+     where id = g and digits_assigned_at is null and row_digits is null and col_digits is null;
+    if (select row_digits from games where id = g) is null then
+      raise exception 'TEST FAILURE: fixture: G05 raw digits not written';
+    end if;
+    foreach stmt in array array[
+      'update games set row_digits = array[1,0,2,3,4,5,6,7,8,9] where game_no = 5',
+      'update games set col_digits = null where game_no = 5',
+      'update games set digit_seed = ''x'' where game_no = 5',
+      'update games set digits_assigned_at = now() where game_no = 5'] loop
+      begin
+        execute stmt;
+        raise exception 'TEST FAILURE: digits with no draw were changed: %', stmt;
+      exception when others then
+        if sqlerrm like 'TEST FAILURE%' then raise; end if;
+        if sqlerrm not like '%immutable once assigned%' then
+          raise exception 'TEST FAILURE: wrong refusal for %: %', stmt, sqlerrm;
+        end if;
+      end;
+    end loop;
+
+    v := admin_verify_digits();
+    if (select (x ->> 'ok')::boolean from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5) is distinct from false
+       or (v ->> 'all_ok')::boolean is distinct from false then
+      raise exception 'TEST FAILURE: verify did not see digits with no draw: %', v;
+    end if;
+    -- A draw row matching them does not make them a draw.
+    insert into audit_log (actor, action, target_table, target_id, after)
+    values ('fx', 'assign_digits', 'games', g::text,
+            jsonb_build_object('game_no', 5, 'row_digits', array[0,1,2,3,4,5,6,7,8,9], 'col_digits', array[9,8,7,6,5,4,3,2,1,0],
+                               'digits_sha256', digits_sha256(array[0,1,2,3,4,5,6,7,8,9], array[9,8,7,6,5,4,3,2,1,0])));
+    v := admin_verify_digits();
+    if (select (x ->> 'ok')::boolean from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5) is distinct from false then
+      raise exception 'TEST FAILURE: verify called digits with no draw ok beside a matching row: %', v;
+    end if;
+
+    begin
+      v := admin_draw_day('tnf-game-day');
+    exception when others then
+      raise exception 'TEST FAILURE: the morning run failed on digits with no draw instead of reporting them: %', sqlerrm;
+    end;
+    if not exists (select 1 from jsonb_array_elements(v -> 'problems') x
+                    where (x ->> 'game_no')::int = 5
+                      and x ->> 'problem' = 'digits present with no draw; Anthony''s call') then
+      raise exception 'TEST FAILURE: the morning run did not report G05''s digits with no draw: %', v -> 'problems';
+    end if;
+    if exists (select 1 from jsonb_array_elements(v -> 'games') x where (x ->> 'game_no')::int = 5) then
+      raise exception 'TEST FAILURE: the morning run took G05: %', v -> 'games';
+    end if;
+    if (select row_digits from games where id = g) is distinct from array[0,1,2,3,4,5,6,7,8,9]
+       or (select col_digits from games where id = g) is distinct from array[9,8,7,6,5,4,3,2,1,0]
+       or (select digits_assigned_at from games where id = g) is not null
+       or (select digits_published_at from games where id = g) is not null then
+      raise exception 'TEST FAILURE: the morning run drew over or published G05';
+    end if;
+
+    -- An override row in the shape admin_override_digits writes opens nothing
+    -- here either: the function overrides a draw, and this is none.
+    begin
+      insert into audit_log (actor, action, target_table, target_id, after)
+      values ('anthony', 'digits_override', 'games', g::text,
+              jsonb_build_object('digits_sha256', digits_sha256(array[1,0,2,3,4,5,6,7,8,9], array[9,8,7,6,5,4,3,2,1,0]),
+                                 'txid', txid_current()::text, 'reason', 'a reason that is long enough'));
+      perform set_config('tnf.digits_override', g::text, true);
+      update games set row_digits = array[1,0,2,3,4,5,6,7,8,9] where id = g;
+      raise exception 'TEST FAILURE: an override row changed digits with no draw';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%immutable once assigned%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+
+    begin
+      perform admin_assign_digits(g, 'anthony');
+      raise exception 'TEST FAILURE: the manual draw drew over digits with no draw';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G05: digits present with no draw%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+
+    begin
+      delete from games where id = g;
+      raise exception 'TEST FAILURE: a game with digits and no draw was deleted';
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%G05: a drawn game is never deleted%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+    end;
+    raise exception 'ROLLBACK 7b';
+  exception when others then
+    if sqlerrm <> 'ROLLBACK 7b' then raise; end if;
+  end;
+  if (select row_digits from games where id = g) is not null
+     or (admin_verify_digits() ->> 'all_ok')::boolean is not true then
+    raise exception 'TEST FAILURE: 7b did not roll back';
   end if;
 end $$;
 
@@ -306,7 +518,7 @@ end $$;
 -- keep any game-day email from going, as they should; take them off the slate.
 do $$
 begin
-  if email_day_not_ready('gameday_' || (select today from t_when)) not like '%G04 digits are not published%' then
+  if coalesce(email_day_not_ready('gameday_' || (select today from t_when)), '') not like '%G04 digits are not published%' then
     raise exception 'TEST FAILURE: an undrawn game of today did not stop the game-day email';
   end if;
   update games set status = 'void' where game_no in (4, 5);
@@ -328,8 +540,42 @@ begin
   if array(select jsonb_array_elements_text(v -> 'bcc')) is distinct from array['gd@tnf.test', 'h1@tnf.test', 'h6@tnf.test'] then
     raise exception 'TEST FAILURE: Bcc %', v -> 'bcc';
   end if;
-  if (v ->> 'h')::int <> 6 or (v ->> 't')::int <> 2 or (v ->> 'x')::int <> 1 or (v ->> 'bcc_count')::int <> 3 then
+  if (v ->> 'h')::int is distinct from 6 or (v ->> 't')::int is distinct from 2 or (v ->> 'x')::int is distinct from 1
+     or (v ->> 'bcc_count')::int is distinct from 3 then
     raise exception 'TEST FAILURE: arithmetic %', v - 'bcc' - 'cc' - 'to';
+  end if;
+end $$;
+
+-- 8b. The per-recipient claim takes no broadcast key: a winners row claimed
+--     for Anthony would skip the approval and the readiness check and then
+--     refuse the real claim as already claimed. Each key is one
+--     admin_email_recipients answers for Anthony's address.
+do $$
+declare
+  d text := (select today from t_when)::text;
+  k text;
+begin
+  foreach k in array array['recruit_broadcast_' || d, 'format_change_' || d,
+                           'kickoff_' || d, 'gameday_' || d, 'winners_' || d] loop
+    if not exists (select 1 from admin_email_recipients(k) r where r.recipient = 'avd-primary@tnf.test') then
+      raise exception 'TEST FAILURE: fixture: % does not derive Anthony''s address', k;
+    end if;
+    begin
+      perform admin_email_claim(k, 'avd-primary@tnf.test', repeat('a', 64), 'tnf-results');
+      raise exception 'TEST FAILURE: the per-recipient claim took %', k;
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm is distinct from k || ' is a broadcast: use admin_email_claim_broadcast' then
+        raise exception 'TEST FAILURE: wrong refusal for %: %', k, sqlerrm;
+      end if;
+    end;
+  end loop;
+  if exists (select 1 from email_sends where event_key like '%' || d) then
+    raise exception 'TEST FAILURE: a refused per-recipient claim left rows';
+  end if;
+  -- Per-recipient keys still claim.
+  if admin_email_claim('answer_8b8b', 'h1@tnf.test', repeat('a', 64), 'tnf-sweep') is null then
+    raise exception 'TEST FAILURE: an answer claim returned no id';
   end if;
 end $$;
 
@@ -375,7 +621,8 @@ begin
     raise exception 'TEST FAILURE: a refused claim left rows';
   end if;
   c := admin_email_claim_broadcast(k, sha, '{}', 3, 3, 'tnf-game-day', appr);
-  if (c ->> 'to')::int <> 1 or (c ->> 'cc')::int <> 2 or (c ->> 'bcc')::int <> 3 or (c ->> 'claimed')::int <> 6 then
+  if (c ->> 'to')::int is distinct from 1 or (c ->> 'cc')::int is distinct from 2 or (c ->> 'bcc')::int is distinct from 3
+     or (c ->> 'claimed')::int is distinct from 6 then
     raise exception 'TEST FAILURE: claim %', c;
   end if;
   if not exists (select 1 from audit_log where action = 'email_claim_broadcast' and target_id = k and note = appr) then
@@ -415,9 +662,57 @@ begin
   end if;
   -- One payout voided: the email is Anthony's call.
   update payouts set status = 'void' where id = (select id from payouts order by created_at limit 1);
-  if email_day_not_ready(w) not like '%no payout behind it%' then
+  if coalesce(email_day_not_ready(w), '') not like '%no payout behind it%' then
     raise exception 'TEST FAILURE: a winner with no payout did not stop the email: %', email_day_not_ready(w);
   end if;
+end $$;
+
+-- 10b. Digits behind a score never change: an override row in the shape
+--      admin_override_digits writes, Anthony's with a real reason, opens
+--      nothing once a half is scored, the halftime alone or the final alone
+--      (each half cleared by hand for its case, rolled back), and the
+--      function refuses too.
+do $$
+declare
+  g uuid := (select id from games where game_no = 1);
+  v_new int[];
+  v_case text;
+begin
+  if (select halftime_scored_at is null or final_scored_at is null from games where id = g) is distinct from false then
+    raise exception 'TEST FAILURE: fixture: G01 is not scored at both halves';
+  end if;
+  select array(select x from unnest(row_digits) with ordinality t(x, i) order by i desc) into v_new from games where id = g;
+  foreach v_case in array array['halftime only', 'final only', 'both'] loop
+    begin
+      if v_case = 'halftime only' then
+        update games set final_home = null, final_away = null, final_block = null, final_scored_at = null where id = g;
+      elsif v_case = 'final only' then
+        update games set halftime_home = null, halftime_away = null, halftime_block = null, halftime_scored_at = null where id = g;
+      end if;
+      insert into audit_log (actor, action, target_table, target_id, after)
+      values ('anthony', 'digits_override', 'games', g::text,
+              jsonb_build_object('digits_sha256', digits_sha256(v_new, (select col_digits from games where id = g)),
+                                 'txid', txid_current()::text, 'reason', 'a reason that is long enough'));
+      perform set_config('tnf.digits_override', g::text, true);
+      update games set row_digits = v_new where id = g;
+      raise exception 'TEST FAILURE: an override row changed a scored game''s digits (%)', v_case;
+    exception when others then
+      if sqlerrm like 'TEST FAILURE%' then raise; end if;
+      if sqlerrm not like '%immutable once assigned%' then
+        raise exception 'TEST FAILURE: wrong refusal for the scored game (%): %', v_case, sqlerrm;
+      end if;
+    end;
+  end loop;
+  if (select halftime_scored_at is null or final_scored_at is null from games where id = g) is distinct from false then
+    raise exception 'TEST FAILURE: 10b did not roll back its fixture';
+  end if;
+  begin
+    perform admin_override_digits(g, v_new, (select col_digits from games where id = g), 'a reason that is long enough', 'anthony');
+    raise exception 'TEST FAILURE: admin_override_digits changed a scored game';
+  exception when others then
+    if sqlerrm like 'TEST FAILURE%' then raise; end if;
+    if sqlerrm not like '%scored; digits behind a score never change%' then raise exception 'TEST FAILURE: wrong refusal: %', sqlerrm; end if;
+  end;
 end $$;
 
 -- 11. Public history: as anon, today's published grids show their digits and

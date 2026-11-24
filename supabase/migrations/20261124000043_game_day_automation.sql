@@ -9,11 +9,16 @@
 --    Anthony drew by hand and did not publish is published. Idempotent: a
 --    second call the same day draws and publishes nothing.
 -- 2. Locks. Every draw's audit row carries digits_sha256, and
---    admin_verify_digits re-checks every drawn game against its latest draw or
---    override row. games_digits_immutable keeps rows, columns and seed fixed
---    once drawn, from every path, and now also keeps a revealed reveal time
+--    admin_verify_digits re-checks every game with digits against its latest
+--    draw or override row, digits written with no draw included (no row: not
+--    ok). games_digits_immutable keeps rows, columns and seed fixed once any
+--    digits exist, from every path, and now also keeps a revealed reveal time
 --    fixed. The single exception is admin_override_digits: Anthony's, with a
---    reason, its own audit row in the same transaction, before any score.
+--    reason, its own audit row in the same transaction, before any score; the
+--    lock re-checks the name, the reason and the scores itself, so an audit
+--    row written by hand opens nothing the function would refuse. A game with
+--    digits is never deleted (games_never_delete_drawn) or truncated, so a
+--    published grid cannot be redrawn by delete and insert.
 -- 3. The three game-day emails (kickoff_, gameday_ and winners_<date>): To
 --    Anthony, Cc RM and MAP, Bcc every holder's own address minus To and Cc,
 --    owners' alts and the blocklist. No other owner unless he holds a block,
@@ -23,6 +28,10 @@
 --    behind every winner, so a failed check sends nothing.
 -- 4. admin_audit_note: an audited note for an approval, a migration or a
 --    routine edit, the three things Part N asked to have on the record.
+-- 5. admin_email_claim, the per-recipient claim, refuses every broadcast key
+--    (recruit_broadcast_, format_change_, kickoff_, gameday_, winners_<date>):
+--    those go only through admin_email_claim_broadcast, with its approval and
+--    readiness checks, and a per-recipient row would block the real claim.
 
 -- ---------------------------------------------------------------------------
 -- Digits: hash and fresh permutation.
@@ -104,6 +113,9 @@ begin
   if g.digits_assigned_at is not null then
     raise exception 'G%: digits are already assigned and immutable', lpad(g.game_no::text, 2, '0');
   end if;
+  if g.row_digits is not null or g.col_digits is not null then
+    raise exception 'G%: digits present with no draw; Anthony''s call', lpad(g.game_no::text, 2, '0');
+  end if;
   if g.status = 'void' then
     raise exception 'G%: game is void', lpad(g.game_no::text, 2, '0');
   end if;
@@ -127,11 +139,15 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- The lock. Rows, columns, seed and assigned-at are fixed once drawn, from
--- every role and every path, raw UPDATE included. A revealed reveal time is
--- fixed too, so a past grid can never be hidden again. The one exception is
+-- The lock. Rows, columns, seed and assigned-at are fixed once any digits
+-- exist, drawn or written by hand with assigned-at left null, from every role
+-- and every path, raw UPDATE included. A revealed reveal time is fixed too, so
+-- a past grid can never be hidden again. The one exception is
 -- admin_override_digits, recognised by its own audit row in this transaction
--- naming this game and the new digits' hash.
+-- naming this game and the new digits' hash. The lock re-checks what the
+-- function checks (a drawn game, no score, Anthony's name, a reason of 10 or
+-- more characters) on that row, so a row inserted by hand opens nothing the
+-- function would refuse.
 -- ---------------------------------------------------------------------------
 
 create or replace function games_digits_immutable_guard()
@@ -140,7 +156,7 @@ language plpgsql
 set search_path = public, pg_temp
 as $$
 begin
-  if old.digits_assigned_at is not null and (
+  if (old.digits_assigned_at is not null or old.row_digits is not null or old.col_digits is not null) and (
        new.row_digits is distinct from old.row_digits
     or new.col_digits is distinct from old.col_digits
     or new.digit_seed is distinct from old.digit_seed
@@ -148,12 +164,17 @@ begin
   ) then
     if not (
          coalesce(current_setting('tnf.digits_override', true), '') = old.id::text
+     and old.digits_assigned_at is not null
+     and old.halftime_scored_at is null
+     and old.final_scored_at is null
      and new.digit_seed is not distinct from old.digit_seed
      and new.digits_assigned_at is not distinct from old.digits_assigned_at
      and exists (select 1 from audit_log a
                   where a.action = 'digits_override'
                     and a.target_table = 'games'
                     and a.target_id = old.id::text
+                    and a.actor ~* '^anthony'
+                    and length(btrim(coalesce(a.after ->> 'reason', ''))) >= 10
                     and a.after ->> 'txid' = txid_current()::text
                     and a.after ->> 'digits_sha256' = digits_sha256(new.row_digits, new.col_digits))
     ) then
@@ -166,6 +187,49 @@ begin
   end if;
   return new;
 end $$;
+
+-- A game with digits is never deleted: delete and insert would redraw a
+-- published grid past the lock, and a draw row written beside the new row
+-- would satisfy verify. Migration
+-- 24 deleted the September games, digits and all, after archiving each row;
+-- that is history, long before this trigger, and anything like it again is
+-- Anthony's call and its own migration. No suite, script or seed deletes a
+-- game.
+create or replace function games_never_delete_drawn_guard()
+returns trigger
+language plpgsql
+set search_path = public, pg_temp
+as $$
+begin
+  if old.digits_assigned_at is not null or old.row_digits is not null or old.col_digits is not null then
+    raise exception 'G%: a drawn game is never deleted', lpad(old.game_no::text, 2, '0');
+  end if;
+  return old;
+end $$;
+
+create trigger games_never_delete_drawn before delete on games
+  for each row execute function games_never_delete_drawn_guard();
+
+-- TRUNCATE fires no row trigger, so the same rule as a statement trigger. A
+-- definer, so the invoker's row security cannot hide a drawn game from it.
+create or replace function games_never_truncate_drawn_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if exists (select 1 from games g
+              where g.digits_assigned_at is not null or g.row_digits is not null or g.col_digits is not null) then
+    raise exception 'games: a drawn game is never deleted, truncate included';
+  end if;
+  return null;
+end $$;
+
+revoke execute on function games_never_truncate_drawn_guard() from public, anon, authenticated;
+
+create trigger games_never_truncate_drawn before truncate on games
+  for each statement execute function games_never_truncate_drawn_guard();
 
 -- The audited override: Anthony's alone, with a reason, before any score.
 create or replace function admin_override_digits(
@@ -225,7 +289,9 @@ end $$;
 revoke execute on function admin_override_digits(uuid, int[], int[], text, text) from public, anon;
 grant execute on function admin_override_digits(uuid, int[], int[], text, text) to authenticated;
 
--- Every drawn game against its latest draw or override row.
+-- Every game with digits against its latest draw or override row. Digits
+-- written with no draw (assigned-at null) are in the list and never ok, draw
+-- row or not: no draw made them.
 create or replace function admin_verify_digits()
 returns jsonb
 language plpgsql stable
@@ -239,12 +305,13 @@ begin
            'game_no', g.game_no,
            'actual', digits_sha256(g.row_digits, g.col_digits),
            'expected', digits_expected_sha256(g.id),
-           'ok', digits_expected_sha256(g.id) is not null
+           'ok', g.digits_assigned_at is not null
+                 and digits_expected_sha256(g.id) is not null
                  and digits_expected_sha256(g.id) = digits_sha256(g.row_digits, g.col_digits))
          order by g.game_no), '[]'::jsonb)
     into v
     from games g
-   where g.digits_assigned_at is not null;
+   where g.digits_assigned_at is not null or g.row_digits is not null or g.col_digits is not null;
   return jsonb_build_object(
     'games', v,
     'all_ok', not exists (select 1 from jsonb_array_elements(v) x where not (x ->> 'ok')::boolean));
@@ -285,6 +352,11 @@ begin
        for update
   loop
     if g.digits_assigned_at is null then
+      -- Digits with no draw are never drawn over, published or sent.
+      if g.row_digits is not null or g.col_digits is not null then
+        v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'digits present with no draw; Anthony''s call');
+        continue;
+      end if;
       if not g.date_confirmed then
         v_problems := v_problems || jsonb_build_object('game_no', g.game_no, 'problem', 'date unconfirmed, not drawn');
         continue;
@@ -937,3 +1009,72 @@ begin
     raise exception 'no recipient rule for event %', p_event_key;
   end if;
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- The per-recipient claim: migration 33's, verbatim, with one guard first. A
+-- broadcast key goes only through admin_email_claim_broadcast, which holds the
+-- approval and the readiness checks. admin_email_recipients answers for every
+-- broadcast key (the day keys since this migration), so without the guard
+-- admin_email_claim('winners_<today>', <Anthony>, ...) would claim with
+-- neither, and its row would then refuse the real broadcast claim as already
+-- claimed. Nothing claims a broadcast key per recipient: no suite, script or
+-- prompt does. Same signature, so migration 33's grants stand; restated.
+-- ---------------------------------------------------------------------------
+
+create or replace function admin_email_claim(
+  p_event_key text,
+  p_recipient text,
+  p_rendered_sha text,
+  p_actor text
+) returns uuid
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_r text := lower(btrim(coalesce(p_recipient, '')));
+  v_row email_sends;
+  v_id uuid;
+begin
+  perform assert_admin();
+  -- Migration 43: a broadcast key is never claimed per recipient.
+  if p_event_key ~ '^(recruit_broadcast|format_change|kickoff|gameday|winners)_\d{4}-\d{2}-\d{2}$' then
+    raise exception '% is a broadcast: use admin_email_claim_broadcast', p_event_key;
+  end if;
+  if nullif(btrim(coalesce(p_actor, '')), '') is null then
+    raise exception 'actor required';
+  end if;
+
+  select * into v_row from email_sends where event_key = p_event_key and recipient = v_r;
+  if found then
+    if v_row.gmail_message_id is null then
+      raise exception 'already claimed and NOT confirmed sent: event %, recipient %, claimed %. Never resent automatically: check Gmail Sent first.',
+        p_event_key, v_r, v_row.claimed_at;
+    end if;
+    raise exception 'already sent: event %, recipient %, message %', p_event_key, v_r, v_row.gmail_message_id;
+  end if;
+
+  if p_event_key ~ '^reply_t[1-7]_' and exists (
+       select 1 from email_sends
+        where event_key ~ '^reply_t[1-7]_'
+          and substring(event_key from '^reply_t[1-7]_(.+)$') = substring(p_event_key from '^reply_t[1-7]_(.+)$')) then
+    raise exception 'already replied on this thread: %. Never twice to the same thread.', p_event_key;
+  end if;
+
+  if not exists (select 1 from admin_email_recipients(p_event_key) d where d.recipient = v_r) then
+    raise exception 'refused: % is not a derived recipient of %', v_r, p_event_key;
+  end if;
+
+  insert into email_sends (event_key, recipient, rendered_sha)
+  values (p_event_key, v_r, p_rendered_sha)
+  returning id into v_id;
+
+  insert into audit_log (actor, action, target_table, target_id, after)
+  values (p_actor, 'email_claim', 'email_sends', v_id::text,
+          -- No address: target_id is the email_sends row, which keeps it under RLS.
+          jsonb_build_object('event_key', p_event_key, 'rendered_sha', p_rendered_sha));
+  return v_id;
+end $$;
+
+revoke execute on function admin_email_claim(text, text, text, text) from public, anon;
+grant execute on function admin_email_claim(text, text, text, text) to authenticated;

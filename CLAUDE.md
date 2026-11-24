@@ -83,8 +83,15 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   game-day and winners emails go out on their own, once each. The rules are
   under *Data* (digits) and *Email to the pool* below; the routines are in
   `docs/ROUTINES.md`. Scores are taken only when ESPN says final and every
-  period adds up to the total; anything else is NEEDS ANTHONY at
-  `/admin/score`, and nothing is sent.
+  period adds up to the total. Until 4 hours 30 minutes after a date's last
+  kickoff, a game not final (or not yet kicked off) means the results run
+  waits; after that, anything else is NEEDS ANTHONY, nothing is sent, and
+  Anthony enters the scores at `/admin/score`. Each routine stages its NEEDS
+  ANTHONY at `/admin/queue`: the results run one row per problem class and
+  date (`scores:<date>`, `winners:<date>`), saying what he does for that
+  problem, and the morning run one row per date (`gameday:<date>`) on a game
+  date or the claim deadline. A game that reaches kickoff with no digits can
+  never be drawn; it is Anthony's call.
 - **The September digits are void and live only in the archive.** The
   digits drawn and published for the September G01 and G02 were archived
   by migration 24 as `audit_log` rows with action
@@ -525,10 +532,13 @@ it does not move blocks.
 - **Every broadcast email carries every owner in To**, except the format
   email (`format_change_<date>`, Part L), which Anthony addressed To himself
   alone with every other owner on Cc and each holder's own address in Bcc
-  (never a holder's `cc_email`, which can be someone else); it is the one
-  pool email with a Cc (`ownersOnCcEnvelope` in `src/lib/email/envelope.ts`,
-  migration 41). A broadcast is one
-  body to many recipients in Bcc (the game-day pack today). Its To is
+  (never a holder's `cc_email`, which can be someone else), and the three
+  game-day emails (Part N, below), which go To Anthony, Cc RM and MAP. Those
+  four are the pool emails with a Cc (`ownersOnCcEnvelope` and `dayEnvelope`
+  in `src/lib/email/envelope.ts`, migrations 41 and 43). A broadcast is one
+  body to many recipients in Bcc (the recruit broadcast, and the game-day
+  pack when Anthony runs it; the format and game-day emails are broadcasts
+  on their own envelopes, as above). Its To is
   Anthony's address first, then each other owner's primary address, read at
   send time from the admin-only `owners` table: RM, MAP, JPOD, GD, EJD, NL,
   BG, TJA and DN, ten addresses in all. Never an owner's `alt_email`, on To
@@ -566,16 +576,17 @@ it does not move blocks.
     is Anthony's call, so nothing goes. TNF Game Day sends the first two and
     TNF Results (`docs/RESULTS_PROMPT.md`) the third; the sweep sends none.
     Sweep replies keep their one-to-one rule and copy no one.
-  - **The game-day pack** (`game_day_g<NN>`, a draft with the grid) is no
-    longer what TNF Game Day sends (Part N); the command stays for manual use.
+  - **The game-day pack** (`game_day_g<NN>`, a draft with the grid) is a
+    manual command since Part N (`npm run game-day`): no routine drafts or
+    sends it, and TNF Game Day's prompt never runs it.
   - **The game-day pack leaves DN off the same way** (Anthony, 2026-11-20,
-    Part M). It is a draft Anthony sends himself, so it has no claim: its
-    audit row comes from `admin_email_omit_owners('game_day_g<NN>', ...)`
-    (migration 42), the claim's own check and the same
-    `broadcast_owner_omitted` row, once per game and nothing in
-    `email_sends`, and then `npm run game-day -- --omit-owner DN`. TNF Game
-    Day does this only while DN is the one owner with no address; any other
-    blank owner still stops the draft (`docs/GAME_DAY_PROMPT.md` A3).
+    Part M), when Anthony runs it. It is a draft he sends himself, so it has
+    no claim: its audit row comes from
+    `admin_email_omit_owners('game_day_g<NN>', ...)` (migration 42), the
+    claim's own check and the same `broadcast_owner_omitted` row, once per
+    game and nothing in `email_sends`, and then
+    `npm run game-day -- --omit-owner DN`. That holds only while DN is the
+    one owner with no address; any other blank owner still stops the draft.
   - **The recruit broadcast** (`recruit_broadcast_<date>`, Anthony
     2026-10-13): one message, To every owner with an address, Bcc every active
     prospect and every holder address (email and cc_email), deduped, minus To,
@@ -607,9 +618,11 @@ it does not move blocks.
   Malandro, MAP Michael Pungitore, JPOD Julian Podagrosi, GD Gregory
   DellaPia, EJD Ernie DellaPia Jr., NL Nolan Lawrence, BG Billy Guyon, TJA TJ
   Auletto, DN Dom Novelli. DN has no address on file yet (2026-10-08), so
-  every broadcast refuses until it is set unless the send names him in the
-  one-time override (the game-day pack does, each game, since Part M), and
-  the nightly digest carries one NEEDS ANTHONY line saying so.
+  every broadcast To every owner refuses until it is set unless the send
+  names him in the one-time override (the game-day pack does, each game it
+  is run, since Part M), and the nightly digest carries one NEEDS ANTHONY
+  line saying so. The game-day emails name no owner but Anthony, RM and MAP,
+  so DN does not touch them.
 - **Anthony's work email is never stored, written, or addressed anywhere in
   this pool.** Anthony, 2026-10-08. He has one address on this pool. AVD's
   `alt_email` was cleared that day and nothing replaced it. Migration 35 makes
