@@ -469,7 +469,22 @@ it does not move blocks.
     A drawn game is never redrawn, and a repeat call changes nothing.
   - The draw days: Nov 25 (G01), Nov 26 (G02, G03 and G04, whose 8:20 PM ET
     kickoff is Nov 26 in ET), Nov 27 (G05), Dec 24 (G06), Dec 25 (G07-G09),
-    Dec 31 (G10). Nothing is drawn before Nov 25.
+    Dec 31 (G10). Nothing is drawn before Nov 25, with one exception below.
+  - **The one exception: G01, Tue Nov 24, 2026 (Anthony, 8:27 AM ET, Part P,
+    approved in the TNF PM chat).** So he had a full day to vet the real
+    thing, G01 was drawn and published, and its game-day email
+    (`gameday_2026-11-25`) sent, one day early, on Nov 24, after the kickoff
+    email went. Once only. From G02 on every game is drawn and sent on its own
+    morning, as above. The draw went through `admin_assign_digits` and
+    `admin_publish_digits` with the admin claim; `admin_draw_day`, the routine
+    prompts and the per-day gate on `/admin/digits` did not change. The send
+    needed one narrow exception for that one key on that one ET date, in the
+    renderer (`EARLY_SENDS` in `src/lib/email/registry.ts`) and in the claim's
+    `email_day_not_ready` (migration 44). It expires by itself, since the
+    database date is never Nov 24, 2026 again; there is no flag and no revert.
+    The morning run of Nov 25 found G01 drawn and the email sent and did
+    neither again; `winners_2026-11-25` goes after the game as usual. Never
+    add a second early key without Anthony saying so for that game.
   - **The manual fallback stays.** Anthony can draw and publish a day at
     `/admin/digits`: the same per-day gate lives in `src/lib/week-digits.ts`
     and is re-checked in both server actions against games read from the

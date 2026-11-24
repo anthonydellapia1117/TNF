@@ -117,9 +117,10 @@ All times ET. Every fire is TNF Game Day. "Morning" is `docs/GAME_DAY_PROMPT.md`
 
 | Day | Fires | What should happen |
 |---|---|---|
-| Tue Nov 24 | 9:10 and 10:10 AM morning | The kickoff email, `kickoff_2026-11-24`: To Anthony, Cc RM and MAP, Bcc 32 holders. Nothing is drawn. 10:10 finds it sent and does nothing |
+| Tue Nov 24 | 9:10 and 10:10 AM morning | The kickoff email, `kickoff_2026-11-24`: To Anthony, Cc RM and MAP, Bcc 32 holders. Nothing is drawn by the routine. 10:10 finds it sent and does nothing |
+| | after the kickoff, by hand | **One-time exception (Anthony, 8:27 AM ET, Part P):** G01 drawn and published, and `gameday_2026-11-25` sent, a day early, so Anthony could vet the real thing. See `CLAUDE.md`, the draw rule |
 | | 4:10 PM to 2:10 AM results | No game on Nov 24: NO ACTION each hour |
-| Wed Nov 25 | 9:10 morning | `admin_draw_day` draws and publishes G01 only. `gameday_2026-11-25` goes out with its rows and columns |
+| Wed Nov 25 | 9:10 morning | `admin_draw_day` finds G01 already drawn and published (Nov 24) and does not redraw it; `gameday_2026-11-25` is already sent, so nothing goes. Every other game date follows the normal row: draw, publish and send that morning |
 | | 4:10 PM to 7:10 PM results | G01 has not kicked off: waits |
 | | 8:10 PM to 12:10 AM results | G01 in play: waits until it is final, then scores it and sends `winners_2026-11-25`, or holds it (below) |
 | | 1:10 and 2:10 AM results | Past 12:30 AM a game still not final is staged for Anthony |
