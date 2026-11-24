@@ -19,14 +19,13 @@
 import type { DayGame, EmailContext, EmailSpec, Row } from "../types.ts";
 import { amount, clock, hyphenate, monthDay, shortDate, teamShort } from "../format.ts";
 import { claimDeadline, kickoffOf, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
-import { BOARD_URL, HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, SITE_URL } from "../copy.ts";
+import { BOARD_URL, GRID_URL, HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF } from "../copy.ts";
 
 export const KICKOFF_KEY = /^kickoff_(\d{4}-\d{2}-\d{2})$/;
 export const GAMEDAY_KEY = /^gameday_(\d{4}-\d{2}-\d{2})$/;
 export const WINNERS_KEY = /^winners_(\d{4}-\d{2}-\d{2})$/;
 
 const code = (n: number) => `G${String(n).padStart(2, "0")}`;
-const gridUrl = (n: number) => `${SITE_URL}/grid?g=${n}`;
 const SAMPLE_LINE = "SAMPLE for review only. The numbers below are made up.";
 const SAMPLE_LIVE_LINE = "SAMPLE for review only, sent to nobody. Everything below is live.";
 
@@ -99,7 +98,8 @@ export function gameday(ctx: EmailContext): EmailSpec {
       [code(g.game_no), `${matchup(g)}, ${clock(g.kickoff_at, c.timezone)} ET${net}`],
       [`Rows, ${teamShort(g.away_team)} (away)`, g.row_digits.join(" ")],
       [`Columns, ${teamShort(g.home_team)} (home)`, g.col_digits.join(" ")],
-      ["Grid", gridUrl(g.game_no)],
+      // One link for every game (Part Q): /grid opens on today's game.
+      ["Grid", GRID_URL],
     );
   }
   const n = games.length;
@@ -134,7 +134,8 @@ export function winners(ctx: EmailContext): EmailSpec {
       [code(g.game_no), matchup(g)],
       ["Halftime", `${a} ${g.halftime_away}, ${h} ${g.halftime_home} - block ${g.halftime_block}, ${hyphenate(g.halftime_name)} - ${amount(pay.halftimeCents)}`],
       ["Final", `${a} ${g.final_away}, ${h} ${g.final_home} - block ${g.final_block}, ${hyphenate(g.final_name)} - ${amount(pay.finalCents)}`],
-      ["Grid", gridUrl(g.game_no)],
+      // One link for every game (Part Q): /grid opens on today's game.
+      ["Grid", GRID_URL],
     );
   }
   const later = c.games.filter((g) => ymdOfGame(c, g) > date);

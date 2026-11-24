@@ -379,6 +379,18 @@ it does not move blocks.
   Viewer widgets answer fan questions instead: hot and never-won digits,
   close calls, score patterns, the next holiday game. Nothing about money
   owed, payment status, or how many people are in.
+- **`/grid` is the one link (Anthony, 2026-11-24, Part Q).** Every template
+  and every reply links `https://ad-26-tnf.vercel.app/grid` and nothing else
+  (`GRID_URL` in `src/lib/email/copy.ts`); `/grid?g=N` links already sent keep
+  working. Without `?g=` it opens on a game being played, else today's game in
+  ET, else the next one (`defaultGridGame` in `src/lib/grid-search.ts`). It has
+  a live name search: any part of the name the board shows, any case, every
+  match filled yellow, a count and each block's digits under the box. It
+  searches only `v_public_blocks.display_name`, never a full name the board does
+  not show. Names never depend on hover: Comfortable shows them in the block,
+  and a tap in either view shows the block's name above the grid. Why: holders
+  could not find their own name on a phone, where the old title tooltip never
+  shows, and three different links had gone out.
 - **The plain-text list is admin-only** (`/admin/list`). There is no public
   `/list` route and no List item in the public nav — it is a chase tool.
   `/players` stays public as the roster.
@@ -670,7 +682,7 @@ it does not move blocks.
   through the Supabase connector at send time (the owners query in
   `docs/ROUTINES.md`) and hands the file to the command.
 - **A link in a pool email is the bare URL and nothing else**, for example
-  `https://ad-26-tnf.vercel.app/blocks`. No tracking wrapper, no second
+  `https://ad-26-tnf.vercel.app/grid`. No tracking wrapper, no second
   URL. The Gmail connector rewrites the href of any link it is handed into a
   google.com/url redirect and rewrites the plain-text part the same way; the
   only control left is the visible text, so hand it an HTML anchor whose

@@ -23,6 +23,11 @@ import {
   WIN_OUTLINE,
   WIN_OUTLINE_ON_FILL,
 } from "@/lib/winner-colors";
+import {
+  SEARCH_BORDER,
+  SEARCH_FILL,
+  SEARCH_FILL_TEXT,
+} from "@/lib/search-colors";
 
 export type GridMode = "fit" | "comfortable";
 
@@ -35,6 +40,10 @@ interface CellState {
   isNearMiss: boolean;
   inRevealRow: boolean;
   inRevealCol: boolean;
+  /** Matches the name search (Part Q). */
+  isMatch: boolean;
+  /** The block last tapped, whose name shows above the grid. */
+  isSelected: boolean;
 }
 
 export function BlocksGrid({
@@ -42,12 +51,22 @@ export function BlocksGrid({
   blocks,
   config,
   mode,
+  matches = [],
+  selected = null,
+  onSelect,
 }: {
   game: PublicGame;
   blocks: PublicBlock[];
   config: PoolConfig;
   mode: GridMode;
+  /** Blocks the name search matched; each fills yellow. */
+  matches?: readonly number[];
+  /** The tapped block. */
+  selected?: number | null;
+  /** A tap on a block: shows its name. Nothing on the grid needs a hover. */
+  onSelect?: (n: number) => void;
 }) {
+  const matchSet = new Set(matches);
   const published =
     isPermutation(game.row_digits) && isPermutation(game.col_digits);
   const rows = published ? (game.row_digits as number[]) : null;
@@ -70,8 +89,16 @@ export function BlocksGrid({
   // against winningBlock. Do not hardcode home/away here - labels drifting
   // from the payout math is the failure this indirection exists to stop.
   const axes = gridAxes(game);
-  const rowAxis = { team: axes.rowTeam, label: axes.rowLabel, ...teamPalette(axes.rowTeam) };
-  const colAxis = { team: axes.colTeam, label: axes.colLabel, ...teamPalette(axes.colTeam) };
+  const rowAxis = {
+    team: axes.rowTeam,
+    label: axes.rowLabel,
+    ...teamPalette(axes.rowTeam),
+  };
+  const colAxis = {
+    team: axes.colTeam,
+    label: axes.colLabel,
+    ...teamPalette(axes.colTeam),
+  };
   const halfAmount = payoutCents(game.game_type, "halftime", config);
   const finalAmount = payoutCents(game.game_type, "final", config);
 
@@ -88,6 +115,8 @@ export function BlocksGrid({
       isNearMiss: nearMiss.has(n) && finalBlock !== n && halfBlock !== n,
       inRevealRow: revealPos !== null && revealPos.row === r,
       inRevealCol: revealPos !== null && revealPos.col === c,
+      isMatch: matchSet.has(n),
+      isSelected: selected === n,
     };
   };
 
@@ -137,7 +166,7 @@ export function BlocksGrid({
                 the hand-built grid has always put it. */}
             <div
               className={cn(
-                "sticky left-0 z-10 flex items-center justify-center bg-background",
+                "sticky left-0 z-20 flex items-center justify-center bg-background",
                 !comfortable && "static",
               )}
             >
@@ -158,7 +187,7 @@ export function BlocksGrid({
 
             <div
               className={cn(
-                "sticky left-0 z-10 bg-background",
+                "sticky left-0 z-20 bg-background",
                 !comfortable && "static",
               )}
             />
@@ -192,6 +221,7 @@ export function BlocksGrid({
                 revealFinal={finalBlock !== null}
                 halfAmount={halfAmount}
                 finalAmount={finalAmount}
+                onSelect={onSelect}
               />
             ))}
           </div>
@@ -211,6 +241,7 @@ function RowCells({
   revealFinal,
   halfAmount,
   finalAmount,
+  onSelect,
 }: {
   r: number;
   rows: number[] | null;
@@ -221,6 +252,7 @@ function RowCells({
   revealFinal: boolean;
   halfAmount: number;
   finalAmount: number;
+  onSelect?: (n: number) => void;
 }) {
   return (
     <>
@@ -229,7 +261,8 @@ function RowCells({
         className={cn(
           "digit-in flex items-center justify-center rounded-[4px] text-sm font-semibold tabular-nums",
           !published && "opacity-70",
-          comfortable && "sticky left-0 z-10",
+          // Above a highlighted block (z-10) as the grid scrolls under it.
+          comfortable && "sticky left-0 z-20",
         )}
         style={{
           backgroundColor: rowBar.bg,
@@ -248,6 +281,7 @@ function RowCells({
           revealFinal={revealFinal}
           halfAmount={halfAmount}
           finalAmount={finalAmount}
+          onSelect={onSelect}
         />
       ))}
     </>
@@ -287,12 +321,14 @@ function GridCell({
   revealFinal,
   halfAmount,
   finalAmount,
+  onSelect,
 }: {
   cell: CellState;
   comfortable: boolean;
   revealFinal: boolean;
   halfAmount: number;
   finalAmount: number;
+  onSelect?: (n: number) => void;
 }) {
   const b = cell.block;
   const status = b?.status ?? "available";
@@ -306,6 +342,9 @@ function GridCell({
   const review = (cell.isHalf || cell.isFinal) && status !== "assigned";
   const winFill = cell.isFinal && !review;
   const winOutline = cell.isHalf && !review;
+  // A search match fills yellow, unless the block is a winner or under
+  // review: those keep their colour and take the yellow border instead.
+  const matchFill = cell.isMatch && !winFill && !winOutline && !review;
 
   const label = [
     `Block ${cell.n}`,
@@ -319,15 +358,26 @@ function GridCell({
           .filter(Boolean)
           .join(" "),
     cell.isLive ? "· leading if it ended now" : "",
+    cell.isMatch ? "· matches your search" : "",
   ]
     .filter(Boolean)
     .join(" ");
 
+  const Tag = onSelect ? "button" : Link;
+  const tagProps = onSelect
+    ? {
+        type: "button" as const,
+        onClick: () => onSelect(cell.n),
+        "aria-pressed": cell.isSelected,
+      }
+    : { href: `/block/${cell.n}` };
   return (
-    <Link
-      href={`/block/${cell.n}`}
+    <Tag
+      {...(tagProps as { href: string })}
       aria-label={label}
       title={label}
+      data-block={cell.n}
+      data-match={cell.isMatch ? "true" : undefined}
       className={cn(
         "relative flex flex-col items-center justify-center rounded-[4px] border text-center transition-colors duration-150",
         comfortable ? "h-14" : "aspect-square",
@@ -346,6 +396,9 @@ function GridCell({
         review &&
           "reveal-cell z-10 border-destructive bg-destructive/15 ring-2 ring-destructive/70 ring-inset text-foreground",
         cell.isLive && "live-pulse z-10 border-live",
+        // The search: the whole box, with a darker border (Part Q).
+        cell.isMatch && "z-10 border-2",
+        cell.isSelected && "z-10 outline-2 outline-offset-1 outline-foreground",
       )}
       style={{
         ...(winFill
@@ -362,7 +415,22 @@ function GridCell({
             } as React.CSSProperties)
           : {}),
         ...(both && !review
-          ? ({ boxShadow: `inset 0 0 0 2px ${WIN_OUTLINE_ON_FILL}` } as React.CSSProperties)
+          ? ({
+              boxShadow: `inset 0 0 0 2px ${WIN_OUTLINE_ON_FILL}`,
+            } as React.CSSProperties)
+          : {}),
+        ...(matchFill
+          ? {
+              backgroundColor: SEARCH_FILL,
+              borderColor: SEARCH_BORDER,
+              color: SEARCH_FILL_TEXT,
+              borderStyle: "solid",
+            }
+          : {}),
+        // A matched winner or review block keeps every marking of its own
+        // and takes a yellow outline, which no border or ring uses.
+        ...(cell.isMatch && !matchFill
+          ? { outline: `3px solid ${SEARCH_FILL}`, outlineOffset: "1px" }
           : {}),
       }}
     >
@@ -403,10 +471,16 @@ function GridCell({
           <span
             className={cn(
               "absolute top-0.5 left-1 text-2xs tabular-nums",
-              !winFill && !open && "text-muted-foreground",
-              !winFill && open && "text-foreground/80",
+              !winFill && !matchFill && !open && "text-muted-foreground",
+              !winFill && !matchFill && open && "text-foreground/80",
             )}
-            style={winFill ? { color: WIN_FILL_TEXT, opacity: 0.75 } : undefined}
+            style={
+              winFill
+                ? { color: WIN_FILL_TEXT, opacity: 0.75 }
+                : matchFill
+                  ? { color: SEARCH_FILL_TEXT }
+                  : undefined
+            }
             data-numeric
           >
             {cell.n}
@@ -415,7 +489,7 @@ function GridCell({
             <TriangleAlert className="size-3.5 text-destructive" aria-hidden />
           )}
           {name && (
-            <span className="max-w-full truncate px-1 text-2xs leading-tight font-medium">
+            <span className="line-clamp-2 max-w-full px-0.5 pt-2 text-[10px] leading-[1.15] font-medium break-words hyphens-auto">
               {name}
             </span>
           )}
@@ -449,6 +523,6 @@ function GridCell({
           {cell.n}
         </span>
       )}
-    </Link>
+    </Tag>
   );
 }

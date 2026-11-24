@@ -312,7 +312,9 @@ that path matter and the older version of this file had both wrong.
 | TNF Results (unused) | no | no | not on the trigger record | The same environment as TNF Game Day, which does not help it: with no connectors it cannot read or write the database |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
-The day emails carry each grid as its bare link (`/grid?g=<n>`), nothing is
+The day emails carry the grid as one bare link, `https://ad-26-tnf.vercel.app/grid`
+(Part Q, 2026-11-24; it opens on the day's game, the evening's until 4 AM ET),
+nothing is
 uploaded, and no admin password is needed (Part N; the pack's `--link-only`
 of 2026-10-13 is the same idea). Every routine that calls an admin_* function
 through the Supabase connector sets the admin claim first, in the same call;

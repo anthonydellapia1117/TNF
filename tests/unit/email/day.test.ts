@@ -27,7 +27,8 @@ describe("kickoff", () => {
   const r = renderEvent(ctx("kickoff_2026-11-24", { common: on("2026-11-24") }));
 
   it("carries the board, how a block wins, both payouts and every game", () => {
-    expect(r.email.text).toContain("https://ad-26-tnf.vercel.app/blocks");
+    expect(r.email.text).toContain("https://ad-26-tnf.vercel.app/grid");
+    expect(r.email.text).not.toContain("/blocks");
     expect(flat(r)).toContain("Away digit picks the row, home digit picks the column");
     expect(r.email.text).toContain("Halftime 750, final 1,500");
     for (const n of ["G01", "G05", "G06", "G10"]) expect(r.email.text).toContain(n);
@@ -62,7 +63,9 @@ describe("gameday", () => {
     expect(r.email.text).toContain("G01: Packers at Rams, 8:00 PM ET, Netflix");
     expect(r.email.text).toContain("Rows, Packers (away): 4 0 7 1 9 2 8 5 3 6");
     expect(r.email.text).toContain("Columns, Rams (home): 2 9 0 6 3 8 1 7 5 4");
-    expect(r.email.text).toContain("https://ad-26-tnf.vercel.app/grid?g=1");
+    // One link everywhere (Part Q): the bare /grid, no ?g=.
+    expect(r.email.text).toContain("https://ad-26-tnf.vercel.app/grid");
+    expect(r.email.text).not.toContain("?g=");
     expect(r.problems).toEqual([]);
   });
 
@@ -123,6 +126,9 @@ describe("winners", () => {
     expect(r.email.text).toContain("Next game day is Thu Nov 26.");
     expect(r.email.text).not.toMatch(/paid|owed|unpaid|\$/i);
     expect(r.problems).toEqual([]);
+    // One link everywhere (Part Q).
+    expect(r.email.text).toContain("Grid: https://ad-26-tnf.vercel.app/grid");
+    expect(r.email.text).not.toContain("?g=");
   });
 
   it("goes out the night of its games or the morning after, never later", () => {
@@ -197,5 +203,13 @@ describe("the game-day envelope: To Anthony, Cc RM and MAP, Bcc holders", () => 
     expect(() => checkBroadcast(plan, e, owners, [], { min: 1, max: 10 })).toThrow(/owner address in Bcc/);
     const withAlt = { ...e, bcc: [...e.bcc, "map-alt@tnf.test"] };
     expect(() => checkBroadcast({ ...plan, bcc: withAlt.bcc, bcc_count: 4, h: 6 }, withAlt, owners, [], { min: 1, max: 10 }, { ownersAsHolders: true })).toThrow(/owner address in Bcc/);
+  });
+});
+
+describe("one link everywhere (Part Q)", () => {
+  it("the game-day pack links the bare /grid too, never ?g=", () => {
+    const r = renderEvent(ctx("game_day_g01"), { grid: "live-only" });
+    expect(r.email.text).toContain("Live grid: https://ad-26-tnf.vercel.app/grid");
+    expect(r.email.text).not.toContain("?g=");
   });
 });

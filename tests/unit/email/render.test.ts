@@ -28,7 +28,7 @@ describe("C1 holder check-in", () => {
         "Final: 3,000, every game",
         "How a block wins: Last digit of each team's score. Away digit picks",
         "  the row, home digit picks the column.",
-        "Open blocks: 42 of 100, ad-26-tnf.vercel.app/blocks",
+        "Open blocks: 42 of 100, ad-26-tnf.vercel.app/grid",
         "",
         "Numbers are drawn at random and posted 8 AM the morning of each game,",
         "starting Wed Nov 25, 2026.",
@@ -184,7 +184,7 @@ describe("C2 recruit", () => {
         "Numbers: Drawn at random for each game, posted 8 AM game day",
         "Paid blocks only: A reserved block that hits pays nothing",
         "Pay: Venmo @AnthonyDellaPia, cash, or check",
-        "Open blocks: ad-26-tnf.vercel.app/blocks",
+        "Open blocks: ad-26-tnf.vercel.app/grid",
         "",
         "Pick a number on the board and reply with it. Claim by Tue Nov 24,",
         "2026. First game is Wed Nov 25, 2026, 8:00 PM ET, Packers at Rams.",
@@ -262,7 +262,7 @@ describe("recruit broadcast", () => {
         "Fri Dec 25: 8:15 PM ET, Rams at Seahawks",
         "Thu Dec 31: 8:15 PM ET, Ravens at Bengals",
         "",
-        "ad-26-tnf.vercel.app",
+        "ad-26-tnf.vercel.app/grid",
         "",
         "Anthony",
         "",
@@ -289,8 +289,8 @@ describe("recruit broadcast", () => {
 
   it("links the site as the bare URL and nothing else, and names no holder", () => {
     const r = renderEvent(ctx(KEY, { holder: SAMPLE_HOLDER, people: ASKER }));
-    expect(r.spec.next).toBe("ad-26-tnf.vercel.app");
-    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+    expect(r.spec.next).toBe("ad-26-tnf.vercel.app/grid");
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app/grid" style="color:#1a4fa0;">ad-26-tnf.vercel.app/grid</a>');
     // A holder or an asker in the context changes nothing: a broadcast names no one.
     expect(r.email.text).not.toMatch(/DellaPia|Dan Asker|\bAD\b|\bDA\b/);
     expect(r.email.text).toBe(renderEvent(ctx(KEY)).email.text);
@@ -407,13 +407,13 @@ describe("sweep replies T1-T7, wording verbatim from docs/SWEEP_PROMPT.md as of 
     expect(lines("reply_t1_abc", { subject: "TNF", block: "7" })).toEqual([
       "You're in on block 7. 500, Venmo @AnthonyDellaPia, or cash or check works.",
       "First game is Thanksgiving Eve, Wed 11/25. 10 holiday games, 1,500 halftime and 3,000 final on every one.",
-      "Board: https://ad-26-tnf.vercel.app/blocks",
+      "Board: https://ad-26-tnf.vercel.app/grid",
     ]);
   });
   it("T2", () => {
     expect(lines("reply_t2_abc", { subject: "TNF", block: "8" })).toEqual([
       "Block 8 is gone. Open ones are on the board, tell me which and it's yours.",
-      "https://ad-26-tnf.vercel.app/blocks",
+      "https://ad-26-tnf.vercel.app/grid",
     ]);
   });
   it("T3, T4, T6", () => {
@@ -430,7 +430,7 @@ describe("sweep replies T1-T7, wording verbatim from docs/SWEEP_PROMPT.md as of 
       "Yeah, it changed. It's the 10 holiday games only now, not all 23. Nothing happens until Thanksgiving Eve, Wed 11/25.",
       "It's 500 a block now, and everyone's block count doubled for the same money. 1,500 halftime and 3,000 final, every game.",
       "Your numbers are on the board. If you paid, you're paid. The numbers posted for the two September games are void, fresh ones get drawn the morning of each game.",
-      "https://ad-26-tnf.vercel.app/blocks",
+      "https://ad-26-tnf.vercel.app/grid",
     ]);
   });
   it("signs off Anthony, answers Re: their subject once, and has no greeting", () => {
@@ -499,7 +499,7 @@ describe("game list reply", () => {
         "Dan,",
         "",
         "Thanks for pushing it. Here are all 10 games, kickoffs ET. 42 blocks",
-        "still open, ad-26-tnf.vercel.app",
+        "still open, ad-26-tnf.vercel.app/grid",
         "",
         "Wed Nov 25: 8:00 PM ET, Packers at Rams",
         "Thu Nov 26: 1:00 PM ET, Bears at Lions",
@@ -520,11 +520,11 @@ describe("game list reply", () => {
   });
   it("thanks only someone who said they are selling blocks", () => {
     const plain = renderEvent(ctx("game_list_ab", { people: ASKER }), { subject: "x" });
-    expect(plain.spec.prose).toEqual(["Here are all 10 games, kickoffs ET. 42 blocks still open, ad-26-tnf.vercel.app"]);
+    expect(plain.spec.prose).toEqual(["Here are all 10 games, kickoffs ET. 42 blocks still open, ad-26-tnf.vercel.app/grid"]);
     expect(() => renderEvent(ctx("game_list_ab"), { subject: "x", thanks: "sure" })).toThrow(/thanks=yes or nothing/);
   });
   it("links the site as the bare URL and nothing else", () => {
-    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app" style="color:#1a4fa0;">ad-26-tnf.vercel.app</a>');
+    expect(r.email.html).toContain('<a href="https://ad-26-tnf.vercel.app/grid" style="color:#1a4fa0;">ad-26-tnf.vercel.app/grid</a>');
   });
   it("refuses a game with no confirmed date rather than state one", () => {
     const games = COMMON.games.map((g, i) => (i === 3 ? { ...g, date_confirmed: false } : g));
@@ -613,7 +613,7 @@ describe("layout", () => {
     expect(html).toContain("max-width:560px");
     expect(html).toContain("width:100%");
     expect(html).toMatch(/text-align:right;">500</);
-    expect(html).toContain('<a href="https://ad-26-tnf.vercel.app/blocks" style="color:#1a4fa0;">ad-26-tnf.vercel.app/blocks</a>');
+    expect(html).toContain('<a href="https://ad-26-tnf.vercel.app/grid" style="color:#1a4fa0;">ad-26-tnf.vercel.app/grid</a>');
     expect(html).not.toMatch(/<img|unsubscribe/i);
   });
 });

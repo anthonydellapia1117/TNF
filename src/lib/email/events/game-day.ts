@@ -8,7 +8,7 @@
 import type { EmailContext, EmailSpec, EventArgs, Row } from "../types.ts";
 import { amount, clock, hourLabel, hyphenate, longDate, monthDay, teamShort } from "../format.ts";
 import { kickoffOf, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
-import { HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, SITE_URL } from "../copy.ts";
+import { HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF, GRID_URL } from "../copy.ts";
 import { REVEAL_TIME_ET } from "../../format.ts";
 
 export const GAME_DAY_KEY = /^game_day_g(\d{2})$/;
@@ -33,7 +33,8 @@ export function gameDay(ctx: EmailContext, args: EventArgs): EmailSpec {
   const ymd = ymdOfGame(c, g);
   const pay = uniformPayouts(c);
   const code = gameCode(no);
-  const live = `${SITE_URL}/grid?g=${no}`;
+  // One link everywhere (Part Q): /grid opens on the day's game itself.
+  const live = GRID_URL;
 
   const rows: Row[] = [
     ["Game", g.holiday_label ? `${code}, ${hyphenate(g.holiday_label)}` : code],
