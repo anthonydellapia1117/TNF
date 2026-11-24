@@ -1,13 +1,16 @@
-// One week at a time. Digits are drawn for the games of a single week, the
-// week they are needed — never for the whole season in advance. Digits that
-// exist months early are digits someone could see or alter; under this model
-// they do not exist until their week comes up.
+// One day at a time (Anthony, 2026-11-23, Part N; it was one week at a time).
+// A game's digits are drawn on its own kickoff date in ET, before kickoff, and
+// published at once — never earlier, never for a week or a season in advance.
+// Digits that exist early are digits someone could see or alter; under this
+// model they do not exist until the morning of their game. The morning run
+// draws through admin_draw_day (migration 43); this module is the same rule
+// for the /admin/digits fallback, re-checked in the server actions.
 //
-// Pure logic, unit-tested. The screen only renders what these functions say,
-// and every gate here mirrors a gate the database already enforces, so the
-// UI never offers something admin_assign_digits would refuse.
+// Pure logic, unit-tested. The screen only renders what these functions say.
+// The week grouping below is navigation only; the gate is the day.
 import {
   etDateOf,
+  etWallClockToUtcISO,
   fmtDateET,
   fmtKickoffET,
   REVEAL_TIME_ET,
@@ -16,9 +19,8 @@ import {
 import { gameCode } from "@/lib/pool";
 import type { AdminGame } from "@/lib/types";
 
-/** A game further out than this cannot be drawn yet. */
-export const ASSIGN_WINDOW_DAYS = 7;
-const WINDOW_MS = ASSIGN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+/** The rule, in words the screen shows. */
+export const DRAW_RULE = "A game's digits are drawn on its own game day (ET), before kickoff, and published at once.";
 
 /**
  * The standing reveal slot on each game's OWN date. Never one shared instant
@@ -121,24 +123,24 @@ export function weekLabel(week: number, games: AdminGame[]): string {
 }
 
 /** The instant a game becomes drawable: one window before its kickoff. */
+/** The instant a game becomes drawable: midnight ET starting its game day. */
 export function assignUnlockISO(g: AdminGame): string | null {
   if (!g.kickoff_at) return null;
-  return new Date(new Date(g.kickoff_at).getTime() - WINDOW_MS).toISOString();
+  return etWallClockToUtcISO(etDateOf(g.kickoff_at), "00:00");
 }
 
 /**
- * Refusal text for a single game still outside the one-week window, or null
- * when it is inside. This is the rule itself, not a screen's opinion of it —
- * both the weekly draw and the per-game draw ask this same question.
+ * Refusal text for a game that is not on today's ET date, or null when it is.
+ * This is the rule itself, not a screen's opinion of it: the weekly button,
+ * the per-game button and both server actions ask this same question. A game
+ * whose day has passed is past kickoff, which ineligibility already says.
  */
 export function windowRefusal(g: AdminGame, nowMs: number): string | null {
   if (!g.kickoff_at) return null;
-  const kickoffMs = new Date(g.kickoff_at).getTime();
-  if (kickoffMs - nowMs <= WINDOW_MS) return null;
+  if (etDateOf(g.kickoff_at) === etDateOf(new Date(nowMs).toISOString())) return null;
   return (
-    `${gameCode(g.game_no)} kicks off ${fmtKickoffET(g.kickoff_at)} — more than ` +
-    `${ASSIGN_WINDOW_DAYS} days out. Digits are drawn one week at a time, so ` +
-    `this unlocks ${fmtKickoffET(assignUnlockISO(g))}.`
+    `${gameCode(g.game_no)} kicks off ${fmtKickoffET(g.kickoff_at)}. Digits are ` +
+    `drawn on game day only, so this unlocks ${fmtKickoffET(assignUnlockISO(g))}.`
   );
 }
 
@@ -169,11 +171,10 @@ export function assignGate(
           : `Week ${week} is already drawn — every game has its digits.`,
     };
   }
-  // The furthest game we would draw sets the gate: assigning the week means
-  // assigning all of it, so all of it has to be inside the window.
-  const furthest = sortByKickoff(toAssign).pop()!;
-  const refusal = windowRefusal(furthest, nowMs);
-  return refusal === null ? { ok: true } : { ok: false, reason: refusal };
+  // Every game a click would draw is on today's date (weekPlan puts any other
+  // in blocked), so this is a guard against a caller that built its own list.
+  const refusal = toAssign.map((g) => windowRefusal(g, nowMs)).find((r) => r !== null);
+  return refusal ? { ok: false, reason: refusal } : { ok: true };
 }
 
 export function weekPlan(
@@ -188,15 +189,14 @@ export function weekPlan(
 
   for (const g of ordered) {
     if (g.digits_assigned_at === null) {
-      const reason = ineligibility(g, nowMs);
+      const reason = ineligibility(g, nowMs) ?? (windowRefusal(g, nowMs) ? `drawn on game day, ${fmtDateET(g.kickoff_at)}` : null);
       if (reason) blocked.push({ game: g, reason });
       else toAssign.push(g);
       continue;
     }
+    // Drawn and not published: publish now (Part N), never a later slot.
     if (digitState(g, nowMs) === "assigned") {
-      const at = revealAtISO(g);
-      const immediate = at === null || new Date(at).getTime() <= nowMs;
-      toSchedule.push({ game: g, revealAtISO: immediate ? null : at, immediate });
+      toSchedule.push({ game: g, revealAtISO: null, immediate: true });
     }
   }
 

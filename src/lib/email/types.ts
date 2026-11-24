@@ -81,6 +81,44 @@ export interface BlockStatus {
   status: string;
 }
 
+/** One game of a game date, as email_day_facts (migration 43) returns it. */
+export interface DayGame {
+  game_no: number;
+  week: number;
+  kickoff_at: string;
+  holiday_label: string | null;
+  away_team: string;
+  home_team: string;
+  network: string | null;
+  status: string;
+  /** The digits are revealed (digits_published_at at or before now). */
+  published: boolean;
+  /** Only once published. Row = the AWAY digit's axis, columns = HOME. */
+  row_digits: number[] | null;
+  col_digits: number[] | null;
+  /** The digits match their draw (or override) audit row. Null until published. */
+  digits_ok: boolean | null;
+  halftime_away: number | null;
+  halftime_home: number | null;
+  halftime_block: number | null;
+  final_away: number | null;
+  final_home: number | null;
+  final_block: number | null;
+  /** The winning block's public name (v_public_blocks). */
+  halftime_name: string | null;
+  final_name: string | null;
+  /** An owed or paid payout stands behind that winner. */
+  halftime_paid_out: boolean;
+  final_paid_out: boolean;
+}
+
+/** email_day_facts(date): one game date's games, kickoff order. */
+export interface DayFacts {
+  /** YYYY-MM-DD */
+  date: string;
+  games: DayGame[];
+}
+
 /** admin_email_context(event_key, recipient) */
 export interface EmailContext {
   event_key: string;
@@ -91,6 +129,13 @@ export interface EmailContext {
   blocks?: BlockStatus[];
   /** game_list and answer: who the address reaches, for the greeting (migration 34). */
   people?: HolderPerson[];
+  /** kickoff_, gameday_ and winners_<date>: that date's games (migration 43). */
+  day?: DayFacts;
+  /**
+   * A review copy (Part N): marked SAMPLE in its subject and opening, made-up
+   * numbers allowed, never sent or claimed, only drafted To Anthony.
+   */
+  sample?: boolean;
 }
 
 /** admin_email_batch(event_key): the common facts once, one item per recipient. */

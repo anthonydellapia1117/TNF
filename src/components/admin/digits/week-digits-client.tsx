@@ -8,7 +8,7 @@ import { fmtKickoffET } from "@/lib/format";
 import { gameCode } from "@/lib/pool";
 import { matchupLabel } from "@/lib/nfl";
 import {
-  ASSIGN_WINDOW_DAYS,
+  DRAW_RULE,
   defaultWeek,
   digitState,
   weekPlans,
@@ -89,15 +89,15 @@ export function WeekDigitsClient({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl">Digits — one week at a time</h1>
+        <h1 className="text-xl">Digits — one day at a time</h1>
         <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
-          Digits are drawn for the games of a single week, the week they are
-          needed. Each game gets its own independent permutation of both axes —
-          no shared seed, no relationship to any other game or week. Drawing and
-          publishing are separate steps: after the draw you review the numbers,
-          and only a second deliberate click schedules the reveals, each at 8:00
-          AM ET on that game&rsquo;s own date. A week whose games are more than{" "}
-          {ASSIGN_WINDOW_DAYS} days out cannot be drawn at all.
+          {DRAW_RULE} The 9:10 AM ET morning run does this on its own
+          (admin_draw_day); these buttons are the fallback, and the run then
+          sends without redrawing. Each game gets its own independent
+          permutation of both axes — no shared seed, no relationship to any
+          other game. The week below is only how the games are grouped: the
+          draw button draws today&rsquo;s games and nothing else, and publish
+          reveals them at once.
         </p>
       </div>
 
@@ -253,7 +253,7 @@ export function WeekDigitsClient({
                       <span className="flex-1" />
                       <span className={immediate ? "text-halftime" : "text-live"} data-numeric>
                         {immediate
-                          ? "8:00 AM ET has passed — publishes immediately"
+                          ? "Publishes immediately"
                           : `Reveals ${fmtKickoffET(revealAtISO)}`}
                       </span>
                     </div>
@@ -321,9 +321,9 @@ export function WeekDigitsClient({
                 </>
               ) : (
                 <>
-                  Each reveal is scheduled for 8:00 AM ET on its own game&rsquo;s
-                  date. Until then the public grid keeps showing ? and the digits
-                  never leave the server. The reveals fire on their own.
+                  Publishing reveals these games at once, on the public grid and
+                  in the game-day email. Once revealed, digits stay public for
+                  good.
                 </>
               )}
             </DialogDescription>

@@ -70,6 +70,7 @@ export function checkBroadcast(
   owners: OwnerAddress[],
   omit: string[],
   range: BccRange,
+  opts: { ownersAsHolders?: boolean } = {},
 ): void {
   const problems: string[] = [];
   const sum = plan.p + plan.h - plan.o - plan.t - plan.x;
@@ -81,7 +82,9 @@ export function checkBroadcast(
   if (!sameSet(env.cc ?? [], plan.cc ?? [])) problems.push("the envelope's Cc differs from the plan's");
   const n = new Set(env.bcc.map(norm)).size;
   if (n < range.min || n > range.max) problems.push(`Bcc is ${n}, outside ${range.min} to ${range.max}`);
-  const ownerAddrs = new Set(owners.flatMap((o) => [norm(o.email), norm(o.alt_email)]).filter(Boolean));
+  // The game-day emails (Part N) carry an owner who holds a block in Bcc, as a
+  // holder; an owner's alt is never addressed, on any email.
+  const ownerAddrs = new Set(owners.flatMap((o) => (opts.ownersAsHolders ? [norm(o.alt_email)] : [norm(o.email), norm(o.alt_email)])).filter(Boolean));
   const ownerInBcc = env.bcc.map(norm).filter((a) => ownerAddrs.has(a));
   if (ownerInBcc.length) problems.push(`${ownerInBcc.length} owner address in Bcc`);
   const named = [...new Set(omit.map((c) => c.trim().toUpperCase()).filter(Boolean))].sort();

@@ -129,6 +129,35 @@ export function ownersOnCcEnvelope(
   return { to: [admin], cc: all.slice(1), bcc };
 }
 
+/** The two owners on Cc of the game-day emails (Anthony, 2026-11-23, Part N). */
+export const DAY_CC = ["RM", "MAP"] as const;
+
+/**
+ * The game-day emails (kickoff, game day, winners; Part N): To Anthony alone,
+ * Cc RM and MAP, Bcc the derived list (every holder's own address) minus those
+ * three and every owner's alt. No other owner is on it, unless he holds a
+ * block, and then he is in Bcc as a holder. DN having no address does not
+ * matter here: DN is not on it.
+ */
+export function dayEnvelope(owners: OwnerAddress[], adminEmail: string, derived: string[]): Envelope {
+  const admin = norm(adminEmail);
+  if (!admin) throw new Error("game-day email: ADMIN_EMAIL is blank");
+  const avd = owners.find((o) => o.code === "AVD");
+  if (!avd || norm(avd.email) !== admin) throw new Error("game-day email: AVD's address on the owners table is not ADMIN_EMAIL");
+  const cc = DAY_CC.map((code) => {
+    const a = norm(owners.find((o) => o.code === code)?.email);
+    if (!a) throw new Error(`game-day email: owner ${code} has no address on the owners table; it is Cc ${DAY_CC.join(" and ")}`);
+    return a;
+  });
+  const never = neverAddressed(owners);
+  const on = [admin, ...cc];
+  if (on.some((a) => never.has(a))) throw new Error("game-day email: an address on To or Cc is an owner's alt");
+  if (new Set(on).size !== on.length) throw new Error("game-day email: two of Anthony, RM and MAP share an address");
+  const onEnvelope = new Set(on);
+  const bcc = [...new Set(derived.map(norm))].filter((a) => a && !onEnvelope.has(a) && !never.has(a)).sort();
+  return { to: [admin], cc, bcc };
+}
+
 export function perRecipientEnvelope(recipient: string): Envelope {
   const r = norm(recipient);
   if (!r) throw new Error("per-recipient email with no recipient");

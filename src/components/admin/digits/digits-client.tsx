@@ -11,7 +11,7 @@ import {
   REVEAL_TIME_ET,
 } from "@/lib/format";
 import { gameCode } from "@/lib/pool";
-import { ASSIGN_WINDOW_DAYS, windowRefusal } from "@/lib/week-digits";
+import { DRAW_RULE, windowRefusal } from "@/lib/week-digits";
 import { matchupLabel } from "@/lib/nfl";
 import { assignDigits, publishDigits } from "@/app/admin/actions";
 import { Button } from "@/components/ui/button";
@@ -138,10 +138,10 @@ export function DigitsClient({
         <p className="mt-0.5 max-w-3xl text-sm text-muted-foreground">
           The whole season, for one-off work: reschedule a reveal, publish one
           early, check a state. Assigning still randomizes both axes — every
-          digit exactly once, immutable forever — and still obeys the one-week
-          rule, so a game more than {ASSIGN_WINDOW_DAYS} days out cannot be
-          drawn from here either. Until the reveal, the public grid keeps
-          showing ? on both axes.
+          digit exactly once, immutable forever — and still obeys the game-day
+          rule: {DRAW_RULE} A game on another day cannot be drawn from here
+          either. Until the reveal, the public grid keeps showing ? on both
+          axes.
         </p>
       </div>
 
@@ -167,7 +167,7 @@ export function DigitsClient({
                 : g.status === "void"
                   ? "void"
                   : tooEarly
-                    ? `outside the ${ASSIGN_WINDOW_DAYS}-day window`
+                    ? "not its game day yet"
                     : null;
           const revealed = isRevealed(g);
           const scheduled = isScheduled(g);

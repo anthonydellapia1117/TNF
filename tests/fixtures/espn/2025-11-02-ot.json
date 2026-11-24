@@ -1,0 +1,68 @@
+{
+ "events": [
+  {
+   "name": "Jacksonville Jaguars at Las Vegas Raiders",
+   "competitions": [
+    {
+     "status": {
+      "type": {
+       "name": "STATUS_FINAL",
+       "completed": true,
+       "state": "post"
+      }
+     },
+     "competitors": [
+      {
+       "homeAway": "home",
+       "team": {
+        "displayName": "Las Vegas Raiders"
+       },
+       "score": "29",
+       "linescores": [
+        {
+         "value": 0.0
+        },
+        {
+         "value": 6.0
+        },
+        {
+         "value": 3.0
+        },
+        {
+         "value": 14.0
+        },
+        {
+         "value": 6.0
+        }
+       ]
+      },
+      {
+       "homeAway": "away",
+       "team": {
+        "displayName": "Jacksonville Jaguars"
+       },
+       "score": "30",
+       "linescores": [
+        {
+         "value": 0.0
+        },
+        {
+         "value": 3.0
+        },
+        {
+         "value": 3.0
+        },
+        {
+         "value": 17.0
+        },
+        {
+         "value": 7.0
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

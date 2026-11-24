@@ -50,6 +50,11 @@
 //                             that sha (the dry run prints neither claim_id nor
 //                             any value only the claim makes); prints the Gmail
 //                             message id for admin_email_record_sent_broadcast
+//   --context f --sample-draft [--dry-run]
+//                             the game-day emails (Part N): the live context
+//                             marked SAMPLE, with made-up digits and scores,
+//                             as a Gmail draft To ADMIN_EMAIL alone. Never
+//                             claimed, never sent.
 //   --read-back <message id>  fetch a sent message and check it
 //   --subjects                print the subject stems the module writes
 //
@@ -90,6 +95,7 @@ import { Gmail, gmailEnvFromProcess, type InboundMeta } from "../src/lib/email/t
 import type { EmailBatch, EmailContext, EventArgs } from "../src/lib/email/types.ts";
 import type { OwnerAddress } from "../src/lib/email/envelope.ts";
 import { checkBroadcast, envelopeMd5, planArithmetic, type BroadcastPlan } from "../src/lib/email/broadcast.ts";
+import { sampleDay } from "../src/lib/email/sample.ts";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "anthonydellapia@gmail.com").toLowerCase();
 const FROM = `Anthony DellaPia <${ADMIN_EMAIL}>`;
@@ -217,7 +223,31 @@ function intOpt(name: string): number {
  */
 async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArgs): Promise<void> {
   if (ctx.recipient !== ADMIN_EMAIL) die(`a broadcast context is fetched for ADMIN_EMAIL, not ${ctx.recipient}`);
+  if (ctx.sample && !flag("sample-draft")) die(`${eventKey}: this context is a SAMPLE; it is only ever drafted To Anthony (--sample-draft)`);
+  // A review copy (Part N): the live context, marked SAMPLE, with made-up
+  // digits and scores for the game-day and winners emails.
+  if (flag("sample-draft")) {
+    if (!familyOf(eventKey).day) die("--sample-draft is for the game-day emails: kickoff_, gameday_ and winners_<date>");
+    ctx = { ...ctx, sample: true };
+    const day = /_(\d{4}-\d{2}-\d{2})$/.exec(eventKey)?.[1] ?? die(`${eventKey} has no date`);
+    if (!eventKey.startsWith("kickoff_")) ctx.day = sampleDay(ctx.common, day, eventKey.startsWith("winners_"));
+  }
   const r = renderOrDie(ctx, args);
+
+  // The review copy goes out as a Gmail draft To Anthony alone, nothing else
+  // on the envelope, never claimed and never sent.
+  if (flag("sample-draft")) {
+    const mime = buildMime({ from: FROM, to: [ADMIN_EMAIL], email: r.email, headers: { "X-TNF-Event": `${eventKey}_sample` } });
+    if (flag("dry-run")) {
+      console.log(JSON.stringify({ to: [ADMIN_EMAIL], cc: [], bcc: [], subject: r.email.subject, sha: r.sha, sample: true }, null, 2));
+      console.log(r.email.text);
+      return;
+    }
+    const gmail = await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
+    const d = await gmail.createDraft(mime);
+    console.log(JSON.stringify({ event_key: eventKey, sample: true, draft_id: d.draftId, message_id: d.messageId, to: 1, cc: 0, bcc: 0, subject: r.email.subject, sha: r.sha }));
+    return;
+  }
 
   if (flag("sample") || flag("to-admin")) {
     const mime = buildMime({ from: FROM, to: [ADMIN_EMAIL], email: r.email, headers: { "X-TNF-Event": `${eventKey}_sample` } });
@@ -238,7 +268,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   const omit = opts("omit-owner");
   const range = { min: intOpt("min-bcc"), max: intOpt("max-bcc") };
   const envelope = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: plan.bcc, omit });
-  checkBroadcast(plan, envelope, owners, omit, range);
+  checkBroadcast(plan, envelope, owners, omit, range, { ownersAsHolders: familyOf(eventKey).day === true });
   const md5 = envelopeMd5(envelope);
   console.log(JSON.stringify({
     event_key: eventKey, subject: r.email.subject, sha: r.sha,

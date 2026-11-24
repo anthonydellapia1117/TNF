@@ -176,7 +176,7 @@ describe("a per-recipient email", () => {
 
   it("is every family but the game-day pack, the recruit broadcast and the format change", () => {
     expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "recruit", "reply", "status"]);
-    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["format_change", "game_day", "recruit_broadcast"]);
+    expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["format_change", "game_day", "gameday", "kickoff", "recruit_broadcast", "winners"]);
   });
 
   for (const f of perRecipient) {

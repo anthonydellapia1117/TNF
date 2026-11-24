@@ -6,7 +6,7 @@ import { getAdminSession } from "@/lib/auth";
 import { getAdminGames } from "@/lib/data/admin";
 import { gameCode } from "@/lib/pool";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { weekPlan } from "@/lib/week-digits";
+import { weekPlan, windowRefusal } from "@/lib/week-digits";
 
 export interface ActionResult<T = unknown> {
   ok: boolean;
@@ -243,6 +243,13 @@ export async function updateGame(input: {
 // ---------------------------------------------------------------------------
 
 export async function assignDigits(gameId: string): Promise<ActionResult> {
+  // The game-day rule, re-checked here against the game as the database has
+  // it: the client sends a game id and nothing else, so a stale page or a
+  // hand-made request cannot draw a game before its day (Part N).
+  const game = (await getAdminGames()).find((g) => g.id === gameId);
+  if (!game) return { ok: false, error: "Game not found." };
+  const refusal = windowRefusal(game, Date.now());
+  if (refusal) return { ok: false, error: refusal };
   return rpc("admin_assign_digits", { p_game_id: gameId }, ["/admin/digits", "/admin"]);
 }
 
@@ -270,13 +277,13 @@ export async function publishDigits(
 }
 
 // ---------------------------------------------------------------------------
-// Digits, a week at a time
+// Digits, today's games (Part N; grouped by week on the screen)
 //
-// Digits are drawn for the games of one week, the week they are needed —
-// never for the season in advance. The window is re-checked HERE against
-// games read from the database, not just in the screen: the client sends a
-// week number and nothing else, so a stale page or a hand-made request
-// cannot draw a game that is still months out.
+// A game's digits are drawn on its own game day in ET, before kickoff. The
+// rule is re-checked HERE against games read from the database, not just in
+// the screen: the client sends a week number and nothing else, and weekPlan
+// puts every game that is not today's in blocked, so a stale page or a
+// hand-made request cannot draw a game before its day.
 // ---------------------------------------------------------------------------
 
 /**
@@ -320,9 +327,8 @@ export async function assignWeekDigits(
 }
 
 /**
- * Schedule the reveal for every drawn-but-unpublished game in one week, each
- * at 8:00 AM ET on ITS OWN date — never one shared instant. A game whose
- * 8:00 AM has already passed publishes immediately instead.
+ * Publish every drawn-but-unpublished game in one week at once (Part N: a
+ * game's digits are published as soon as they are drawn).
  */
 export async function scheduleWeekReveals(
   week: number,

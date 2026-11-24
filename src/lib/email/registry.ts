@@ -16,8 +16,9 @@ import { gameDay, GAME_DAY_KEY } from "./events/game-day.ts";
 import { gameList, GAME_LIST_KEY } from "./events/game-list.ts";
 import { answer, ANSWER_KEY } from "./events/answer.ts";
 import { formatChange, FORMAT_CHANGE_KEY } from "./events/format-change.ts";
+import { gameday, GAMEDAY_KEY, kickoff, KICKOFF_KEY, winners, WINNERS_KEY } from "./events/day.ts";
 import { POOL_SUBJECT } from "./copy.ts";
-import { broadcastEnvelope, ownersOnCcEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
+import { broadcastEnvelope, dayEnvelope, ownersOnCcEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
 type Renderer = (ctx: EmailContext, args: EventArgs) => EmailSpec;
 
@@ -30,6 +31,13 @@ interface Family {
   broadcast: boolean;
   /** A broadcast whose owners go on Cc, To Anthony alone (the format email, Part L). */
   ownersOnCc?: boolean;
+  /**
+   * The game-day emails (Part N): To Anthony, Cc RM and MAP, Bcc holders. An
+   * owner who holds a block is in Bcc as a holder. The key's date is the game
+   * date; kickoff and gameday render only on it, winners on it or the morning
+   * after (its last game can end past midnight).
+   */
+  day?: boolean;
   /** Written in Anthony's reply voice to one person: the voice lint applies. */
   voice?: boolean;
   render: Renderer;
@@ -46,7 +54,17 @@ export const FAMILIES: Family[] = [
   { name: "game_list", match: GAME_LIST_KEY, dated: false, broadcast: false, voice: true, render: gameList },
   { name: "answer", match: ANSWER_KEY, dated: false, broadcast: false, voice: true, render: answer },
   { name: "format_change", match: FORMAT_CHANGE_KEY, dated: true, broadcast: true, ownersOnCc: true, render: formatChange },
+  { name: "kickoff", match: KICKOFF_KEY, dated: true, broadcast: true, day: true, render: kickoff },
+  { name: "gameday", match: GAMEDAY_KEY, dated: true, broadcast: true, day: true, render: gameday },
+  { name: "winners", match: WINNERS_KEY, dated: false, broadcast: true, day: true, render: winners },
 ];
+
+/** The day after a YYYY-MM-DD, as YYYY-MM-DD. */
+function nextYmd(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 /** Families that answer one inbound message; the key ends in that message's Gmail id. */
 export const REPLY_TO_MESSAGE = /^(?:game_list|answer)_([0-9a-f]+)$/;
@@ -69,7 +87,15 @@ export interface Rendered {
 
 export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
   const f = familyOf(ctx.event_key);
-  if (f.dated) {
+  // A sample is a review copy drafted To Anthony, never sent: it may render
+  // before its day (the drafts are staged the night before, Part N).
+  if (f.name === "winners" && !ctx.sample) {
+    const day = f.match.exec(ctx.event_key)?.[1] ?? "";
+    if (ctx.common.as_of_et !== day && ctx.common.as_of_et !== nextYmd(day)) {
+      throw new Error(`${ctx.event_key}: the database date is ${ctx.common.as_of_et}; winners render on their game date or the morning after`);
+    }
+  }
+  if (f.dated && !ctx.sample) {
     const day = f.match.exec(ctx.event_key)?.[1];
     if (day !== ctx.common.as_of_et) {
       throw new Error(`${ctx.event_key}: the database date is ${ctx.common.as_of_et}; a dated event renders only on its own day`);
@@ -92,6 +118,10 @@ export function envelopeFor(
   const f = familyOf(eventKey);
   if (f.broadcast) {
     if (!opts.owners) throw new Error(`${eventKey} is a broadcast: it needs the owners table export (--owners)`);
+    if (f.day) {
+      if (opts.omit?.length) throw new Error(`${eventKey} leaves no owner off: it is To Anthony and Cc RM and MAP only`);
+      return dayEnvelope(opts.owners, opts.adminEmail, opts.derived ?? []);
+    }
     const build = f.ownersOnCc ? ownersOnCcEnvelope : broadcastEnvelope;
     return build(opts.owners, opts.adminEmail, opts.derived ?? [], { omit: opts.omit });
   }
