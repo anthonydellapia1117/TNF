@@ -1,6 +1,6 @@
 # Routines
 
-Four routines are defined for this pool, three of them on: TNF Sweep, TNF Game Day (the morning run) and TNF Results; TNF Draw Window is paused (Part N). Rewritten 2026-09-10
+Four routines are defined for this pool: TNF Sweep and TNF Game Day (the morning run) are on; TNF Results is created and paused until its connectors are added (Part N, below); TNF Draw Window is paused (Part N). Rewritten 2026-09-10
 from a set of six, of which all six were disabled and three had a stored cron
 that did not match what this file claimed.
 
@@ -9,7 +9,7 @@ that did not match what this file claimed.
 | 1 | TNF Sweep | `trig_017vcw3ADZHPVpKVXS1s1B7X` | `43 11-23,0-4 * * *`, enabled, read back 2026-10-09 | yes, within `docs/SWEEP_PROMPT.md` | Gmail, Supabase |
 | 2 | TNF Game Day | `trig_01QLquSeCUP8wc3DxPfzzQRY` | `10 14,15 1,24-28,31 1,11,12 *` (Part N: 9:10 AM ET and a 10:10 AM re-fire) | `admin_draw_day` for today's games, the kickoff and game-day emails, claimed and recorded, and one NEEDS ANTHONY queue row per date (`gameday:<date>`) on a game date or the claim deadline, a failed clone or install included | Gmail, Supabase |
 | 3 | TNF Draw Window | `trig_01TmmBwcxWv5FdJGspjunhn9` | `37 14 22,24,29 11,12 *` | no | none needed; **paused 2026-11-23 (Part N)**, its checks fold into TNF Game Day steps 2, 4a and 6 |
-| 4 | TNF Results | `TNF Results` (Part N, created 2026-11-23; id in list_triggers) | `25 0-7,21-23 1,24-28,31 1,11,12 *` | scores through `admin_score_game` from ESPN, the winners email, one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
+| 4 | TNF Results | `trig_01CJpJ6NAj9o9TEN1oRSUtwY` (Part N, created 2026-11-24 02:46 UTC; PAUSED until Supabase and Gmail are added in the UI) | `25 0-7,21-23 1,24-28,31 1,11,12 *` | scores through `admin_score_game` from ESPN, the winners email, one NEEDS ANTHONY queue row per problem class and game date (`scores:<date>`, `winners:<date>`) when a check fails, a failed clone or install included | Gmail, Supabase |
 
 **Part N (Anthony, 2026-11-23, approved in the TNF PM chat at 2:53 PM ET).**
 Digits are drawn per day, not per week: the morning run calls `admin_draw_day`
@@ -417,9 +417,18 @@ You are the operations agent for the 1622 TNF Block Pool. This repo's CLAUDE.md 
 - **When:** hourly at :25, 4:25 PM to 2:25 AM ET, on the game dates and the
   mornings after; a fire with nothing to settle reports NO ACTION.
 - **Stored cron (UTC):** `25 0-7,21-23 1,24-28,31 1,11,12 *`
-- **Trigger:** `TNF Results`, created 2026-11-23 from this repo's Part N
+- **Trigger:** `trig_01CJpJ6NAj9o9TEN1oRSUtwY`, named `TNF Results`, created
+  2026-11-24 02:46 UTC (Mon Nov 23, 9:46 PM ET) from this repo's Part N
   session, a fresh session per fire, in the same environment as TNF Game Day
-  (the three `GMAIL_OAUTH_*` variables, open network for ESPN).
+  (DELLA: the three `GMAIL_OAUTH_*` variables, open network for ESPN).
+- **State:** PAUSED at creation. A trigger created through the routine tools
+  in this organization carries no connectors (the tools refuse to pass them),
+  and without Supabase every fire would fail. Anthony adds them in the UI:
+  claude.ai/code > Routines > TNF Results > Edit > Connectors > add Supabase
+  and Gmail > Save, then turn the routine on (labels are a best guess; the
+  routine's own settings page holds its connectors). It must be on before 4:25 PM ET
+  Wed Nov 25, the first fire that can settle G01. Until then the winners
+  email is Anthony's by hand: enter the scores at /admin/score.
 - **Connectors:** Gmail, Supabase.
 - **Prompt:** `docs/RESULTS_PROMPT.md`, through the pointer below.
 
