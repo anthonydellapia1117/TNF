@@ -60,10 +60,14 @@ const byKickoff = (a: PublicGame, b: PublicGame) =>
   (a.kickoff_at ?? "9999").localeCompare(b.kickoff_at ?? "9999");
 
 /**
- * The game /grid opens on when no ?g= names one: a game being played, else
- * today's game in ET (the next of today's still to finish, or once all of
- * today's are final, the last of them, so its winners stay up that night),
- * else the next game to be played, else the last game. Void games never.
+ * The game /grid opens on when no ?g= names one: a game marked in progress or
+ * at halftime, else today's game in ET (the latest of today's that has kicked
+ * off, or before the first kickoff, the first of them), else the next game to
+ * be played, else the last game. Void games never.
+ *
+ * Today's game goes by kickoff time, not status: the results run leaves every
+ * game of a day "published" until the whole day is final (score-plan), so on
+ * Thanksgiving evening a status rule would sit on G02 while G04 is played.
  */
 export function defaultGridGame(
   games: readonly PublicGame[],
@@ -80,10 +84,12 @@ export function defaultGridGame(
   const todays = live
     .filter((g) => g.kickoff_at && etDate(g.kickoff_at, tz) === today)
     .sort(byKickoff);
-  if (todays.length)
-    return (
-      todays.find((g) => g.status !== "final") ?? todays[todays.length - 1]
+  if (todays.length) {
+    const started = todays.filter(
+      (g) => Date.parse(g.kickoff_at as string) <= Date.parse(nowIso),
     );
+    return started[started.length - 1] ?? todays[0];
+  }
   const now = Date.parse(nowIso);
   const next = live
     .filter(

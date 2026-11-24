@@ -205,3 +205,11 @@ describe("the game-day envelope: To Anthony, Cc RM and MAP, Bcc holders", () => 
     expect(() => checkBroadcast({ ...plan, bcc: withAlt.bcc, bcc_count: 4, h: 6 }, withAlt, owners, [], { min: 1, max: 10 }, { ownersAsHolders: true })).toThrow(/owner address in Bcc/);
   });
 });
+
+describe("one link everywhere (Part Q)", () => {
+  it("the game-day pack links the bare /grid too, never ?g=", () => {
+    const r = renderEvent(ctx("game_day_g01"), { grid: "live-only" });
+    expect(r.email.text).toContain("Live grid: https://ad-26-tnf.vercel.app/grid");
+    expect(r.email.text).not.toContain("?g=");
+  });
+});
