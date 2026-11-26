@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { envelopeFor, familyOf, renderEvent } from "@/lib/email/registry";
-import { blocksNamed, note } from "@/lib/email/events/note";
+import { blocksNamed, markedBlocks, note } from "@/lib/email/events/note";
 import { buildMime } from "@/lib/email/mime";
 import type { CommonFacts, DayFacts, EmailContext, HolderFacts } from "@/lib/email/types";
 import { COMMON, dayGame } from "./fixtures";
@@ -154,6 +154,59 @@ describe("note_<date>_<name> (Part S)", () => {
     for (const bad of ["you have blocks 3, 23, and 24.", "block 3 (and 24) is yours.", "Block #24 is yours.", "spots 3 and 24 are yours."]) {
       expect(() => renderEvent(nctx(), { ...ARGS, lines: bad }), bad).toThrow(/block 24 is named but the recipient does not hold it/);
     }
+  });
+
+  // The second review of PR 52: the guard failed open on a word that starts
+  // like a month ("Mark 24"), on "#24" with no block word, and on a number in
+  // the next sentence; and it failed closed on "1,500". Every number now
+  // counts, wherever it is, unless it is plainly not a block or is declared.
+  it("counts every number in the note, whatever word comes before it or whichever sentence it is in", () => {
+    expect(blocksNamed(["Your blocks: Santos 3 and Mark 24."])).toEqual([3, 24]);
+    expect(blocksNamed(["you have blocks 3 and 23, and maybe 24 too."])).toEqual([3, 23, 24]);
+    expect(blocksNamed(["blocks 3 and 23 are Jane 24's old spots."])).toEqual([3, 23, 24]);
+    expect(blocksNamed(["Mark, you're on #3 and #24 now."])).toEqual([3, 24]);
+    expect(blocksNamed(["That's fixed: you have 3 or 24."])).toEqual([3, 24]);
+    expect(blocksNamed(["you have blocks 3 and 23.", "Santos also has 24."])).toEqual([3, 23, 24]);
+    expect(blocksNamed(["The three grids for Thu Nov 26 are below.", "Kickoff is Sept 3."])).toEqual([]);
+    expect(blocksNamed(["If block 3 or 23 hits the final it pays 1,500."])).toEqual([3, 23]);
+  });
+
+  it("refuses every one of those that names a block the recipient does not hold", () => {
+    for (const bad of [
+      "Your blocks: Santos 3 and Mark 24.",
+      "you have blocks 3 and 23, and maybe 24 too.",
+      "Mark, you're on #3 and #24 now.",
+      "That's fixed: you have 3 or 24.",
+      "you have blocks 3 and 23.\nSantos also has 24.",
+    ]) {
+      expect(() => renderEvent(nctx(), { ...ARGS, lines: bad }), bad).toThrow(/block 24 is named but the recipient does not hold it/);
+    }
+  });
+
+  it("lets a score or a count through only when it is declared, and never a number written as a block", () => {
+    const score = "Mark, block 23 hit the G04 halftime, Chiefs 13 Bills 10.";
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: score })).toThrow(/block 13 is named/);
+    expect(renderEvent(nctx(), { ...ARGS, lines: score, not_blocks: "13,10" }).problems).toEqual([]);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "you have blocks 3 and 24.", not_blocks: "24" })).toThrow(/24 is written as a block/);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "you have blocks 3, 23, and 24.", not_blocks: "24" })).toThrow(/24 is written as a block/);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "Block #24 is yours.", not_blocks: "24" })).toThrow(/24 is written as a block/);
+    expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "13" })).toThrow(/not_blocks names 13, which the note does not say/);
+    expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "x" })).toThrow(/whole numbers/);
+    expect(markedBlocks(["you have blocks 3, 23, and 24.", "Chiefs 13 Bills 10."])).toEqual([3, 23, 24]);
+  });
+
+  it("passes Anthony's note to Mark exactly as it goes out", () => {
+    const mark = [
+      "Mark, my mistake. You and Santos were never put on the board in September.",
+      "That's fixed: you have blocks 3 and 23, showing as Mark/Santos.",
+      "The three grids for Thu Nov 26 are below.",
+      "The live grid has a name search: https://ad-26-tnf.vercel.app/grid.",
+      "You'll get every game-day and winners email from here on.",
+    ].join("\n");
+    expect(blocksNamed(mark.split("\n"))).toEqual([3, 23]);
+    const r = renderEvent(nctx({ event_key: "note_2026-11-26_mark-santos" }), { lines: mark, subject: "Mark/Santos on blocks 3 and 23", grids: "2,3,4" });
+    expect(r.problems).toEqual([]);
+    expect(r.spec.images?.map((i) => i.gameNo)).toEqual([2, 3, 4]);
   });
 
   it("refuses a key the ledger cannot take (over 80 characters)", () => {

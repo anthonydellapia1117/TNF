@@ -12,11 +12,14 @@
 //
 // Args:
 //   lines    Anthony's sentences, his greeting included ("Mark, ..."), "\n"
-//            between lines. The sign-off is added. In any sentence that names
-//            a block (block, spot, box or square), every whole number from 1
-//            to 100 must be a block the recipient holds at their own address
-//            (the context's holder facts, migration 45); a date ("Nov 26") or
-//            a time ("1:00") is not a block number.
+//            between lines. The sign-off is added. Every whole number from 1
+//            to 100 anywhere in them must be a block the recipient holds at
+//            their own address (the context's holder facts, migration 45). A
+//            day after a month ("Nov 26"), a time ("1:00"), an amount with a
+//            thousands comma ("1,500"), a code ("G02") or a URL is not a block.
+//   not_blocks  optional, comma-separated numbers the note says that are not
+//            blocks (a score, a count). Each must appear in the lines and
+//            must not be written as a block ("block 24", "#24").
 //   subject  what follows "TNF Holiday Pool <year> | " in the subject.
 //   grids    optional, comma-separated game numbers ("2,3,4"): a grid picture
 //            each, Comfortable view, fetched at send time like Part R's. Each
@@ -38,32 +41,55 @@ export const MAX_NOTE_SENTENCES = 8;
 const code = (n: number) => `G${String(n).padStart(2, "0")}`;
 const gridCid = (n: number) => `grid-${code(n).toLowerCase()}@tnf`;
 
-const MONTH = /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?$/i;
-const BLOCK_WORD = /\b(?:blocks?|spots?|box(?:es)?|squares?)\b/i;
+/** A whole month name or its abbreviation: "Nov 26" is a date, "Mark 24" is not. */
+const MONTH = /^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?$/i;
+/** A word that marks the number after it as a block: "block 24", "spots 3 and 24". */
+const BLOCK_WORD = /\b(?:blocks?|spots?|box(?:es)?|squares?)\s*[:#]?\s*$/i;
+
+interface NamedNumber { n: number; marked: boolean }
 
 /**
- * The block numbers a note names. Strict on purpose: in every sentence that
- * mentions a block (block, spot, box or square, singular or plural), every
- * whole number from 1 to 100 counts, however it is joined ("blocks 3, 23, and
- * 24", "block 3 (and 24)", "#24", "3 or 24"). A day after a month ("Nov 26"),
- * a clock time ("1:00"), a number inside a word or code ("G02") or a URL is
- * not a block. A stray number fails safe: the send is refused and says which.
+ * Every number in a note that could be a block: each whole number from 1 to
+ * 100 anywhere in it, in any sentence, however it is written ("block 24",
+ * "#24", "Mark 24", "3 or 24"). Not one: a day after a month name ("Nov 26"),
+ * a clock time ("1:00"), an amount with a thousands comma ("1,500"), a number
+ * inside a word or code ("G02") or a URL. "marked" when a block word or "#"
+ * comes right before it, or it continues a list that one began ("blocks 3,
+ * 23, and 24").
  */
-export function blocksNamed(lines: readonly string[]): number[] {
-  const out: number[] = [];
-  const text = lines.join(" ").replace(/https?:\/\/\S+/g, " ");
-  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
-    if (!BLOCK_WORD.test(sentence)) continue;
-    const s = sentence.replace(/\b\d{1,2}:\d{2}\b/g, " ");
-    for (const m of s.matchAll(/(?<![\w.])#?(\d+)(?![\w:])/g)) {
-      const n = Number(m[1]);
-      if (n < 1 || n > 100) continue;
-      const before = s.slice(0, m.index ?? 0).trimEnd().split(/\s+/).pop() ?? "";
-      if (MONTH.test(before)) continue;
-      out.push(n);
-    }
+function namedNumbers(lines: readonly string[]): NamedNumber[] {
+  const text = lines
+    .join(" ")
+    .replace(/https?:\/\/\S+/g, " ")
+    .replace(/\b\d{1,2}:\d{2}\b/g, " ")
+    .replace(/\b\d{1,3}(?:,\d{3})+\b/g, " ");
+  const out: NamedNumber[] = [];
+  let listMarked = false;
+  let lastEnd = 0;
+  for (const m of text.matchAll(/(?<![\w.])(#?)(\d+)(?![\w:])/g)) {
+    const at = m.index ?? 0;
+    const before = text.slice(0, at);
+    const between = text.slice(lastEnd, at);
+    lastEnd = at + m[0].length;
+    const n = Number(m[2]);
+    const continues = /^\s*(?:,\s*(?:and|or|&)?|\(?\s*(?:and|or|&)(?:\s+also)?)\s*$/i.test(between);
+    const marked: boolean = m[1] === "#" || BLOCK_WORD.test(before) || (listMarked && continues);
+    listMarked = marked;
+    if (n < 1 || n > 100) continue;
+    if (MONTH.test(before.trimEnd().split(/\s+/).pop() ?? "")) continue;
+    out.push({ n, marked });
   }
   return out;
+}
+
+/** The numbers a note names that could be blocks, in order (see namedNumbers). */
+export function blocksNamed(lines: readonly string[]): number[] {
+  return namedNumbers(lines).map((x) => x.n);
+}
+
+/** Of those, the ones written as a block: after a block word or "#", or in a list one began. */
+export function markedBlocks(lines: readonly string[]): number[] {
+  return namedNumbers(lines).filter((x) => x.marked).map((x) => x.n);
 }
 
 export function note(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
@@ -79,13 +105,26 @@ export function note(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
   const what = hyphenate((args.subject ?? "").trim());
   if (!what) throw new Error("note: --subject is required");
 
-  // A block number in Anthony's words must be one the database says this
-  // recipient holds: the note states it as theirs.
+  // Every number in Anthony's words that could be a block must be one the
+  // database says this recipient holds at their own address. A number that is
+  // not a block (a score, a count) passes only when the caller declares it in
+  // not_blocks, and never one written as a block ("block 24", "#24").
   const holder = ctx.holder;
   if (!holder) throw new Error(`note: the context has no holder facts; fetch admin_email_context('${ctx.event_key}', ...)`);
   const held = new Set(holder.blocks.map((b) => b.block_number));
-  for (const b of blocksNamed(lines)) {
-    if (!held.has(b)) throw new Error(`note: block ${b} is named but the recipient does not hold it`);
+  const named = blocksNamed(lines);
+  const marked = new Set(markedBlocks(lines));
+  const notBlocks = new Set<number>();
+  for (const w of (args.not_blocks ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+    if (!/^\d+$/.test(w)) throw new Error(`note: not_blocks wants whole numbers, got "${w}"`);
+    const n = Number(w);
+    if (!named.includes(n)) throw new Error(`note: not_blocks names ${n}, which the note does not say`);
+    if (marked.has(n)) throw new Error(`note: ${n} is written as a block, so it cannot be declared not a block`);
+    notBlocks.add(n);
+  }
+  for (const b of named) {
+    if (held.has(b) || notBlocks.has(b)) continue;
+    throw new Error(`note: block ${b} is named but the recipient does not hold it (a number that is not a block goes in --arg not_blocks)`);
   }
 
   const wanted = (args.grids ?? "").split(",").map((s) => s.trim()).filter(Boolean);

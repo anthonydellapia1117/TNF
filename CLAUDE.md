@@ -691,9 +691,12 @@ it does not move blocks.
   (never a cc, never an owner's alt, never a blocked address, never
   Anthony's), and the context refuses any other. The context's blocks are
   those of the participants whose own address it is, never one reached as
-  someone else's cc. In any sentence that names a block (block, spot, box or
-  square), every whole number from 1 to 100 must be one of those blocks; a
-  date or a time is not. `--arg grids=2,3,4` adds a grid picture per game,
+  someone else's cc. Every whole number from 1 to 100 anywhere in the note
+  must be one of those blocks, unless it is plainly not a block (a day after
+  a month name, a clock time, an amount like 1,500, a code like G02, a URL)
+  or the sender declares it with `--arg not_blocks=13,10` (a score, a count);
+  a number written as a block ("block 24", "#24") can never be declared.
+  `--arg grids=2,3,4` adds a grid picture per game,
   only for that date's games with published, verified digits, fetched at the
   dry run into `--picture-cache` (one file per email and game) and read back
   at the send, which says where each came from. The lint still applies: no
