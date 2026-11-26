@@ -115,6 +115,7 @@ describe("game day prompt", () => {
     expect(line("5b.")).toMatch(/exactly 100 entries/);
     expect(line("5b.")).toMatch(/sent without the block list/);
     expect(line("5c.")).toMatch(/--block-list \/tmp\/blocks\.json/);
+    expect(line("5c.")).toMatch(/--picture-cache \/tmp\/gridpics/);
     expect(line("5c.")).toMatch(/block_list_lines \(it must be 100\)/);
     expect(line("5c.")).toMatch(/every address masked/);
     expect(line("5c.")).toMatch(/--arg images=off/);

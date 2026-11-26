@@ -83,7 +83,7 @@
 // in the batch; a dated event rendered on another day; --not-before in the
 // future.
 
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { envelopeFor, familyOf, renderEvent, REPLY_TO_MESSAGE, SUBJECT_STEMS } from "../src/lib/email/registry.ts";
@@ -235,16 +235,26 @@ interface PictureCheck { game: number; bytes: number; width: number; height: num
  */
 async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeInline[]; checks: PictureCheck[] }> {
   const base = (process.env.TNF_SITE_URL ?? SITE_URL).replace(/\/$/, "");
+  // --picture-cache <dir>: the dry run writes each picture there and the send
+  // reads it back, so the email that goes out is the one that was dry-run and
+  // claimed, and a site that fails between the two cannot strand the claim.
+  const cache = opt("picture-cache");
+  if (cache) mkdirSync(cache, { recursive: true });
   const inline: MimeInline[] = [];
   const checks: PictureCheck[] = [];
   for (const ref of refs) {
     let lastErr = "";
     let buf: Buffer | null = null;
-    for (let attempt = 0; attempt < 2 && !buf; attempt++) {
+    const cached = cache ? `${cache}/g${String(ref.gameNo).padStart(2, "0")}.png` : null;
+    for (let attempt = 0; attempt < 3 && !buf; attempt++) {
       try {
-        const res = await fetch(`${base}/api/grid-image?g=${ref.gameNo}`, { cache: "no-store" });
+        const useCache = cached !== null && flag("send-broadcast") && existsSync(cached);
+        const res = useCache
+          ? new Response(readFileSync(cached as string))
+          : await fetch(`${base}/api/grid-image?g=${ref.gameNo}`, { cache: "no-store" });
         if (!res.ok) {
           lastErr = `HTTP ${res.status} ${(await res.text()).slice(0, 120)}`;
+          await sleep(2000);
           continue;
         }
         const b = Buffer.from(await res.arrayBuffer());
@@ -260,6 +270,7 @@ async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeI
           continue;
         }
         buf = b;
+        if (cached && !flag("send-broadcast")) writeFileSync(cached, b);
         checks.push({ game: ref.gameNo, bytes: b.length, width, height });
       } catch (e) {
         lastErr = e instanceof Error ? e.message : String(e);
@@ -287,7 +298,12 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   const blockListPath = opt("block-list");
   if (blockListPath) {
     if (familyOf(eventKey).name !== "gameday") die(`--block-list is for gameday_<date> only, not ${eventKey}`);
-    ctx = { ...ctx, block_list: readJson<BlockListEntry[]>(blockListPath).value };
+    try {
+      ctx = { ...ctx, block_list: readJson<BlockListEntry[]>(blockListPath).value };
+    } catch (e) {
+      // A parse error quotes the file: mask anything that looks like an address.
+      return die(`block list: could not read the file (${redact(e instanceof Error ? e.message : String(e)).slice(0, 80)})`);
+    }
   }
   let r;
   try {
