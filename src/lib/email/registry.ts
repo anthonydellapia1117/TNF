@@ -17,6 +17,7 @@ import { gameList, GAME_LIST_KEY } from "./events/game-list.ts";
 import { answer, ANSWER_KEY } from "./events/answer.ts";
 import { formatChange, FORMAT_CHANGE_KEY } from "./events/format-change.ts";
 import { gameday, GAMEDAY_KEY, kickoff, KICKOFF_KEY, winners, WINNERS_KEY } from "./events/day.ts";
+import { note, NOTE_KEY } from "./events/note.ts";
 import { POOL_SUBJECT } from "./copy.ts";
 import { broadcastEnvelope, dayEnvelope, ownersOnCcEnvelope, perRecipientEnvelope, type Envelope, type OwnerAddress } from "./envelope.ts";
 
@@ -57,6 +58,8 @@ export const FAMILIES: Family[] = [
   { name: "kickoff", match: KICKOFF_KEY, dated: true, broadcast: true, day: true, render: kickoff },
   { name: "gameday", match: GAMEDAY_KEY, dated: true, broadcast: true, day: true, render: gameday },
   { name: "winners", match: WINNERS_KEY, dated: false, broadcast: true, day: true, render: winners },
+  // Part S (Anthony, 2026-11-26): a note to one holder, in his words, dated.
+  { name: "note", match: NOTE_KEY, dated: true, broadcast: false, voice: true, render: note },
 ];
 
 /** The day after a YYYY-MM-DD, as YYYY-MM-DD. */

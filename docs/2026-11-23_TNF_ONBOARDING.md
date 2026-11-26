@@ -33,7 +33,7 @@ Read in this order: `CLAUDE.md`, `docs/ROUTINES.md`, `docs/DISPATCH_PROMPT.md`,
 | What | Value | Source |
 |---|---|---|
 | Blocks | 82 assigned, 18 reserved, 0 available, 100 in all | `blocks` |
-| Comped blocks | 3 and 23, both Anthony's | `blocks.comped` |
+| Comped blocks | None since 2026-11-26 (Part S: Anthony's 3 and 23 went to Mark/Santos, paid) | `blocks.comped` |
 | Participants | 53 rows, 45 holding at least one block | `participants`, `blocks` |
 | Holders' own addresses | 33 distinct. 11 holding participants have no address and get no pool email | `participants` |
 | Payment rows | 55: 21 venmo, 30 cash, 4 correction | `payments` |
@@ -241,7 +241,7 @@ Each of these produced a rule. The rule is in `CLAUDE.md`; this is the index.
 
 ## 9. Identity rules, by code
 
-- **AVD** Anthony. One address on this pool. His comp is blocks 3 and 23.
+- **AVD** Anthony. One address on this pool. He holds no block since 2026-11-26: his comped 3 and 23 went to Mark/Santos (Part S).
   Money that reaches him moves the payer to AVD in the same transaction.
 - **RM** Ronnie Malandro and **MAP** Michael Pungitore are on Cc of the three
   day emails. MAP has an alt address; it is never addressed.

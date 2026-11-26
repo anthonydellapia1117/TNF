@@ -40,6 +40,7 @@ const SAMPLE_KEY: Record<string, string> = {
   game_day: "game_day_g01",
   game_list: "game_list_1a116ebc30d629eb",
   answer: "answer_1a116ebc30d629eb",
+  note: "note_2026-11-26_holder",
 };
 
 describe("a broadcast", () => {
@@ -175,7 +176,7 @@ describe("a per-recipient email", () => {
   const perRecipient = FAMILIES.filter((f) => !f.broadcast);
 
   it("is every family but the game-day pack, the recruit broadcast and the format change", () => {
-    expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "recruit", "reply", "status"]);
+    expect(perRecipient.map((f) => f.name).sort()).toEqual(["answer", "digest", "game_list", "holder_checkin", "note", "recruit", "reply", "status"]);
     expect(FAMILIES.filter((f) => f.broadcast).map((f) => f.name).sort()).toEqual(["format_change", "game_day", "gameday", "kickoff", "recruit_broadcast", "winners"]);
   });
 
