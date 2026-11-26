@@ -225,7 +225,14 @@ function intOpt(name: string): number {
 /** Every address masked: the block list is the one body with addresses in it, and a log is not a place for them. */
 const redact = (s: string) => s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
 
-interface PictureCheck { game: number; bytes: number; width: number; height: number }
+interface PictureCheck { game: number; bytes: number; width: number; height: number; source: "cache" | "site" }
+
+/**
+ * A real send, as opposed to a dry run: a broadcast with --send-broadcast, or
+ * a per-recipient email with its --claim (a note, Part S). The dry run writes
+ * each picture to --picture-cache and the send reads it back.
+ */
+const sending = () => flag("send-broadcast") || (opt("claim") !== undefined && !flag("dry-run"));
 
 /**
  * Fetch each grid picture the email names (Part R) from the site, at send
@@ -233,7 +240,7 @@ interface PictureCheck { game: number; bytes: number; width: number; height: num
  * fetch is retried once; a second failure throws, and the routine falls back
  * to --arg images=off, which it reports.
  */
-async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeInline[]; checks: PictureCheck[] }> {
+async function fetchPictures(refs: readonly ImageRef[], eventKey: string): Promise<{ inline: MimeInline[]; checks: PictureCheck[] }> {
   const base = (process.env.TNF_SITE_URL ?? SITE_URL).replace(/\/$/, "");
   // --picture-cache <dir>: the dry run writes each picture there and the send
   // reads it back, so the email that goes out is the one that was dry-run and
@@ -245,10 +252,14 @@ async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeI
   for (const ref of refs) {
     let lastErr = "";
     let buf: Buffer | null = null;
-    const cached = cache ? `${cache}/g${String(ref.gameNo).padStart(2, "0")}.png` : null;
+    // One file per email and game (Part S review): a note never reads the
+    // game-day run's picture of the same game, taken before a block moved.
+    const cached = cache ? `${cache}/${eventKey}_g${String(ref.gameNo).padStart(2, "0")}.png` : null;
+    let source: PictureCheck["source"] = "site";
     for (let attempt = 0; attempt < 3 && !buf; attempt++) {
       try {
-        const useCache = cached !== null && flag("send-broadcast") && existsSync(cached);
+        const useCache = cached !== null && sending() && existsSync(cached);
+        source = useCache ? "cache" : "site";
         const res = useCache
           ? new Response(readFileSync(cached as string))
           : await fetch(`${base}/api/grid-image?g=${ref.gameNo}`, { cache: "no-store" });
@@ -270,8 +281,8 @@ async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeI
           continue;
         }
         buf = b;
-        if (cached && !flag("send-broadcast")) writeFileSync(cached, b);
-        checks.push({ game: ref.gameNo, bytes: b.length, width, height });
+        if (cached && !sending()) writeFileSync(cached, b);
+        checks.push({ game: ref.gameNo, bytes: b.length, width, height, source });
       } catch (e) {
         lastErr = e instanceof Error ? e.message : String(e);
       }
@@ -354,7 +365,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   let pictures: { inline: MimeInline[]; checks: PictureCheck[] } = { inline: [], checks: [] };
   if (r.spec.images?.length) {
     try {
-      pictures = await fetchPictures(r.spec.images);
+      pictures = await fetchPictures(r.spec.images, eventKey);
     } catch (e) {
       return die(`${e instanceof Error ? e.message : String(e)}. Send with --arg images=off to leave the pictures out.`);
     }
@@ -394,6 +405,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   console.log(JSON.stringify({
     event_key: eventKey, message_id: sent.id, thread_id: sent.threadId, sha: r.sha,
     to: envelope.to.length, cc: envelope.cc.length, bcc: envelope.bcc.length, envelope_md5: md5,
+    ...(pictures.checks.length ? { pictures: pictures.checks.map((c) => `G${String(c.game).padStart(2, "0")} from ${c.source}`) } : {}),
   }));
 }
 
@@ -523,11 +535,22 @@ async function main() {
     }
   }
   const r = renderOrDie(ctx, args);
+  // Part S: a note can carry grid pictures, fetched in the dry run and again
+  // (from --picture-cache) at the send, exactly as the game-day email does.
+  let pictures: { inline: MimeInline[]; checks: PictureCheck[] } = { inline: [], checks: [] };
+  if (r.spec.images?.length) {
+    try {
+      pictures = await fetchPictures(r.spec.images, eventKey);
+    } catch (e) {
+      return die(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   if (flag("dry-run")) {
     console.log(JSON.stringify({
       to, subject: r.email.subject, sha: r.sha, batch_md5: batch?.md5 ?? single?.md5,
       ...(plan ? { reply_to: replyTo, thread_id: plan.inbound.threadId, drafts_to_delete: plan.drafts.length, already_replied: false } : {}),
+      ...(pictures.checks.length ? { pictures: pictures.checks } : {}),
     }, null, 2));
     console.log(r.email.text);
     return;
@@ -554,6 +577,7 @@ async function main() {
     email: r.email,
     inReplyTo,
     references,
+    ...(pictures.inline.length ? { inline: pictures.inline } : {}),
     headers: { "X-TNF-Event": eventKey, ...(claim ? { "X-TNF-Claim": claim } : {}) },
   });
   gmail ??= await Gmail.connect(gmailEnvFromProcess(ADMIN_EMAIL));
@@ -575,6 +599,7 @@ async function main() {
   }
   console.log(JSON.stringify({
     event_key: eventKey, recipient: to, message_id: sent.id, thread_id: sent.threadId, sha: r.sha,
+    ...(pictures.checks.length ? { pictures: pictures.checks.map((c) => `G${String(c.game).padStart(2, "0")} from ${c.source}`) } : {}),
     ...(plan ? { replied_to: plan.inbound.id, drafts_deleted: plan.drafts.length, done_label: labeled } : {}),
   }));
   await sleep(GAP_MS);

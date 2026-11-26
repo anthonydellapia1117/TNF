@@ -37,10 +37,24 @@ Anthony's calls, not inferences. Do not relax one without him saying so.
   as **"PAAA M", comped**. Each move was a release (prior holder kept in the
   block's notes) and a reserve, method `requested` with a Part K ref, and
   status followed the participant. No `blocks_requested` changed.
-  - **Anthony's comp is blocks 3 ("AAA") and 23 ("PAAA M"), both
-    comped.** That is his original free $500 block, which is two blocks at
-    $250. No other block is comped. Ernie Sr holds 12 and 25, both
-    rendering "Philadelphia Poultry" (25 by its own name, 12 by his alias).
+  - Anthony's comp was blocks 3 ("AAA") and 23 ("PAAA M"), both comped:
+    his original free $500 block, two blocks at $250. **It ended 2026-11-26
+    (Part S): both went to Mark/Santos, paid. No block is comped now.** Ernie
+    Sr holds 12 and 25, both rendering "Philadelphia Poultry" (25 by its own
+    name, 12 by his alias).
+- **Mark/Santos on 3 and 23 (Anthony, 2026-11-26 12:41 PM ET, Part S, his
+  words in the Ron/Mike group text).** "Mark / santos is on me. I said done
+  but never added them in. They never were put on the board." Ron confirmed
+  they paid him. "Ok they can take my two spots 3 and 23." One RM row, board
+  name **Mark/Santos**, full name "Mark Galasso / Santos": **Santos's full
+  name is unknown; never guess it.** Two blocks, 500 cash held by RM (owner-
+  held, like the Sep 4 RM rows, so the row stays RM). Blocks 3 and 23 were
+  released from Anthony (notes keep "was comped" and the old names),
+  reserved to Mark/Santos and promoted on the payment, all at 12:43 PM ET,
+  before G02's 1:00 PM kickoff, so they count from G02. Anthony's row stays
+  with `blocks_requested` 0 and a dated note (the F Chili precedent); it had
+  no payment rows. Mark got one note email (`note_2026-11-26_mark-santos`,
+  below) with that day's three grids.
 - **The format email (Anthony, 2026-11-10, Part L).** Sent once, approved by
   Anthony at 12:38 PM ET in the TNF PM chat (the approval is on its claim's
   audit row). It told every holder that a block is now $250, that $500 buys
@@ -668,12 +682,36 @@ it does not move blocks.
 - **Per-recipient email never carries an owner** on To or Cc: a holder
   check-in, the recruit send, a T1-T7 reply, the digest, a status report. Its
   To is its one recipient.
+- **The note (Anthony, 2026-11-26, Part S, migration 45).**
+  `note_<YYYY-MM-DD>_<name>` is a new email to one holder in Anthony's own
+  words, when nothing came in to answer (`answer_<id>` needs an inbound
+  message). Dated, per recipient, claimed like any per-recipient send, and
+  one note key goes to one recipient (`email_sends_one_note_per_key`). The
+  database allows only a holder's own address with the game-day exclusions
+  (never a cc, never an owner's alt, never a blocked address, never
+  Anthony's), and the context refuses any other. The context's blocks are
+  those of the participants whose own address it is, never one reached as
+  someone else's cc. Every run of digits from 1 to 100 in the subject or the
+  body must be one of those blocks, unless it is plainly not a block (a day
+  after a whole month name, a clock time, an amount like "pays 1,500", a game
+  code G01 to G10, a URL other than a block page). There is no way to declare
+  a number "not a block": a score or a count is written in words ("two",
+  "thirteen"). Three review rounds showed every declaration scheme let a
+  wrong block through. The guard is a backstop for a slip, not a reason to
+  skip reading the note against the database before it goes.
+  `--arg grids=2,3,4` adds a grid picture per game,
+  only for that date's games with published, verified digits, fetched at the
+  dry run into `--picture-cache` (one file per email and game) and read back
+  at the send, which says where each came from. The lint still applies: no
+  relative date, so "the grids for Thu Nov 26", never "today's grids". The
+  name in the key is lower case, never an address; the key is at most 80
+  characters.
 - **A holder check-in says Paid only when the ledger backs it.** Anthony,
   2026-10-08 (Part E4). `email_holder_facts()` (migration 36) marks an
   assigned block `ledger_paid` when the participant's payment rows,
   corrections included, total at least the block price for every assigned block of theirs
   that is not comped, or when the block is comped: a comp is reconciled, basis
-  comp (Part F2; Anthony's standing comp is blocks 3 and 23 since Part K). Any other assigned block
+  comp (Part F2; Anthony's comp, blocks 3 and 23 from Part K, ended 2026-11-26 in Part S, so no block is comped now). Any other assigned block
   renders "On file, payment not found - reply if that's wrong". Status alone
   never makes a block Paid. Every check-in closes with "If anything here is
   off, reply and I'll fix it."

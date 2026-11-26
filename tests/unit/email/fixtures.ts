@@ -123,4 +123,7 @@ export const ALL_EVENTS: [EmailContext, Record<string, string>][] = [
   [ctx("kickoff_2026-11-24", { common: { ...COMMON, as_of_et: "2026-11-24" } }), {}],
   [ctx("gameday_2026-11-25", { common: { ...COMMON, as_of_et: "2026-11-25" }, day: DAY_PUBLISHED }), {}],
   [ctx("winners_2026-11-25", { common: { ...COMMON, as_of_et: "2026-11-26" }, day: DAY_SCORED }), {}],
+  // Part S: a note to one holder, in Anthony's words, with that date's picture.
+  [ctx("note_2026-11-25_holder", { common: { ...COMMON, as_of_et: "2026-11-25" }, holder: SAMPLE_HOLDER, day: DAY_PUBLISHED }),
+    { subject: "Your blocks", grids: "1", lines: "Pat, block 3 is yours.\nThe grid is below." }],
 ];
