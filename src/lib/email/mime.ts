@@ -10,6 +10,14 @@ export interface MimeAttachment {
   content: Uint8Array;
 }
 
+/** A picture the HTML part shows by Content-ID (Part R). */
+export interface MimeInline {
+  cid: string;
+  filename: string;
+  mimeType: string;
+  content: Uint8Array;
+}
+
 export interface MimeMessage {
   from: string;
   to: string[];
@@ -18,6 +26,8 @@ export interface MimeMessage {
   bcc?: string[];
   email: RenderedEmail;
   attachments?: MimeAttachment[];
+  /** Inline pictures: the HTML part becomes multipart/related with them. */
+  inline?: MimeInline[];
   inReplyTo?: string;
   references?: string;
   /** Extra headers, e.g. X-TNF-Event. */
@@ -70,6 +80,34 @@ export function buildMime(m: MimeMessage): Buffer {
     "MIME-Version: 1.0",
   ];
 
+  const related = `rel-${seed}`;
+  const pics = m.inline ?? [];
+  const htmlPart = pics.length === 0
+    ? [
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(m.email.html),
+      ]
+    : [
+        `Content-Type: multipart/related; boundary="${related}"`,
+        "",
+        `--${related}`,
+        'Content-Type: text/html; charset="UTF-8"',
+        "Content-Transfer-Encoding: base64",
+        "",
+        b64(m.email.html),
+        ...pics.flatMap((p) => [
+          `--${related}`,
+          `Content-Type: ${p.mimeType}; name="${p.filename}"`,
+          "Content-Transfer-Encoding: base64",
+          `Content-ID: <${p.cid}>`,
+          `Content-Disposition: inline; filename="${p.filename}"`,
+          "",
+          b64(p.content),
+        ]),
+        `--${related}--`,
+      ];
   const alternative = [
     `Content-Type: multipart/alternative; boundary="${alt}"`,
     "",
@@ -79,10 +117,7 @@ export function buildMime(m: MimeMessage): Buffer {
     "",
     b64(m.email.text),
     `--${alt}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: base64",
-    "",
-    b64(m.email.html),
+    ...htmlPart,
     `--${alt}--`,
   ];
 

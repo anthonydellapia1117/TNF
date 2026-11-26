@@ -119,6 +119,30 @@ export interface DayFacts {
   games: DayGame[];
 }
 
+/**
+ * One line of the game-day email's block list (Anthony, 2026-11-25, Part R):
+ * the name the board shows, the holder's real name, the holder's own email.
+ * Read from the database at send time into a file the command is handed
+ * (docs/ROUTINES.md); never committed, never printed.
+ */
+export interface BlockListEntry {
+  block: number;
+  /** v_public_blocks.display_name, null for an open block. */
+  board: string | null;
+  /** participants.full_name; shown only when it differs from the board name. */
+  real: string | null;
+  /** participants.email, lower case; null prints "no email on file". */
+  email: string | null;
+}
+
+/** A picture riding inline in the HTML part, by Content-ID. */
+export interface ImageRef {
+  cid: string;
+  alt: string;
+  /** The game whose grid picture it is: /api/grid-image?g=<gameNo>. */
+  gameNo: number;
+}
+
 /** admin_email_context(event_key, recipient) */
 export interface EmailContext {
   event_key: string;
@@ -131,6 +155,8 @@ export interface EmailContext {
   people?: HolderPerson[];
   /** kickoff_, gameday_ and winners_<date>: that date's games (migration 43). */
   day?: DayFacts;
+  /** gameday_<date> only: all 100 blocks, supplied with --block-list (Part R). */
+  block_list?: BlockListEntry[];
   /**
    * A review copy (Part N): marked SAMPLE in its subject and opening, made-up
    * numbers allowed, never sent or claimed, only drafted To Anthony.
@@ -168,6 +194,12 @@ export interface EmailSpec {
   prose?: string[];
   /** The substance: one row per item, identifier first. */
   rows: Row[];
+  /** Grid pictures, after the table (Part R). They need the lint's image allowance. */
+  images?: ImageRef[];
+  /** Paragraph lines before the list. */
+  listIntro?: string[];
+  /** One line per block, verbatim, in order (Part R). */
+  list?: string[];
   /** The one "next" line, with a real date. */
   next: string | null;
   /** Only when something is genuinely owed. */

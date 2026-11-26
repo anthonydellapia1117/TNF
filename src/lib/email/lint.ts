@@ -11,7 +11,7 @@ const RELATIVE = /\b(today|tonight|tomorrow|yesterday|this week|next week|soon)\
 /** Anthony's reply voice (2026-10-08): no filler. Replies only: the digest quotes third-party text. */
 const FILLER = /\b(let me know if|hope this helps|feel free to|don't hesitate)\b/i;
 
-export function lintEmail(e: RenderedEmail): string[] {
+export function lintEmail(e: RenderedEmail, opts: { images?: boolean } = {}): string[] {
   const problems: string[] = [];
   for (const [part, s] of [
     ["subject", e.subject],
@@ -27,7 +27,12 @@ export function lintEmail(e: RenderedEmail): string[] {
     if (line.length > MAX_LINE) problems.push(`text line ${i + 1}: ${line.length} characters (limit ${MAX_LINE})`);
   });
   if (RELATIVE.test(e.text)) problems.push(`text: a relative date ("${RELATIVE.exec(e.text)?.[0]}")`);
-  if (/<img\b/i.test(e.html)) problems.push("html: an image");
+  if (opts.images) {
+    // Part R: only a grid picture inline by Content-ID. Never a remote image.
+    for (const tag of e.html.match(/<img\b[^>]*>/gi) ?? []) {
+      if (!/\bsrc="cid:[A-Za-z0-9._@-]+"/.test(tag)) problems.push("html: an image that is not an inline picture by cid");
+    }
+  } else if (/<img\b/i.test(e.html)) problems.push("html: an image");
   if (/unsubscribe/i.test(e.text + e.html)) problems.push("unsubscribe furniture");
   if (!e.text.trim()) problems.push("text: empty plain-text part");
   return problems;

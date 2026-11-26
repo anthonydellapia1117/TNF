@@ -312,6 +312,12 @@ that path matter and the older version of this file had both wrong.
 | TNF Results (unused) | no | no | not on the trigger record | The same environment as TNF Game Day, which does not help it: with no connectors it cannot read or write the database |
 | TNF Draw Window | - | - | none, the prompt clones | - |
 
+From Thu Nov 26 (Part R) the game-day email also carries each game's grid as
+a picture, rendered from the database at send time by
+`/api/grid-image?g=<n>` (Comfortable view, a name in every block, the
+published digits), and all 100 blocks with names and emails (the block list
+query below).
+
 The day emails carry the grid as one bare link, `https://ad-26-tnf.vercel.app/grid`
 (Part Q, 2026-11-24; it opens on the day's game, the evening's until 4 AM ET),
 nothing is
@@ -421,6 +427,26 @@ command builds, never into the report and never into the repo.
 select coalesce(jsonb_agg(jsonb_build_object('code', code, 'email', email, 'alt_email', alt_email)
                           order by code), '[]'::jsonb)::text
 from owners;
+```
+
+### The block list query
+
+Read-only, run through the Supabase connector, for the game-day email only
+(Part R, Anthony, 2026-11-25). All 100 blocks, in block order: the name the
+board shows (`v_public_blocks.display_name`), the holder's real name
+(`participants.full_name`, shown only when it differs) and the holder's own
+email (never the `cc_email`, which can be another person's). The single value
+goes to `/tmp/blocks.json` exactly as returned and is handed to the command
+with `--block-list`. It holds addresses: never in the report, never in the
+repo, never in a fixture (tests use fake `.test` addresses), and the dry run
+prints the email with every address masked.
+
+```sql
+select coalesce(jsonb_agg(jsonb_build_object('block', v.block_number, 'board', v.display_name,
+                                             'real', p.full_name, 'email', lower(p.email))
+                          order by v.block_number), '[]'::jsonb)::text
+from v_public_blocks v
+left join participants p on p.id = v.participant_id;
 ```
 
 ### The recipient query

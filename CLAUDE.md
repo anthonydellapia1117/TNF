@@ -621,6 +621,32 @@ it does not move blocks.
     the first two on its morning run and the third on its results run
     (`docs/RESULTS_PROMPT.md`); the sweep sends none.
     Sweep replies keep their one-to-one rule and copy no one.
+  - **The game-day email carries pictures and the block list from Thu Nov 26
+    (Anthony, 2026-11-25, Part R, approved in the TNF PM chat at 8:20 PM
+    ET; the approval string is `0e` in `docs/GAME_DAY_PROMPT.md`).** Wed
+    Nov 25's G01 grid went out by hand that evening, in the same format, two
+    messages because the Gmail connector caps a message with an attachment at 25
+    addresses; those two are not in `email_sends` and are never resent or
+    backfilled. From `gameday_2026-11-26` on, the 9:10 morning run sends one
+    message through `npm run email` with `--block-list /tmp/blocks.json`: per
+    game the matchup, kickoff and digits, a picture of that game's grid in
+    **Comfortable view, names in every block, never Fit**
+    (`/api/grid-image?g=<n>`, `src/app/api/grid-image/route.tsx`, fetched at
+    dry run and again at send, inline by Content-ID), then **all 100 blocks in
+    ascending order, one line each**: `<block> - <board name> (<real name, only
+    if different>) - <email, or no email on file>`, built from the database at
+    send time (the block list query in `docs/ROUTINES.md`), then the one link.
+    **The list includes every holder's email address and every holder who has
+    an address sees all of them.** Anthony was told so and chose it, 2026-11-25
+    6:52 PM. Recipients are unchanged (To Anthony, Cc RM and MAP, Bcc every
+    holder's own address) and the Gmail API takes all 35 with the picture
+    (verified 2026-11-25). **The repo is public: addresses live only in the
+    `/tmp` file the routine writes, never in a repo file, a fixture, a log or
+    a report.** The dry run prints the email with every address masked, and
+    the tests use fake `.test` addresses. Without `--block-list` the command
+    renders the Part N email unchanged, which is the fallback: the run drops
+    the list, or with `--arg images=off` the pictures, rather than delay the
+    numbers, and says so in its report.
   - **The game-day pack** (`game_day_g<NN>`, a draft with the grid) is a
     manual command since Part N (`npm run game-day`): no routine drafts or
     sends it, and TNF Game Day's prompt never runs it.

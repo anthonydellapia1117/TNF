@@ -124,7 +124,7 @@ All times ET. Every fire is TNF Game Day. "Morning" is `docs/GAME_DAY_PROMPT.md`
 | | 4:10 PM to 7:10 PM results | G01 has not kicked off: waits |
 | | 8:10 PM to 12:10 AM results | G01 in play: waits until it is final, then scores it and sends `winners_2026-11-25`, or holds it (below) |
 | | 1:10 and 2:10 AM results | Past 12:30 AM a game still not final is staged for Anthony |
-| Thu Nov 26 | 9:10 morning | Draws and publishes G02, G03 and G04. `gameday_2026-11-26`. Then, if Wednesday's winners email has not gone, one more results run for it |
+| Thu Nov 26 | 9:10 morning | Draws and publishes G02, G03 and G04. `gameday_2026-11-26`, **in the Part R format** (Anthony, 2026-11-25 8:20 PM ET): per game the matchup, kickoff and digits, a grid picture in Comfortable view (a name in every block, from `/api/grid-image?g=<n>`), then all 100 blocks, one line each, with the name on the board, the real name if different, and the holder's email, then the one link. If the block list or a picture cannot be built, the run sends without it and says so; the numbers never wait. Then, if Wednesday's winners email has not gone, one more results run for it |
 | | 4:10 PM to 2:10 AM results | Waits until all three games are final (G04 kicks off 8:20 PM; the cutoff is 12:50 AM), scores them, sends `winners_2026-11-26` or holds it |
 | Fri Nov 27 | 9:10 morning | Draws and publishes G05. `gameday_2026-11-27`. Then Thursday's winners email again if it has not gone |
 | | 4:10 PM to 2:10 AM results | G05 kicks off 3:00 PM; the cutoff is 7:30 PM. Scores it, sends `winners_2026-11-27` or holds it |

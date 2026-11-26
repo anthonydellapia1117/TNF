@@ -29,6 +29,11 @@ export function renderText(spec: EmailSpec): string {
   if (spec.opening) blocks.push(wrap(spec.opening).join("\n"));
   if (spec.prose?.length) blocks.push(spec.prose.flatMap(proseText).join("\n"));
   if (spec.rows.length) blocks.push(spec.rows.flatMap(([k, v]) => wrapRow(k, v)).join("\n"));
+  // The text part stands alone: a picture is named, and the live grid at the
+  // link carries the same names.
+  for (const im of spec.images ?? []) blocks.push(wrap(`[Picture: ${im.alt}]`).join("\n"));
+  if (spec.listIntro?.length) blocks.push(spec.listIntro.flatMap((l) => wrap(l)).join("\n"));
+  if (spec.list?.length) blocks.push(spec.list.flatMap((l) => wrap(l, MAX_LINE, "    ")).join("\n"));
   if (spec.next) blocks.push(wrap(spec.next).join("\n"));
   if (spec.deadline) blocks.push(wrap(spec.deadline).join("\n"));
   if (spec.closing) blocks.push(wrap(spec.closing).join("\n"));
@@ -66,6 +71,8 @@ const FONT =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const P = "margin:0 0 14px 0;";
 const NUMERIC = /^[0-9][0-9,]*$/;
+/** A grid picture is wider than the text column: its names have to be readable. */
+const IMAGE_WIDTH = 760;
 
 export function renderHtml(spec: EmailSpec): string {
   const body: string[] = [];
@@ -95,6 +102,14 @@ export function renderHtml(spec: EmailSpec): string {
         `font-family:${FONT};font-size:15px;line-height:1.45;color:#1a1a1a;">${rows}</table>`,
     );
   }
+  for (const im of spec.images ?? []) {
+    body.push(
+      `<p style="${P}"><img src="cid:${esc(im.cid)}" alt="${esc(im.alt)}" ` +
+        `style="width:100%;max-width:${IMAGE_WIDTH}px;height:auto;border:0;display:block;"></p>`,
+    );
+  }
+  if (spec.listIntro?.length) body.push(`<p style="${P}">${spec.listIntro.map(inline).join("<br>")}</p>`);
+  if (spec.list?.length) body.push(`<p style="${P}line-height:1.5;">${spec.list.map(esc).join("<br>")}</p>`);
   if (spec.next) body.push(`<p style="${P}">${inline(spec.next)}</p>`);
   if (spec.deadline) body.push(`<p style="${P}">${inline(spec.deadline)}</p>`);
   if (spec.closing) body.push(`<p style="${P}">${inline(spec.closing)}</p>`);
@@ -103,7 +118,7 @@ export function renderHtml(spec: EmailSpec): string {
     `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
     `<body style="margin:0;padding:16px;background:#ffffff;">` +
-    `<div style="max-width:560px;font-family:${FONT};font-size:15px;line-height:1.45;color:#1a1a1a;">` +
+    `<div style="max-width:${spec.images?.length ? IMAGE_WIDTH : 560}px;font-family:${FONT};font-size:15px;line-height:1.45;color:#1a1a1a;">` +
     `${body.join("")}</div></body></html>`
   );
 }
