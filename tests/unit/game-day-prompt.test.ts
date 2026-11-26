@@ -119,6 +119,10 @@ describe("game day prompt", () => {
     expect(line("5c.")).toMatch(/every address masked/);
     expect(line("5c.")).toMatch(/--arg images=off/);
     expect(line("5c.")).toMatch(/sent without the pictures/);
+    // A lint or list failure drops the list, never the numbers; a plan, envelope or digits failure stays a stop.
+    expect(line("5c.")).toMatch(/starts "email: lint refused" or "email: block list"/);
+    expect(line("5c.")).toMatch(/The numbers never wait on the list or the pictures/);
+    expect(line("5c.")).toMatch(/Any other refusal, the plan, the envelope or the digits, is a stop/);
   });
 
   it("carries the block list query in ROUTINES.md, the holder's own email and never the cc", () => {
