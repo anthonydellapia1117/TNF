@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { envelopeFor, familyOf, renderEvent } from "@/lib/email/registry";
-import { blocksNamed, markedBlocks, note } from "@/lib/email/events/note";
+import { blocksNamed, checkBlocks, note } from "@/lib/email/events/note";
 import { buildMime } from "@/lib/email/mime";
 import type { CommonFacts, DayFacts, EmailContext, HolderFacts } from "@/lib/email/types";
 import { COMMON, dayGame } from "./fixtures";
@@ -183,16 +183,50 @@ describe("note_<date>_<name> (Part S)", () => {
     }
   });
 
-  it("lets a score or a count through only when it is declared, and never a number written as a block", () => {
-    const score = "Mark, block 23 hit the G04 halftime, Chiefs 13 Bills 10.";
+  it("lets a score or a count through only when it is declared, and only outside a sentence about blocks", () => {
+    const score = "Mark, block 23 hit at the G04 half.\nIt was Chiefs 13, Bills 10.";
     expect(() => renderEvent(nctx(), { ...ARGS, lines: score })).toThrow(/block 13 is named/);
     expect(renderEvent(nctx(), { ...ARGS, lines: score, not_blocks: "13,10" }).problems).toEqual([]);
-    expect(() => renderEvent(nctx(), { ...ARGS, lines: "you have blocks 3 and 24.", not_blocks: "24" })).toThrow(/24 is written as a block/);
-    expect(() => renderEvent(nctx(), { ...ARGS, lines: "you have blocks 3, 23, and 24.", not_blocks: "24" })).toThrow(/24 is written as a block/);
-    expect(() => renderEvent(nctx(), { ...ARGS, lines: "Block #24 is yours.", not_blocks: "24" })).toThrow(/24 is written as a block/);
+    // A declaration never reaches a sentence about blocks: a block word, a
+    // "#" or one of the recipient's own block numbers in it.
+    for (const [lines, n] of [
+      ["you have blocks 3 and 24.", "24"],
+      ["you have blocks 3, 23, and 24.", "24"],
+      ["Block #24 is yours.", "24"],
+      ["your blocks are 3 and 24", "24"],
+      ["you have 3 and 24, showing as Mark/Santos", "24"],
+      ["Mark has block 3 and Santos has 24", "24"],
+      ["block 23, 13 at the half.", "13"],
+    ] as const) {
+      expect(() => renderEvent(nctx(), { ...ARGS, lines, not_blocks: n }), lines).toThrow(/in a sentence about blocks/);
+    }
+    // One declaration does not cover a second, block-ish appearance of the number.
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "That's fixed: you have 3 and 24.\nThe G04 half was Chiefs 24, Bills 10.", not_blocks: "24,10" }))
+      .toThrow(/24 is in a sentence about blocks/);
     expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "13" })).toThrow(/not_blocks names 13, which the note does not say/);
     expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "x" })).toThrow(/whole numbers/);
-    expect(markedBlocks(["you have blocks 3, 23, and 24.", "Chiefs 13 Bills 10."])).toEqual([3, 23, 24]);
+    expect(() => checkBlocks(["you have block 3."], new Set([3]), [3])).toThrow(/not_blocks names 3|one of the recipient's blocks/);
+  });
+
+  // The guard check after 2155123: the subject, a number before a colon and a
+  // number glued to letters all slipped past.
+  it("checks the subject and every run of digits, glued or not", () => {
+    expect(() => renderEvent(nctx(), { ...ARGS, subject: "Mark/Santos on blocks 3 and 24" })).toThrow(/block 24 is named/);
+    for (const bad of [
+      "That's fixed: you have blocks 3 and 24: both show as Mark/Santos.",
+      "Block 24: Mark/Santos, paid to Ron.",
+      "Santos has the 24th.",
+      "block No.24 is yours.",
+      "block24 is yours.",
+      "3 and...24 are yours.",
+      "you have 3/24.",
+      "you have 3-24.",
+      "you have block ２４.",
+    ]) {
+      expect(() => renderEvent(nctx(), { ...ARGS, lines: bad }), bad).toThrow(/block 24 is named but the recipient does not hold it/);
+    }
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "you have block \u0662\u0664." })).toThrow(/not 0 to 9/);
+    expect(blocksNamed(["Kickoff is at 4:30PM, G03 on Thu Nov 26, pays 1,500 at https://ad-26-tnf.vercel.app/grid?g=24 or ad-26-tnf.vercel.app/grid."])).toEqual([]);
   });
 
   it("passes Anthony's note to Mark exactly as it goes out", () => {
@@ -205,6 +239,7 @@ describe("note_<date>_<name> (Part S)", () => {
     ].join("\n");
     expect(blocksNamed(mark.split("\n"))).toEqual([3, 23]);
     const r = renderEvent(nctx({ event_key: "note_2026-11-26_mark-santos" }), { lines: mark, subject: "Mark/Santos on blocks 3 and 23", grids: "2,3,4" });
+    expect(r.email.subject).toBe("TNF Holiday Pool 2026 | Mark/Santos on blocks 3 and 23");
     expect(r.problems).toEqual([]);
     expect(r.spec.images?.map((i) => i.gameNo)).toEqual([2, 3, 4]);
   });

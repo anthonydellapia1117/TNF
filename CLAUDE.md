@@ -691,11 +691,14 @@ it does not move blocks.
   (never a cc, never an owner's alt, never a blocked address, never
   Anthony's), and the context refuses any other. The context's blocks are
   those of the participants whose own address it is, never one reached as
-  someone else's cc. Every whole number from 1 to 100 anywhere in the note
-  must be one of those blocks, unless it is plainly not a block (a day after
-  a month name, a clock time, an amount like 1,500, a code like G02, a URL)
-  or the sender declares it with `--arg not_blocks=13,10` (a score, a count);
-  a number written as a block ("block 24", "#24") can never be declared.
+  someone else's cc. Every run of digits from 1 to 100 in the subject or the
+  body must be one of those blocks, unless it is plainly not a block (a day
+  after a whole month name, a clock time, an amount like 1,500, a game code
+  like G02, a URL) or the sender declares it with `--arg not_blocks=13,10`
+  (a score, a count). A declared number may not sit in any sentence about
+  blocks (a block word, a "#", or one of the recipient's own block numbers
+  in it); reword instead. The guard is a backstop for a slip, not a reason to
+  skip reading the note against the database before it goes.
   `--arg grids=2,3,4` adds a grid picture per game,
   only for that date's games with published, verified digits, fetched at the
   dry run into `--picture-cache` (one file per email and game) and read back
