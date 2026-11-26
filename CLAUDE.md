@@ -685,14 +685,21 @@ it does not move blocks.
 - **The note (Anthony, 2026-11-26, Part S, migration 45).**
   `note_<YYYY-MM-DD>_<name>` is a new email to one holder in Anthony's own
   words, when nothing came in to answer (`answer_<id>` needs an inbound
-  message). Dated, per recipient, claimed like any per-recipient send. The
-  database allows only a holder's own address (never a cc, never Anthony's),
-  and the context refuses any other. Every block number the words name must
-  be one the recipient holds. `--arg grids=2,3,4` adds a grid picture per
-  game, only for that date's games with published, verified digits, fetched
-  at the dry run into `--picture-cache` and read back at the send. The lint
-  still applies: no relative date, so "the grids for Thu Nov 26", never
-  "today's grids". The name in the key is lower case, never an address.
+  message). Dated, per recipient, claimed like any per-recipient send, and
+  one note key goes to one recipient (`email_sends_one_note_per_key`). The
+  database allows only a holder's own address with the game-day exclusions
+  (never a cc, never an owner's alt, never a blocked address, never
+  Anthony's), and the context refuses any other. The context's blocks are
+  those of the participants whose own address it is, never one reached as
+  someone else's cc. In any sentence that names a block (block, spot, box or
+  square), every whole number from 1 to 100 must be one of those blocks; a
+  date or a time is not. `--arg grids=2,3,4` adds a grid picture per game,
+  only for that date's games with published, verified digits, fetched at the
+  dry run into `--picture-cache` (one file per email and game) and read back
+  at the send, which says where each came from. The lint still applies: no
+  relative date, so "the grids for Thu Nov 26", never "today's grids". The
+  name in the key is lower case, never an address; the key is at most 80
+  characters.
 - **A holder check-in says Paid only when the ledger backs it.** Anthony,
   2026-10-08 (Part E4). `email_holder_facts()` (migration 36) marks an
   assigned block `ledger_paid` when the participant's payment rows,

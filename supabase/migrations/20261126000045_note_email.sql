@@ -1,20 +1,83 @@
 -- Migration 45: the note email (Anthony, 2026-11-26 12:41 PM ET, Part S).
 --
--- Mark/Santos paid Ron in September and were never put on the board. Anthony
--- gave them his blocks 3 and 23 at 12:41 PM ET on Nov 26 and asked for one
--- email to Mark, in his words, with that day's grid pictures. Nothing came in
--- from Mark, so answer_<id> (a reply to an inbound message) does not fit, and
--- no other per-recipient family carries pictures.
+-- Mark/Santos paid Ron and were never put on the board. Anthony gave them his
+-- blocks 3 and 23 at 12:41 PM ET on Nov 26 and asked for one email to Mark,
+-- in his words, with that day's grid pictures. Nothing came in from Mark, so
+-- answer_<id> (a reply to an inbound message) does not fit, and no other
+-- per-recipient family carries pictures.
 --
 -- note_<YYYY-MM-DD>_<name>: per recipient, claimed in email_sends through
 -- admin_email_claim like every per-recipient send.
---   admin_email_recipients: a holder's own address only (email_holder_addresses
---     via 'primary'), never a cc, never Anthony's own.
---   admin_email_context: refuses any other address; carries people (the
---     greeting rule), holder (the blocks the note may name) and the key
---     date's day facts (pictures only of published, verified games).
--- Both functions are migration 43's, verbatim, with the note branch added.
--- Same signatures, so the grants stand.
+--   admin_email_recipients: a holder's own address, with the game-day
+--     emails' exclusions (email_day_addresses: never an owner's alt, never a
+--     blocked address) and never Anthony's own. Never a cc: a cc can be
+--     another person (the nerdz precedent).
+--   admin_email_context: refuses any other address; carries the holder facts
+--     of the participants this address is the OWN address of
+--     (email_note_holder_facts: never a block reached through someone else's
+--     cc), as people and holder, and the key date's day facts (pictures only
+--     of published, verified games).
+--   email_sends_one_note_per_key: one note key, one recipient.
+-- Both admin functions are migration 43's, verbatim, with the note branch
+-- added. Same signatures, so the grants stand.
+
+-- email_holder_facts (migration 36), reached by own address only. Same shape,
+-- same ledger_paid rule; the reach drops via 'cc'.
+create or replace function email_note_holder_facts(p_recipient text)
+returns jsonb
+language sql stable
+set search_path = public, pg_temp
+as $$
+  with reach as (
+    select h.participant_id, h.via
+      from email_holder_addresses() h
+     where h.recipient = lower(btrim(p_recipient))
+       and h.via = 'primary'
+  ),
+  cover as (
+    select p.id as participant_id,
+           coalesce((select sum(x.amount_cents) from payments x where x.participant_id = p.id), 0) as paid_cents,
+           (select count(*) from blocks b2
+             where b2.participant_id = p.id and b2.status = 'assigned' and not b2.comped) as owed_blocks
+      from participants p
+     where p.id in (select participant_id from reach)
+  )
+  select jsonb_build_object(
+    'people', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'full_name', p.full_name,
+               'display_alias', p.display_alias,
+               'via', r.via,
+               'owner_group', p.owner_group
+             ) order by p.full_name, r.via)
+        from reach r join participants p on p.id = r.participant_id), '[]'::jsonb),
+    'blocks', coalesce((
+      select jsonb_agg(jsonb_build_object(
+               'block_number', b.block_number,
+               'status', b.status,
+               'owner_group', p.owner_group,
+               'owner_full_name', o.full_name,
+               'ledger_paid', b.status = 'assigned'
+                              and (b.comped
+                                   or cv.paid_cents >= cv.owed_blocks
+                                        * (select c.price_per_block_cents from config c where c.id = 1))
+             ) order by b.block_number)
+        from blocks b
+        join participants p on p.id = b.participant_id
+        join cover cv on cv.participant_id = b.participant_id
+        left join owners o on o.code = p.owner_group
+       where b.status in ('reserved', 'assigned')
+         and b.participant_id in (select participant_id from reach)), '[]'::jsonb)
+  )
+$$;
+
+revoke execute on function email_note_holder_facts(text) from public, anon, authenticated;
+
+-- One note key, one recipient: a retry with the wrong --to cannot put Mark's
+-- note in a second holder's mailbox under his key.
+create unique index email_sends_one_note_per_key
+  on email_sends (event_key)
+  where event_key ~ '^note_';
 
 create or replace function admin_email_recipients(p_event_key text)
 returns table (recipient text)
@@ -84,13 +147,14 @@ begin
 
   elsif p_event_key ~ '^note_\d{4}-\d{2}-\d{2}_[a-z0-9]+(-[a-z0-9]+)*$' then
     -- Part S (migration 45): a note from Anthony to one holder, at the
-    -- holder's own address. Never a cc (it can be another person), never
-    -- Anthony's own.
+    -- holder's own address, with the game-day emails' exclusions (never an
+    -- owner's alt, never a blocked address) and never Anthony's own. Never a
+    -- cc: email_day_addresses reads own addresses only.
     return query
-      select distinct h.recipient
-        from email_holder_addresses() h
-       where h.via = 'primary'
-         and h.recipient not in (select email_avd_addresses())
+      select a.address
+        from email_day_addresses() a
+       where a.excluded is null
+         and a.address not in (select email_avd_addresses())
        order by 1;
 
   else
@@ -138,15 +202,17 @@ begin
   elsif p_event_key ~ '^(kickoff|gameday|winners)_\d{4}-\d{2}-\d{2}$' then
     v_out := v_out || jsonb_build_object('day', email_day_facts(substring(p_event_key from '(\d{4}-\d{2}-\d{2})$')::date));
   elsif p_event_key ~ '^note_\d{4}-\d{2}-\d{2}_[a-z0-9]+(-[a-z0-9]+)*$' then
-    -- Part S (migration 45): who the address reaches, the blocks they hold
-    -- (a block the note names must be one of them) and the key date's games
-    -- (a picture only of a game whose digits are published).
+    -- Part S (migration 45): the participants this is the OWN address of,
+    -- and their blocks (a block the note names must be one of them; never one
+    -- reached through someone else's cc), and the key date's games (a picture
+    -- only of a game whose digits are published).
     if not exists (select 1 from admin_email_recipients(p_event_key) r where r.recipient = v_r) then
       raise exception '% is not a holder''s own address; a note goes only to a holder', v_r;
     end if;
+    v_holder := email_note_holder_facts(v_r);
     v_out := v_out || jsonb_build_object(
-      'people', email_people_for(v_r),
-      'holder', email_holder_facts(v_r),
+      'people', v_holder -> 'people',
+      'holder', v_holder,
       'day', email_day_facts(substring(p_event_key from '^note_(\d{4}-\d{2}-\d{2})_')::date));
   end if;
 

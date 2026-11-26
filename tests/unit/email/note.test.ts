@@ -129,9 +129,38 @@ describe("note_<date>_<name> (Part S)", () => {
     }
   });
 
-  it("reads the block numbers Anthony's words name", () => {
+  it("reads every block number in a sentence that names a block, however it is joined", () => {
     expect(blocksNamed(["you have blocks 3 and 23, showing as Pat/Sam."])).toEqual([3, 23]);
     expect(blocksNamed(["Block 7 is yours.", "So are blocks 8, 9 & 10."])).toEqual([7, 8, 9, 10]);
+    // The review of PR 52: each of these let 24 past the old guard.
+    expect(blocksNamed(["you have blocks 3, 23, and 24."])).toEqual([3, 23, 24]);
+    expect(blocksNamed(["blocks 3 or 24"])).toEqual([3, 24]);
+    expect(blocksNamed(["block 3 and also 24"])).toEqual([3, 24]);
+    expect(blocksNamed(["block 3 (and 24)"])).toEqual([3, 24]);
+    expect(blocksNamed(["blocks: 24"])).toEqual([24]);
+    expect(blocksNamed(["Block #24 is yours."])).toEqual([24]);
+    expect(blocksNamed(["they can take my spots 3 and 24"])).toEqual([3, 24]);
+    expect(blocksNamed(["boxes 3 and 24"])).toEqual([3, 24]);
+  });
+
+  it("does not read a date, a time, a game code, a URL or a number over 100 as a block", () => {
     expect(blocksNamed(["The three grids for Thu Nov 26 are below."])).toEqual([]);
+    expect(blocksNamed(["Your blocks 3 and 23 play G02 on Thu Nov 26 at 1:00 PM."])).toEqual([3, 23]);
+    expect(blocksNamed(["blocks 3 and 23, 2026."])).toEqual([3, 23]);
+    expect(blocksNamed(["Find block 3 at https://ad-26-tnf.vercel.app/grid?g=24."])).toEqual([3]);
+  });
+
+  it("refuses a block that is not the recipient's in any of those phrasings", () => {
+    for (const bad of ["you have blocks 3, 23, and 24.", "block 3 (and 24) is yours.", "Block #24 is yours.", "spots 3 and 24 are yours."]) {
+      expect(() => renderEvent(nctx(), { ...ARGS, lines: bad }), bad).toThrow(/block 24 is named but the recipient does not hold it/);
+    }
+  });
+
+  it("refuses a key the ledger cannot take (over 80 characters)", () => {
+    const long = `note_2026-11-26_${"a".repeat(65)}`;
+    expect(long.length).toBe(81);
+    expect(() => note(nctx({ event_key: long }), ARGS)).toThrow(/81 characters; the ledger takes 80/);
+    const ok = `note_2026-11-26_${"a".repeat(64)}`;
+    expect(() => note(nctx({ event_key: ok }), ARGS)).not.toThrow();
   });
 });

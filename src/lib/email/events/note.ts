@@ -1,8 +1,8 @@
 // A note from Anthony to one holder, in his words (Anthony, 2026-11-26 12:41 PM
-// ET, Part S). The first was to Mark/Santos, put on the board that day on
-// blocks 3 and 23 after paying Ron in September and never being added: it says
-// so and carries that date's grid pictures. Not a reply: nothing came in to
-// answer, so answer_<id> does not fit.
+// ET, Part S). The first was to Mark/Santos, who had paid Ron and were never
+// put on the board until that day, on blocks 3 and 23: it says so and carries
+// that date's grid pictures. Not a reply: nothing came in to answer, so
+// answer_<id> does not fit.
 //
 // Event key: note_<YYYY-MM-DD>_<name>, the ET date it goes out and a short
 // lower-case name for the recipient (letters, digits, hyphens; never an
@@ -12,8 +12,11 @@
 //
 // Args:
 //   lines    Anthony's sentences, his greeting included ("Mark, ..."), "\n"
-//            between lines. The sign-off is added. Every block number named
-//            must be one the recipient holds; the context says which.
+//            between lines. The sign-off is added. In any sentence that names
+//            a block (block, spot, box or square), every whole number from 1
+//            to 100 must be a block the recipient holds at their own address
+//            (the context's holder facts, migration 45); a date ("Nov 26") or
+//            a time ("1:00") is not a block number.
 //   subject  what follows "TNF Holiday Pool <year> | " in the subject.
 //   grids    optional, comma-separated game numbers ("2,3,4"): a grid picture
 //            each, Comfortable view, fetched at send time like Part R's. Each
@@ -27,17 +30,38 @@ import { POOL_SUBJECT, SIGNOFF } from "../copy.ts";
 import { sentenceCount } from "./answer.ts";
 
 export const NOTE_KEY = /^note_(\d{4}-\d{2}-\d{2})_([a-z0-9]+(?:-[a-z0-9]+)*)$/;
+/** email_sends.event_key is at most 80 characters (migration 33). */
+export const MAX_NOTE_KEY = 80;
 /** A note is short: one paragraph of Anthony's. */
 export const MAX_NOTE_SENTENCES = 8;
 
 const code = (n: number) => `G${String(n).padStart(2, "0")}`;
 const gridCid = (n: number) => `grid-${code(n).toLowerCase()}@tnf`;
 
-/** Every block number the lines name after "block" or "blocks": "blocks 3 and 23" is [3, 23]. */
+const MONTH = /^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?$/i;
+const BLOCK_WORD = /\b(?:blocks?|spots?|box(?:es)?|squares?)\b/i;
+
+/**
+ * The block numbers a note names. Strict on purpose: in every sentence that
+ * mentions a block (block, spot, box or square, singular or plural), every
+ * whole number from 1 to 100 counts, however it is joined ("blocks 3, 23, and
+ * 24", "block 3 (and 24)", "#24", "3 or 24"). A day after a month ("Nov 26"),
+ * a clock time ("1:00"), a number inside a word or code ("G02") or a URL is
+ * not a block. A stray number fails safe: the send is refused and says which.
+ */
 export function blocksNamed(lines: readonly string[]): number[] {
   const out: number[] = [];
-  for (const m of lines.join(" ").matchAll(/\bblocks?\s+(\d+(?:\s*(?:,|and|&)\s*\d+)*)/gi)) {
-    for (const n of m[1].split(/\s*(?:,|and|&)\s*/i)) out.push(Number(n));
+  const text = lines.join(" ").replace(/https?:\/\/\S+/g, " ");
+  for (const sentence of text.split(/(?<=[.!?])\s+/)) {
+    if (!BLOCK_WORD.test(sentence)) continue;
+    const s = sentence.replace(/\b\d{1,2}:\d{2}\b/g, " ");
+    for (const m of s.matchAll(/(?<![\w.])#?(\d+)(?![\w:])/g)) {
+      const n = Number(m[1]);
+      if (n < 1 || n > 100) continue;
+      const before = s.slice(0, m.index ?? 0).trimEnd().split(/\s+/).pop() ?? "";
+      if (MONTH.test(before)) continue;
+      out.push(n);
+    }
   }
   return out;
 }
@@ -45,6 +69,7 @@ export function blocksNamed(lines: readonly string[]): number[] {
 export function note(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
   const m = NOTE_KEY.exec(ctx.event_key);
   if (!m) throw new Error(`note: "${ctx.event_key}" is not note_<YYYY-MM-DD>_<name>`);
+  if (ctx.event_key.length > MAX_NOTE_KEY) throw new Error(`note: the key is ${ctx.event_key.length} characters; the ledger takes ${MAX_NOTE_KEY}`);
   const date = m[1];
 
   const lines = (args.lines ?? "").split("\n").map((l) => hyphenate(l.trim())).filter(Boolean);
