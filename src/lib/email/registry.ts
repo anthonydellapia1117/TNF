@@ -115,7 +115,7 @@ export function renderEvent(ctx: EmailContext, args: EventArgs = {}): Rendered {
   }
   const spec = f.render(ctx, args);
   const email = render(spec);
-  return { spec, email, sha: renderedSha(email), problems: [...lintEmail(email), ...(f.voice ? lintVoice(email) : [])] };
+  return { spec, email, sha: renderedSha(email), problems: [...lintEmail(email, { images: (spec.images?.length ?? 0) > 0 }), ...(f.voice ? lintVoice(email) : [])] };
 }
 
 /**

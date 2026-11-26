@@ -88,11 +88,12 @@ import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { envelopeFor, familyOf, renderEvent, REPLY_TO_MESSAGE, SUBJECT_STEMS } from "../src/lib/email/registry.ts";
 import { REPLY_KEY } from "../src/lib/email/events/replies.ts";
-import { buildMime, type MimeAttachment } from "../src/lib/email/mime.ts";
+import { buildMime, type MimeAttachment, type MimeInline } from "../src/lib/email/mime.ts";
+import { SITE_URL } from "../src/lib/email/copy.ts";
 import { lintEmail } from "../src/lib/email/lint.ts";
 import { attachmentBase } from "../src/lib/email/events/game-day.ts";
 import { Gmail, gmailEnvFromProcess, type InboundMeta } from "../src/lib/email/transport.ts";
-import type { EmailBatch, EmailContext, EventArgs } from "../src/lib/email/types.ts";
+import type { BlockListEntry, EmailBatch, EmailContext, EventArgs, ImageRef } from "../src/lib/email/types.ts";
 import type { OwnerAddress } from "../src/lib/email/envelope.ts";
 import { checkBroadcast, envelopeMd5, planArithmetic, type BroadcastPlan } from "../src/lib/email/broadcast.ts";
 import { sampleDay } from "../src/lib/email/sample.ts";
@@ -221,6 +222,55 @@ function intOpt(name: string): number {
  * A broadcast as one message: a sample to Anthony alone, or the real thing to
  * every owner with an address on To and the plan's Bcc, after the claim.
  */
+/** Every address masked: the block list is the one body with addresses in it, and a log is not a place for them. */
+const redact = (s: string) => s.replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g, "<email>");
+
+interface PictureCheck { game: number; bytes: number; width: number; height: number }
+
+/**
+ * Fetch each grid picture the email names (Part R) from the site, at send
+ * time, and check it is a real PNG of a size that can hold 100 names. A failed
+ * fetch is retried once; a second failure throws, and the routine falls back
+ * to --arg images=off, which it reports.
+ */
+async function fetchPictures(refs: readonly ImageRef[]): Promise<{ inline: MimeInline[]; checks: PictureCheck[] }> {
+  const base = (process.env.TNF_SITE_URL ?? SITE_URL).replace(/\/$/, "");
+  const inline: MimeInline[] = [];
+  const checks: PictureCheck[] = [];
+  for (const ref of refs) {
+    let lastErr = "";
+    let buf: Buffer | null = null;
+    for (let attempt = 0; attempt < 2 && !buf; attempt++) {
+      try {
+        const res = await fetch(`${base}/api/grid-image?g=${ref.gameNo}`, { cache: "no-store" });
+        if (!res.ok) {
+          lastErr = `HTTP ${res.status} ${(await res.text()).slice(0, 120)}`;
+          continue;
+        }
+        const b = Buffer.from(await res.arrayBuffer());
+        const png = b.length > 20_000 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+        if (!png) {
+          lastErr = `not a PNG of a usable size (${b.length} bytes)`;
+          continue;
+        }
+        const width = b.readUInt32BE(16);
+        const height = b.readUInt32BE(20);
+        if (width < 1200 || height < 800) {
+          lastErr = `picture is ${width}x${height}; the names would not read`;
+          continue;
+        }
+        buf = b;
+        checks.push({ game: ref.gameNo, bytes: b.length, width, height });
+      } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
+      }
+    }
+    if (!buf) throw new Error(`grid picture for G${String(ref.gameNo).padStart(2, "0")}: ${lastErr}`);
+    inline.push({ cid: ref.cid, filename: `${ref.cid.split("@")[0]}.png`, mimeType: "image/png", content: buf });
+  }
+  return { inline, checks };
+}
+
 async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArgs): Promise<void> {
   if (ctx.recipient !== ADMIN_EMAIL) die(`a broadcast context is fetched for ADMIN_EMAIL, not ${ctx.recipient}`);
   if (ctx.sample && !flag("sample-draft")) die(`${eventKey}: this context is a SAMPLE; it is only ever drafted To Anthony (--sample-draft)`);
@@ -232,7 +282,19 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
     const day = /_(\d{4}-\d{2}-\d{2})$/.exec(eventKey)?.[1] ?? die(`${eventKey} has no date`);
     if (!eventKey.startsWith("kickoff_")) ctx.day = sampleDay(ctx.common, day, eventKey.startsWith("winners_"));
   }
-  const r = renderOrDie(ctx, args);
+  // Part R: the block list (names and emails, all 100 blocks), read from the
+  // file the routine exported. Only the game-day email carries it.
+  const blockListPath = opt("block-list");
+  if (blockListPath) {
+    if (familyOf(eventKey).name !== "gameday") die(`--block-list is for gameday_<date> only, not ${eventKey}`);
+    ctx = { ...ctx, block_list: readJson<BlockListEntry[]>(blockListPath).value };
+  }
+  let r;
+  try {
+    r = renderOrDie(ctx, args);
+  } catch (e) {
+    return die(redact(e instanceof Error ? e.message : String(e)));
+  }
 
   // The review copy goes out as a Gmail draft To Anthony alone, nothing else
   // on the envelope, never claimed and never sent.
@@ -270,13 +332,25 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   const envelope = envelopeFor(eventKey, { adminEmail: ADMIN_EMAIL, owners, derived: plan.bcc, omit });
   checkBroadcast(plan, envelope, owners, omit, range, { ownersAsHolders: familyOf(eventKey).day === true });
   const md5 = envelopeMd5(envelope);
+  // Part R: the pictures are fetched in the dry run too, so a dry run proves
+  // they can be fetched, and again at the send, so the email carries what the
+  // grid shows at that moment.
+  let pictures: { inline: MimeInline[]; checks: PictureCheck[] } = { inline: [], checks: [] };
+  if (r.spec.images?.length) {
+    try {
+      pictures = await fetchPictures(r.spec.images);
+    } catch (e) {
+      return die(`${e instanceof Error ? e.message : String(e)}. Send with --arg images=off to leave the pictures out.`);
+    }
+  }
   console.log(JSON.stringify({
     event_key: eventKey, subject: r.email.subject, sha: r.sha,
     arithmetic: planArithmetic(plan), to: envelope.to.length, cc: envelope.cc.length, bcc: envelope.bcc.length,
     omitted: omit.map((c) => c.trim().toUpperCase()), envelope_md5: md5,
+    ...(r.spec.list ? { block_list_lines: r.spec.list.length, pictures: pictures.checks } : {}),
   }, null, 2));
   if (flag("dry-run")) {
-    console.log(r.email.text);
+    console.log(redact(r.email.text));
     return;
   }
   if (!flag("send-broadcast")) die("a broadcast goes out with --send-broadcast, after its claim; --dry-run shows it");
@@ -297,6 +371,7 @@ async function broadcastSend(eventKey: string, ctx: EmailContext, args: EventArg
   if (prior) die(`${eventKey} already went out (Gmail message ${prior}); refusing a second copy`);
   const mime = buildMime({
     from: FROM, to: envelope.to, cc: envelope.cc, bcc: envelope.bcc, email: r.email,
+    ...(pictures.inline.length ? { inline: pictures.inline } : {}),
     headers: { "X-TNF-Event": eventKey, "X-TNF-Claim": claim, "X-TNF-Envelope": md5 },
   });
   const sent = await gmail.send(mime);

@@ -95,9 +95,37 @@ describe("game day prompt", () => {
     expect(line("5a.")).toMatch(/do not claim or send again/);
     expect(line("5c.")).toMatch(/--dry-run/);
     expect(line("5c.")).toMatch(/to must be 1 and cc must be 2/);
-    expect(line("5d.")).toContain(`'<the approval string in 0d>'`);
+    expect(line("5d.")).toContain("<the approval string in 0d, or in 0e when --block-list is used>");
     expect(line("5e.")).toMatch(/--send-broadcast --claim <claim_id> --expect-sha <sha> --expect-envelope <envelope_md5>/);
     expect(line("5f.")).toMatch(/select admin_email_record_sent_broadcast\('K'/);
+  });
+
+  // Part R (Anthony, 2026-11-25 8:20 PM ET): the game-day email carries each
+  // game's grid picture and all 100 blocks with names and emails.
+  it("carries the Part R approval string exactly, and uses it only with the block list", () => {
+    expect(line("0e.")).toContain(
+      "Anthony approved the game-day email with grid images and the full block list including names and emails in the TNF PM chat on 2026-11-25 at 8:20 PM ET (Part R)",
+    );
+    expect(line("5d.")).toMatch(/or in 0e when --block-list is used/);
+  });
+
+  it("builds the block list and pictures for gameday only, and falls back rather than skip the numbers", () => {
+    expect(line("5b.")).toMatch(/For gameday_D only \(Part R\)/);
+    expect(line("5b.")).toMatch(/\/tmp\/blocks\.json/);
+    expect(line("5b.")).toMatch(/exactly 100 entries/);
+    expect(line("5b.")).toMatch(/sent without the block list/);
+    expect(line("5c.")).toMatch(/--block-list \/tmp\/blocks\.json/);
+    expect(line("5c.")).toMatch(/block_list_lines \(it must be 100\)/);
+    expect(line("5c.")).toMatch(/every address masked/);
+    expect(line("5c.")).toMatch(/--arg images=off/);
+    expect(line("5c.")).toMatch(/sent without the pictures/);
+  });
+
+  it("carries the block list query in ROUTINES.md, the holder's own email and never the cc", () => {
+    const q = ROUTINES.slice(ROUTINES.indexOf("### The block list query"));
+    expect(q).toMatch(/lower\(p\.email\)/);
+    expect(q).toMatch(/v_public_blocks v/);
+    expect(q).not.toMatch(/cc_email'/);
   });
 
   it("carries the approval string exactly", () => {

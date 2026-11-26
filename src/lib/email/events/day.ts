@@ -16,7 +16,7 @@
 // opening, numbers made up (src/lib/email/sample.ts), only ever a draft To
 // Anthony.
 
-import type { DayGame, EmailContext, EmailSpec, Row } from "../types.ts";
+import type { BlockListEntry, DayGame, EmailContext, EmailSpec, EventArgs, ImageRef, Row } from "../types.ts";
 import { amount, clock, hyphenate, monthDay, shortDate, teamShort } from "../format.ts";
 import { claimDeadline, kickoffOf, seasonYear, uniformPayouts, ymdOfGame } from "../facts.ts";
 import { BOARD_URL, GRID_URL, HOW_A_BLOCK_WINS, POOL_SUBJECT, SIGNOFF } from "../copy.ts";
@@ -82,7 +82,39 @@ export function kickoff(ctx: EmailContext): EmailSpec {
   };
 }
 
-export function gameday(ctx: EmailContext): EmailSpec {
+/**
+ * The 100 lines of the game-day email's block list (Anthony, 2026-11-25, Part R):
+ * "<block> - <board name> (<real name, only if different>) - <email, or 'no
+ * email on file'>", block 1 to 100. Every value comes from the file the
+ * command is handed; nothing here is a name or an address.
+ */
+export function blockListLines(entries: readonly BlockListEntry[]): string[] {
+  const by = new Map<number, BlockListEntry>();
+  for (const e of entries) {
+    if (!Number.isInteger(e.block) || e.block < 1 || e.block > 100) throw new Error(`block list: block ${e.block} is not 1 to 100`);
+    if (by.has(e.block)) throw new Error(`block list: block ${e.block} appears twice`);
+    by.set(e.block, e);
+  }
+  const lines: string[] = [];
+  for (let n = 1; n <= 100; n++) {
+    const e = by.get(n);
+    if (!e) throw new Error(`block list: block ${n} is missing; the list is all 100 blocks`);
+    const board = e.board?.trim() ? hyphenate(e.board.trim()) : null;
+    if (!board) {
+      lines.push(`${n} - open`);
+      continue;
+    }
+    const real = e.real?.trim() ?? "";
+    const different = real !== "" && real.toLowerCase() !== board.toLowerCase() && hyphenate(real).toLowerCase() !== board.toLowerCase();
+    const email = e.email?.trim() ? e.email.trim().toLowerCase() : "no email on file";
+    lines.push(`${n} - ${board}${different ? ` (${hyphenate(real)})` : ""} - ${email}`);
+  }
+  return lines;
+}
+
+const gridCid = (n: number) => `grid-${code(n).toLowerCase()}@tnf`;
+
+export function gameday(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
   const date = keyDate(ctx, GAMEDAY_KEY, "gameday");
   const c = ctx.common;
   const games = dayGames(ctx, date, "gameday");
@@ -98,16 +130,36 @@ export function gameday(ctx: EmailContext): EmailSpec {
       [code(g.game_no), `${matchup(g)}, ${clock(g.kickoff_at, c.timezone)} ET${net}`],
       [`Rows, ${teamShort(g.away_team)} (away)`, g.row_digits.join(" ")],
       [`Columns, ${teamShort(g.home_team)} (home)`, g.col_digits.join(" ")],
-      // One link for every game (Part Q): /grid opens on today's game.
-      ["Grid", GRID_URL],
+      // One link for every game (Part Q): /grid opens on today's game. With the
+      // block list (Part R) the link closes the list's introduction instead.
+      ...(ctx.block_list ? [] : ([["Grid", GRID_URL]] as Row[])),
     );
   }
   const n = games.length;
+  // Part R: a grid picture per game (Comfortable view, names in every block)
+  // and all 100 blocks, ahead of the closing line. Present only when the
+  // command was handed the block list; without it the email is the Part N
+  // template, word for word. --arg images=off keeps the list and drops the
+  // pictures (the routine's fallback when a picture cannot be fetched).
+  const list = ctx.block_list ? blockListLines(ctx.block_list) : undefined;
+  const images: ImageRef[] | undefined = list && args.images !== "off"
+    ? games.map((g) => ({ cid: gridCid(g.game_no), gameNo: g.game_no, alt: `${code(g.game_no)} grid, ${matchup(g)}` }))
+    : undefined;
   return {
     subject: subject(ctx, `Game day numbers | ${monthDay(date)}`),
     greeting: "Everyone",
     opening: opening(ctx, n === 1 ? `Numbers are in for the ${shortDate(date)} game.` : `Numbers are in for the ${n} games on ${shortDate(date)}.`),
     rows,
+    ...(images ? { images } : {}),
+    ...(list
+      ? {
+          listIntro: [
+            `Live grid with a name search: ${GRID_URL}`,
+            "Every block in order: the block number, the name on the board, the real name if it is different, and the email on file.",
+          ],
+          list,
+        }
+      : {}),
     next: n === 1 ? "Winners go out after the game ends." : "Winners go out after the last game ends.",
     deadline: null,
     signoff: SIGNOFF,
