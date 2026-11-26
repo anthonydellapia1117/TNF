@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { envelopeFor, familyOf, renderEvent } from "@/lib/email/registry";
-import { blocksNamed, checkBlocks, note } from "@/lib/email/events/note";
+import { blocksNamed, note } from "@/lib/email/events/note";
 import { buildMime } from "@/lib/email/mime";
 import type { CommonFacts, DayFacts, EmailContext, HolderFacts } from "@/lib/email/types";
 import { COMMON, dayGame } from "./fixtures";
@@ -183,29 +183,29 @@ describe("note_<date>_<name> (Part S)", () => {
     }
   });
 
-  it("lets a score or a count through only when it is declared, and only outside a sentence about blocks", () => {
-    const score = "Mark, block 23 hit at the G04 half.\nIt was Chiefs 13, Bills 10.";
-    expect(() => renderEvent(nctx(), { ...ARGS, lines: score })).toThrow(/block 13 is named/);
-    expect(renderEvent(nctx(), { ...ARGS, lines: score, not_blocks: "13,10" }).problems).toEqual([]);
-    // A declaration never reaches a sentence about blocks: a block word, a
-    // "#" or one of the recipient's own block numbers in it.
-    for (const [lines, n] of [
-      ["you have blocks 3 and 24.", "24"],
-      ["you have blocks 3, 23, and 24.", "24"],
-      ["Block #24 is yours.", "24"],
-      ["your blocks are 3 and 24", "24"],
-      ["you have 3 and 24, showing as Mark/Santos", "24"],
-      ["Mark has block 3 and Santos has 24", "24"],
-      ["block 23, 13 at the half.", "13"],
-    ] as const) {
-      expect(() => renderEvent(nctx(), { ...ARGS, lines, not_blocks: n }), lines).toThrow(/in a sentence about blocks/);
+  // The last guard check (e888b8a): every remaining way past the guard went
+  // through a not_blocks declaration, so there is none. A number that is not
+  // a block is written in words.
+  it("takes no declaration: a number that is not one of the recipient's blocks is refused, and words pass", () => {
+    expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "24" })).toThrow(/there is no not_blocks/);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "Mark, block 23 hit at the G04 half.\nIt was Chiefs 13, Bills 10." })).toThrow(/block 13 is named/);
+    expect(renderEvent(nctx(), { ...ARGS, lines: "Mark, block 23 hit at the G04 half.\nIt was Chiefs thirteen, Bills ten." }).problems).toEqual([]);
+    expect(renderEvent(nctx(), { ...ARGS, lines: "Mark, you have blocks 3 and 23, two for your 500.\nIf one hits the final it pays 1,500." }).problems).toEqual([]);
+  });
+
+  it("does not take an amount right after a list for an amount", () => {
+    for (const bad of ["That's fixed: blocks 3 and 24,250 each.", "you have blocks 3,24,100.", "blocks 3 & 24,500 paid to Ron."]) {
+      expect(() => renderEvent(nctx(), { ...ARGS, lines: bad }), bad).toThrow(/block 24 is named/);
     }
-    // One declaration does not cover a second, block-ish appearance of the number.
-    expect(() => renderEvent(nctx(), { ...ARGS, lines: "That's fixed: you have 3 and 24.\nThe G04 half was Chiefs 24, Bills 10.", not_blocks: "24,10" }))
-      .toThrow(/24 is in a sentence about blocks/);
-    expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "13" })).toThrow(/not_blocks names 13, which the note does not say/);
-    expect(() => renderEvent(nctx(), { ...ARGS, not_blocks: "x" })).toThrow(/whole numbers/);
-    expect(() => checkBlocks(["you have block 3."], new Set([3]), [3])).toThrow(/not_blocks names 3|one of the recipient's blocks/);
+    expect(blocksNamed(["If block 3 or 23 hits the final it pays 1,500."])).toEqual([3, 23]);
+  });
+
+  it("exempts only real game codes, real times, a spaced month day and the URL itself", () => {
+    expect(blocksNamed(["G24 and 24:00 and Nov24 are not exempt."])).toEqual([24, 24, 24]);
+    expect(blocksNamed(["G04 at 8:20 PM on Thu Nov 26."])).toEqual([]);
+    expect(blocksNamed(["See https://ad-26-tnf.vercel.app/block/24 or ad-26-tnf.vercel.app/blocks/24."])).toEqual([24, 24]);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "Yours: https://ad-26-tnf.vercel.app/block/24" })).toThrow(/block 24 is named/);
+    expect(() => renderEvent(nctx(), { ...ARGS, lines: "Grid: https://ad-26-tnf.vercel.app/grid,24 is yours." })).toThrow(/block 24 is named/);
   });
 
   // The guard check after 2155123: the subject, a number before a colon and a

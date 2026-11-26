@@ -15,14 +15,9 @@
 //            between lines. The sign-off is added. Every run of digits from 1
 //            to 100 in them or in the subject must be a block the recipient
 //            holds at their own address (the context's holder facts,
-//            migration 45). A day after a month ("Nov 26"), a time ("1:00"),
-//            an amount with a thousands comma ("1,500"), a game code ("G02")
-//            or a URL is not a block.
-//   not_blocks  optional, comma-separated numbers the note says that are not
-//            blocks (a score, a count). Each must appear in the note, must
-//            not be one of the recipient's blocks, and must not appear in a
-//            sentence about blocks (a block word, a "#", or one of the
-//            recipient's block numbers in it).
+//            migration 45); see blocksNamed for the few shapes that are not
+//            a block (a date, a time, an amount, a game code, a URL). Any
+//            other number is written in words.
 //   subject  what follows "TNF Holiday Pool <year> | " in the subject.
 //   grids    optional, comma-separated game numbers ("2,3,4"): a grid picture
 //            each, Comfortable view, fetched at send time like Part R's. Each
@@ -46,75 +41,58 @@ const gridCid = (n: number) => `grid-${code(n).toLowerCase()}@tnf`;
 
 /** A whole month name or its abbreviation: "Nov 26" is a date, "Mark 24" is not. */
 const MONTH = /^(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?$/i;
-/** A word for a block, or "#": a sentence with one in it is about blocks. */
-const BLOCK_WORD = /\b(?:blocks?|spots?|box(?:es)?|squares?)\b|#/i;
-
-/** One number a note says that could be a block, and the sentence it is in. */
-export interface NumberMention { n: number; sentence: string }
+/** Words that continue a list of numbers: an amount right after one is not exempt ("3 and 24,250"). */
+const LIST_WORD = /^(?:and|or|&|plus|also|blocks?|spots?|box(?:es)?|squares?|no\.?|number|#)$/i;
 
 /**
- * Every number a note says that could be a block, with its sentence: each run
- * of digits from 1 to 100, in the subject and in the lines, whatever is
- * around it ("block 24", "#24", "Mark 24", "Block 24:", "block24", "No.24",
- * "24th", "3/24"). Not one: a game code ("G02"), a clock time ("1:00",
- * "4:30PM"), an amount with a thousands comma ("1,500"), a URL or the site's
- * address, or a day after a whole month name ("Nov 26"). Digits are read
- * after Unicode compatibility folding, so a fullwidth or circled digit is a
- * digit; any other non-ASCII digit refuses the note.
+ * Every number a note says that could be a block: each run of digits from 1
+ * to 100 in the subject and the lines, whatever is around it ("block 24",
+ * "#24", "Mark 24", "Block 24:", "block24", "No.24", "24th", "3/24"), and the
+ * number in a link to a block page (".../block/24"). Not one, and nothing
+ * else: a game code G01 to G10, a clock time ("1:00", "4:30PM"), an amount
+ * with a thousands comma after an ordinary word ("pays 1,500", but not "3
+ * and 24,250"), a URL or the site's address, or a day after a whole month
+ * name and a space ("Nov 26"). Digits are read after Unicode compatibility
+ * folding, so a fullwidth or circled digit counts; any other non-ASCII digit
+ * refuses the note.
+ *
+ * Known limits, accepted: a month name used as a person's name ("Jan 24")
+ * reads as a date, and a game number in a link's query ("?g=24") is part of
+ * the link. The guard is a backstop for a slip; the note is still read
+ * against the database before it goes.
  */
-export function numberMentions(texts: readonly string[]): NumberMention[] {
-  const out: NumberMention[] = [];
+export function blocksNamed(texts: readonly string[]): number[] {
+  const out: number[] = [];
   for (const raw of texts) {
     const folded = raw.normalize("NFKC");
     if (/[^\x00-\x7F]/.test(folded.replace(/[^\p{Nd}]/gu, "")))
       throw new Error("note: a digit that is not 0 to 9; write block numbers in plain digits");
-    const text = folded
-      .replace(/https?:\/\/\S+/gi, " ")
-      .replace(/\bad-26-tnf\.vercel\.app\S*/gi, " ")
-      .replace(/\bG\d{2}\b/g, " ")
-      .replace(/\b\d{1,2}:\d{2}(?:\s*[ap]\.?m\.?)?/gi, " ")
-      .replace(/\b\d{1,3}(?:,\d{3})+\b/g, " ");
-    for (const sentence of text.split(/(?<=[.!?])\s+(?=\S)/)) {
-      for (const m of sentence.matchAll(/\d+/g)) {
-        const n = Number(m[0]);
-        if (n < 1 || n > 100) continue;
-        const word = sentence.slice(0, m.index ?? 0).trimEnd().split(/\s+/).pop() ?? "";
-        if (MONTH.test(word)) continue;
-        out.push({ n, sentence });
-      }
+    const pages: number[] = [];
+    let text = folded
+      // A URL ends where the layout's link ends: at a space or a comma
+      // (layout.ts URL_RE), so ",24" after a link is read as the text it is.
+      .replace(/(?:https?:\/\/)?ad-26-tnf\.vercel\.app[^\s,]*|https?:\/\/[^\s,]+/gi, (url) => {
+        for (const m of url.matchAll(/\/blocks?\/(\d+)/gi)) pages.push(Number(m[1]));
+        return " ";
+      })
+      .replace(/\bG(?:0[1-9]|10)\b/g, " ")
+      .replace(/\b(?:[01]?\d|2[0-3]):[0-5]\d(?:\s*[ap]\.?m\.?)?/gi, " ");
+    text = text.replace(/\b\d{1,3}(?:,\d{3})+\b/g, (amount, at: number) => {
+      const before = text.slice(0, at);
+      if (!/\s$/.test(before)) return amount;
+      const word = before.trimEnd().split(/\s+/).pop() ?? "";
+      return word === "" || /[\d,]$/.test(word) || LIST_WORD.test(word) ? amount : " ";
+    });
+    for (const m of text.matchAll(/\d+/g)) {
+      const n = Number(m[0]);
+      if (n < 1 || n > 100) continue;
+      const before = text.slice(0, m.index ?? 0);
+      if (/\s$/.test(before) && MONTH.test(before.trimEnd().split(/\s+/).pop() ?? "")) continue;
+      out.push(n);
     }
+    for (const n of pages) if (n >= 1 && n <= 100) out.push(n);
   }
   return out;
-}
-
-/** The numbers a note's lines say that could be blocks, in order (see numberMentions). */
-export function blocksNamed(lines: readonly string[]): number[] {
-  return numberMentions(lines).map((x) => x.n);
-}
-
-/**
- * The guard: every number the subject and the lines say that could be a
- * block is one the recipient holds, or is declared not a block. A declared
- * number may not appear in any sentence that is about blocks: one with a
- * block word, a "#", or one of the recipient's own block numbers in it.
- */
-export function checkBlocks(texts: readonly string[], held: ReadonlySet<number>, notBlocks: readonly number[]): void {
-  const mentions = numberMentions(texts);
-  const declared = new Set<number>();
-  for (const n of notBlocks) {
-    const where = mentions.filter((x) => x.n === n);
-    if (where.length === 0) throw new Error(`note: not_blocks names ${n}, which the note does not say`);
-    if (held.has(n)) throw new Error(`note: ${n} is one of the recipient's blocks, so it cannot be declared not a block`);
-    for (const x of where) {
-      const aboutBlocks = BLOCK_WORD.test(x.sentence) || numberMentions([x.sentence]).some((y) => held.has(y.n));
-      if (aboutBlocks) throw new Error(`note: ${n} is in a sentence about blocks ("${x.sentence.trim()}"), so it cannot be declared not a block; reword it`);
-    }
-    declared.add(n);
-  }
-  for (const x of mentions) {
-    if (held.has(x.n) || declared.has(x.n)) continue;
-    throw new Error(`note: block ${x.n} is named but the recipient does not hold it (a number that is not a block, in a sentence that is not about blocks, goes in --arg not_blocks)`);
-  }
 }
 
 export function note(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
@@ -132,16 +110,15 @@ export function note(ctx: EmailContext, args: EventArgs = {}): EmailSpec {
 
   // Every number in the subject and Anthony's words that could be a block
   // must be one the database says this recipient holds at their own address.
-  // A number that is not a block (a score, a count) passes only when declared
-  // in not_blocks, and only in a sentence that is not about blocks.
+  // There is no way to declare a number "not a block": a score or a count is
+  // written in words. A slip fails safe, and the refusal says which number.
   const holder = ctx.holder;
   if (!holder) throw new Error(`note: the context has no holder facts; fetch admin_email_context('${ctx.event_key}', ...)`);
+  if (args.not_blocks !== undefined) throw new Error("note: there is no not_blocks; write a number that is not a block in words");
   const held = new Set(holder.blocks.map((b) => b.block_number));
-  const notBlocks = (args.not_blocks ?? "").split(",").map((x) => x.trim()).filter(Boolean).map((w) => {
-    if (!/^\d+$/.test(w)) throw new Error(`note: not_blocks wants whole numbers, got "${w}"`);
-    return Number(w);
-  });
-  checkBlocks([what, ...lines], held, notBlocks);
+  for (const b of blocksNamed([what, ...lines])) {
+    if (!held.has(b)) throw new Error(`note: block ${b} is named but the recipient does not hold it (write a number that is not a block in words)`);
+  }
 
   const wanted = (args.grids ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   let images: ImageRef[] | undefined;
